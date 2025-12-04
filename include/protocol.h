@@ -37,8 +37,8 @@
 
 #include <buffer.h>
 
-#define KEVUE_MAGIC_BYTE "\x22"
-#define KEVUE_MAGIC_SIZE 1
+#define KEVUE_MAGIC_BYTE      "\x22"
+#define KEVUE_MAGIC_BYTE_SIZE 1
 
 #define COMMAND_LIST \
     X(GET)           \
@@ -66,8 +66,8 @@ typedef enum ParseErr {
 
 typedef struct KevueRequest {
     uint32_t total_len;
-    uint8_t command_len;
-    KevueCommand command;
+    uint8_t cmd_len;
+    KevueCommand cmd;
     uint16_t key_len;
     char *key;
     uint16_t val_len;
@@ -76,5 +76,6 @@ typedef struct KevueRequest {
 
 ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
 void kevue_print_request(KevueRequest *req);
-const char *kevue_command_to_string(KevueCommand cmd);
-const char *kevue_error_to_string(ParseErr e);
+char *kevue_command_to_string(KevueCommand cmd);
+char *kevue_error_to_string(ParseErr e);
+Buffer *kevue_serialize_request(KevueRequest *req);

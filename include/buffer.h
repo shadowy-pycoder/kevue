@@ -25,7 +25,7 @@ typedef struct Buffer {
 } Buffer;
 
 Buffer *buffer_create(size_t capacity);
-size_t buffer_append(Buffer *buf, char *data, size_t n);
+size_t buffer_append(Buffer *buf, void *data, size_t n);
 void buffer_grow(Buffer *buf, size_t n);
 void buffer_reset(Buffer *buf);
 void buffer_destroy(Buffer *buf);

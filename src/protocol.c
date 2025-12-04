@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "buffer.h"
 #include <assert.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -21,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <buffer.h>
 #include <common.h>
 #include <protocol.h>
 
@@ -32,7 +32,7 @@ bool compare_command(char *data, uint8_t len, KevueCommand cmd)
     return strlen(cmd_name) == len && memcmp(data, cmd_name, len) == 0;
 }
 
-const char *kevue_command_to_string(KevueCommand c)
+char *kevue_command_to_string(KevueCommand c)
 {
     switch (c) {
 #define X(name) \
@@ -44,7 +44,7 @@ const char *kevue_command_to_string(KevueCommand c)
     return "Unknown";
 }
 
-const char *kevue_error_to_string(ParseErr e)
+char *kevue_error_to_string(ParseErr e)
 {
     switch (e) {
 #define X(name, str) \
@@ -59,29 +59,29 @@ const char *kevue_error_to_string(ParseErr e)
 ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
 {
     assert(buf->offset == 0);
-    assert(buf->size >= KEVUE_MAGIC_SIZE);
-    if (memcmp(buf->ptr, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_SIZE) != 0) return ERR_MAGIC_BYTE_INVALID;
-    buf->offset = KEVUE_MAGIC_SIZE;
+    assert(buf->size >= KEVUE_MAGIC_BYTE_SIZE);
+    if (memcmp(buf->ptr, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE) != 0) return ERR_MAGIC_BYTE_INVALID;
+    buf->offset = KEVUE_MAGIC_BYTE_SIZE;
     if (buf->size < buf->offset + sizeof(uint32_t)) return ERR_BUFFER_TO_SMALL;
     memcpy(&req->total_len, buf->ptr + buf->offset, sizeof(uint32_t));
     req->total_len = ntohl(req->total_len);
     if (req->total_len > buf->size) return ERR_BUFFER_TO_SMALL;
     buf->offset += sizeof(uint32_t);
     if (buf->offset > buf->size) return ERR_LEN_INVALID;
-    memcpy(&req->command_len, buf->ptr + buf->offset, sizeof(uint8_t));
+    memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
     if (buf->offset > buf->size) return ERR_LEN_INVALID;
-    to_upper(buf->ptr + buf->offset, req->command_len);
-    if (compare_command(buf->ptr + buf->offset, req->command_len, GET)) {
-        req->command = GET;
-    } else if (compare_command(buf->ptr + buf->offset, req->command_len, SET)) {
-        req->command = SET;
-    } else if (compare_command(buf->ptr + buf->offset, req->command_len, DELETE)) {
-        req->command = DELETE;
+    to_upper(buf->ptr + buf->offset, req->cmd_len);
+    if (compare_command(buf->ptr + buf->offset, req->cmd_len, GET)) {
+        req->cmd = GET;
+    } else if (compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {
+        req->cmd = SET;
+    } else if (compare_command(buf->ptr + buf->offset, req->cmd_len, DELETE)) {
+        req->cmd = DELETE;
     } else {
         return ERR_UNKNOWN_COMMAND;
     }
-    buf->offset += req->command_len;
+    buf->offset += req->cmd_len;
     if (buf->offset > buf->size) return ERR_LEN_INVALID;
     memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(uint16_t));
     req->key_len = ntohs(req->key_len);
@@ -90,8 +90,9 @@ ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
     req->key = buf->ptr + buf->offset;
     buf->offset += req->key_len;
     if (buf->offset > buf->size) return ERR_LEN_INVALID;
-    switch (req->command) {
-    case SET:
+    req->val_len = 0;
+    req->val = NULL;
+    if (req->cmd == SET) {
         memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
         req->val_len = ntohs(req->val_len);
         buf->offset += sizeof(uint16_t);
@@ -99,10 +100,6 @@ ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
         req->val = buf->ptr + buf->offset;
         buf->offset += req->val_len;
         if (buf->offset > buf->size) return ERR_LEN_INVALID;
-        break;
-    default:
-        req->val_len = 0;
-        req->val = NULL;
     }
     return ERR_OK;
 }
@@ -110,12 +107,35 @@ ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
 void kevue_print_request(KevueRequest *req)
 {
     printf("Total Length: %d\n", req->total_len);
-    printf("Command Length: %d\n", req->command_len);
-    printf("Command: %*s\n", req->command_len, kevue_command_to_string(req->command));
+    printf("Command Length: %d\n", req->cmd_len);
+    printf("Command: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
     printf("Key Length: %d\n", req->key_len);
-    printf("Key: %*s\n", req->key_len, req->key);
+    printf("Key: %.*s\n", req->key_len, req->key);
     if (req->val_len > 0) {
         printf("Value Length: %d\n", req->val_len);
-        printf("Value: %*s\n", req->val_len, req->val);
+        printf("Value: %.*s\n", req->val_len, req->val);
     }
+}
+
+Buffer *kevue_serialize_request(KevueRequest *req)
+{
+    assert(req->cmd_len > 0);
+    assert(req->key_len > 0);
+    req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len + sizeof(req->key_len) + req->key_len;
+    if (req->cmd == SET && req->val_len > 0) req->total_len += sizeof(req->val_len) + req->val_len;
+    Buffer *buf = buffer_create(req->total_len);
+    buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
+    uint32_t tl = htonl(req->total_len);
+    buffer_append(buf, &tl, sizeof(req->total_len));
+    buffer_append(buf, &req->cmd_len, sizeof(req->cmd_len));
+    buffer_append(buf, kevue_command_to_string(req->cmd), req->cmd_len);
+    uint16_t kl = htons(req->key_len);
+    buffer_append(buf, &kl, sizeof(req->key_len));
+    buffer_append(buf, req->key, req->key_len);
+    if (req->cmd == SET && req->val_len > 0) {
+        uint16_t vl = htons(req->val_len);
+        buffer_append(buf, &vl, sizeof(req->val_len));
+        buffer_append(buf, req->val, req->val_len);
+    }
+    return buf;
 }

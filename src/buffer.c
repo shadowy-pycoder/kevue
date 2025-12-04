@@ -51,7 +51,7 @@ void buffer_grow(Buffer *buf, size_t n)
     buf->capacity += n;
 }
 
-size_t buffer_append(Buffer *buf, char *data, size_t n)
+size_t buffer_append(Buffer *buf, void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
     while (buf->capacity <= buf->size + n) {

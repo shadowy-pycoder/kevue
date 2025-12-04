@@ -263,8 +263,13 @@ void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
             ParseErr err = kevue_deserialize_request(&req, c->rbuf);
             if (err == ERR_OK) {
                 kevue_print_request(&req);
+                Buffer *buf = kevue_serialize_request(&req);
+                kevue_deserialize_request(&req, buf);
+                kevue_print_request(&req);
+                free(buf);
             } else {
                 printf("%s\n", kevue_error_to_string(err));
+                kevue_print_request(&req);
             }
             char *message = "Hello world\r\n";
             memcpy(c->wbuf->ptr, message, strlen(message));

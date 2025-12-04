@@ -7,12 +7,12 @@ SRC = $(PROJDIR)/src
 INCLUDE = $(PROJDIR)/include
 LIB = $(PROJDIR)/lib
 CC = clang
-CFLAGS = -ggdb -Wall -Wextra -Werror -pedantic -O2 -std=c2x -march=native
-CPPFLAGS = -I$(INCLUDE) -I$(LIB)
+CFLAGS = -ggdb -Wall -Wextra -Wno-unused-function -pedantic -O2 -std=c2x -march=native
+CPPFLAGS = -I$(INCLUDE) -I$(LIB) -DDEBUG
 LDFLAGS = -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
 
-.PHONY: default all clean run
+.PHONY: default all clean run compile_commands
 
 default: $(TARGET)
 all: default
@@ -20,7 +20,6 @@ all: default
 OBJECTS = $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
 HEADERS = $(wildcard $(INCLUDE)/*.h)
 HEADERS += $(wildcard $(LIB)/*.h)
-$(info    HEADERS is $(HEADERS))
 
 $(BUILD)/%.o: $(SRC)/%.c $(HEADERS)
 	mkdir -p $(BUILD)
@@ -39,3 +38,5 @@ clean:
 	rm -rf $(BUILD)
 	rm -rf $(BIN)
 
+compile_commands:
+	bear -- make --always-make

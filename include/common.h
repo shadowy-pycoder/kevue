@@ -13,11 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <server.h>
+#pragma once
 
-int main()
-{
-    KevueServer *ks = kevue_server_create(HOST, PORT);
-    kevue_server_start(ks);
-    kevue_server_destroy(ks);
-}
+#include <stddef.h>
+
+char *to_upper(char *s, size_t n);

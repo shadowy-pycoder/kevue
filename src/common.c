@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <server.h>
 
-int main()
+#include <ctype.h>
+#include <stddef.h>
+
+char *to_upper(char *s, size_t n)
 {
-    KevueServer *ks = kevue_server_create(HOST, PORT);
-    kevue_server_start(ks);
-    kevue_server_destroy(ks);
+    for (size_t i = 0; i < n; i++)
+        s[i] = toupper(s[i]);
+    return s;
 }

@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include <buffer.h>
+#include <common.h>
 #include <protocol.h>
 #include <server.h>
 
@@ -81,6 +82,7 @@ static bool kevue_handle_read(KevueConnection *c);
 static bool kevue_handle_write(KevueConnection *c);
 static void kevue_connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
 static void kevue_singal_handler(int sig);
+static void usage(void);
 
 int kevue_setnonblocking(int fd)
 {
@@ -231,7 +233,6 @@ bool kevue_setup_connection(int epfd, int sock, SockAddr addr)
         printf("ERROR: [%d] Adding client socket to epoll failed: %s\n", tid, strerror(errno));
         close(sock);
         kevue_connection_destroy(c);
-        free(c);
         return false;
     }
     printf("INFO: [%d] New connection %s:%d\n", tid, c->addr.addr_str, c->addr.port);
@@ -259,43 +260,46 @@ void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
             }
             c->closed = true;
         } else {
-            static KevueRequest req = { 0 };
-            ParseErr err = kevue_deserialize_request(&req, c->rbuf);
-            if (err == ERR_OK) {
-                kevue_print_request(&req);
-                Buffer *buf = kevue_serialize_request(&req);
-                kevue_deserialize_request(&req, buf);
-                kevue_print_request(&req);
-                free(buf);
-            } else {
-                printf("%s\n", kevue_error_to_string(err));
-                kevue_print_request(&req);
+            while (c->rbuf->size > 0) {
+                KevueRequest req = { 0 };
+                KevueResponse resp = { 0 };
+                KevueErr err = kevue_deserialize_request(&req, c->rbuf);
+                if (err == ERR_OK) {
+                    kevue_print_request(&req);
+                    // TODO: dispatch command and do something in hash table
+                    resp.err_code = ERR_OK;
+                    resp.val_len = req.key_len;
+                    resp.val = req.key;
+                    kevue_serialize_response(&resp, c->wbuf);
+                    kevue_buffer_move_unread_bytes(c->rbuf);
+                } else if (err == ERR_BUFFER_TO_SMALL) {
+#ifdef DEBUG
+                    printf("DEBUG: [%d] %s\n", tid, kevue_error_to_string(err));
+#endif
+                    break;
+                } else {
+                    printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(err));
+                    resp.err_code = err;
+                    kevue_serialize_response(&resp, c->wbuf);
+                    c->closed = true;
+                    break;
+                }
             }
-            char *message = "Hello world\r\n";
-            memcpy(c->wbuf->ptr, message, strlen(message));
-            c->wbuf->size = strlen(message);
-            if (!kevue_handle_write(c)) {
+            if ((c->wbuf->size > 0 && !kevue_handle_write(c)) || c->closed) {
                 if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                     if (errno != ENOTCONN)
                         printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
                 }
                 c->closed = true;
-            } else {
-                buffer_reset(c->rbuf);
             }
         }
     } else if (events & EPOLLOUT) {
-        char *message = "Hello world\r\n";
-        memcpy(c->wbuf->ptr, message, strlen(message));
-        c->wbuf->size = strlen(message);
         if (!kevue_handle_write(c)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
             }
             c->closed = true;
-        } else {
-            // buffer_reset(c->rbuf);
         }
     }
     return;
@@ -352,7 +356,7 @@ bool kevue_handle_write(KevueConnection *c)
             printf("DEBUG: [%d] Written %d bytes -> %s:%d\n", tid, nw, c->addr.addr_str, c->addr.port);
 #endif
             if (c->wbuf->offset >= c->wbuf->size) {
-                buffer_reset(c->wbuf);
+                kevue_buffer_reset(c->wbuf);
                 break;
             }
         }
@@ -414,8 +418,8 @@ bool kevue_connection_new(KevueConnection *c, int sock, SockAddr addr)
     memset(c->addr.addr_str, 0, ADDR_SIZE);
     memcpy(c->addr.addr_str, temp_ip, strlen(temp_ip));
     c->addr.port = ntohs(addr.sin_port);
-    c->rbuf = buffer_create(BUF_SIZE);
-    c->wbuf = buffer_create(BUF_SIZE);
+    c->rbuf = kevue_buffer_create(BUF_SIZE);
+    c->wbuf = kevue_buffer_create(BUF_SIZE);
     return true;
 }
 
@@ -429,8 +433,9 @@ void kevue_connection_destroy(KevueConnection *c)
         printf("INFO: [%d] Connection to %s:%d closed\n", tid, c->addr.addr_str, c->addr.port);
     }
     free(c->sock);
-    buffer_destroy(c->rbuf);
-    buffer_destroy(c->wbuf);
+    kevue_buffer_destroy(c->rbuf);
+    kevue_buffer_destroy(c->wbuf);
+    free(c);
 }
 
 void kevue_singal_handler(int sig)
@@ -485,6 +490,7 @@ void kevue_server_start(KevueServer *ks)
         pthread_join(ks->threads[i], NULL);
     }
 }
+
 void kevue_server_destroy(KevueServer *ks)
 {
     printf("INFO: %d servers on %s:%d gracefully shut down\n", SERVER_WORKERS, ks->host, ks->port);
@@ -539,4 +545,31 @@ int kevue_create_server_sock(char *host, int port)
     }
     printf("INFO: kevue listening on %s:%d\n", host, port);
     return server_sock;
+}
+
+void usage(void)
+{
+    printf("Usage: kevue-server <host> <port>\n");
+}
+
+int main(int argc, char **argv)
+{
+    char *host;
+    int port;
+    if (argc == 3) {
+        host = argv[1];
+        port = atoi(argv[2]);
+        if (port < 0 || port > 65535) {
+            usage();
+        }
+    } else if (argc > 1) {
+        usage();
+        exit(EXIT_FAILURE);
+    } else {
+        host = HOST;
+        port = PORT;
+    }
+    KevueServer *ks = kevue_server_create(host, port);
+    kevue_server_start(ks);
+    kevue_server_destroy(ks);
 }

@@ -25,9 +25,9 @@
  *
  * Protocol structure (Response):
  *  Magic byte 0x22 (sum of ascii codes of "kevue" word modulo 255)
- *  Total length including magic byte and this field -> uint32
+ *  Error byte uint8
  *  Length of the reply uint16
- *  Reply: OK,ERROR,NULL (case insensitive) actual value (case sensitive)
+ *  Reply: actual value (case sensitive)
  */
 
 #pragma once
@@ -56,13 +56,14 @@ typedef enum KevueCommand {
     X(ERR_BUFFER_TO_SMALL, "Buffer too small")         \
     X(ERR_MAGIC_BYTE_INVALID, "Magic byte is invalid") \
     X(ERR_UNKNOWN_COMMAND, "Unknown command")          \
-    X(ERR_LEN_INVALID, "Length is invalid")
+    X(ERR_LEN_INVALID, "Length is invalid")            \
+    X(ERR_NOT_FOUND, "Not found")
 
-typedef enum ParseErr {
+typedef enum KevueErr {
 #define X(name, str) name,
     ERROR_CODE_LIST
 #undef X
-} ParseErr;
+} KevueErr;
 
 typedef struct KevueRequest {
     uint32_t total_len;
@@ -74,8 +75,19 @@ typedef struct KevueRequest {
     char *val;
 } KevueRequest;
 
-ParseErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
+typedef struct KevueResponse {
+    uint32_t total_len;
+    KevueErr err_code;
+    uint16_t val_len;
+    char *val;
+} KevueResponse;
+
+KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
+void kevue_serialize_request(KevueRequest *req, Buffer *buf);
+KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf);
+void kevue_destroy_response(KevueResponse *resp);
+void kevue_serialize_response(KevueResponse *resp, Buffer *buf);
 void kevue_print_request(KevueRequest *req);
+void kevue_print_response(KevueResponse *resp);
 char *kevue_command_to_string(KevueCommand cmd);
-char *kevue_error_to_string(ParseErr e);
-Buffer *kevue_serialize_request(KevueRequest *req);
+char *kevue_error_to_string(KevueErr e);

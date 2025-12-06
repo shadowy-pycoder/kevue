@@ -17,4 +17,8 @@
 
 #include <stddef.h>
 
+#define HOST     "0.0.0.0"
+#define PORT     6973
+#define BUF_SIZE (32 * 1024)
+
 char *to_upper(char *s, size_t n);

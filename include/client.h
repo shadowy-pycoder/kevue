@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <server.h>
+#pragma once
 
-int main()
-{
-    KevueServer *ks = kevue_server_create(HOST, PORT);
-    kevue_server_start(ks);
-    kevue_server_destroy(ks);
-}
+#include <netinet/in.h>
+#include <protocol.h>
+#include <stdint.h>
+
+typedef struct KevueClient KevueClient;
+
+KevueClient *kevue_client_create(char *host, uint16_t port);
+void kevue_client_destroy(KevueClient *kc);
+void kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);

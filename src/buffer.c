@@ -15,12 +15,13 @@
  */
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <buffer.h>
 
-Buffer *buffer_create(size_t capacity)
+Buffer *kevue_buffer_create(size_t capacity)
 {
     Buffer *buf = (Buffer *)malloc(sizeof(Buffer));
     assert(buf != NULL);
@@ -31,27 +32,27 @@ Buffer *buffer_create(size_t capacity)
     return buf;
 }
 
-void buffer_reset(Buffer *buf)
+void kevue_buffer_reset(Buffer *buf)
 {
     buf->size = 0;
     buf->offset = 0;
 }
 
-void buffer_destroy(Buffer *buf)
+void kevue_buffer_destroy(Buffer *buf)
 {
     free(buf->ptr);
     free(buf);
     buf = NULL;
 }
 
-void buffer_grow(Buffer *buf, size_t n)
+void kevue_buffer_grow(Buffer *buf, size_t n)
 {
     buf->ptr = (char *)realloc(buf->ptr, buf->capacity + n);
     assert(buf->ptr != NULL);
     buf->capacity += n;
 }
 
-size_t buffer_append(Buffer *buf, void *data, size_t n)
+size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
     while (buf->capacity <= buf->size + n) {
@@ -66,9 +67,13 @@ size_t buffer_append(Buffer *buf, void *data, size_t n)
     return n;
 }
 
-void buffer_move_unread_bytes(Buffer *buf)
+void kevue_buffer_move_unread_bytes(Buffer *buf)
 {
-    if (buf->size == 0 || buf->offset == 0 || buf->offset == buf->size) return;
+    if (buf->offset == buf->size) {
+        kevue_buffer_reset(buf);
+        return;
+    }
+    if (buf->size == 0 || buf->offset == 0) return;
     memmove(buf->ptr, buf->ptr + buf->offset, buf->size - buf->offset);
     buf->size = buf->size - buf->offset;
     buf->offset = 0;

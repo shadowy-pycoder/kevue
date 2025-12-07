@@ -99,7 +99,7 @@ KevueMessageHeader kevue_read_message_header(int sock, Buffer *buf)
 KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
 {
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
-    assert(req->total_len == buf->size);
+    if (req->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
     to_upper(buf->ptr + buf->offset, req->cmd_len);
@@ -173,7 +173,7 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
 KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
 {
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
-    assert(resp->total_len == buf->size);
+    if (resp->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&resp->err_code, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
     memcpy(&resp->val_len, buf->ptr + buf->offset, sizeof(uint16_t));

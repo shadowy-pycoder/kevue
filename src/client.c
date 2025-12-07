@@ -35,7 +35,7 @@ static void kevue__usage(void);
 static int kevue__create_client_sock(int read_timeout, int write_timeout);
 static bool kevue__handle_read_exactly(KevueClient *c, size_t n);
 static bool kevue__handle_write(KevueClient *c);
-static bool kevue__make_request(KevueClient *kc, KevueResponse *resp);
+static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
 
 struct KevueClient {
     int fd;
@@ -129,8 +129,9 @@ bool kevue__handle_write(KevueClient *kc)
     return true;
 }
 
-bool kevue__make_request(KevueClient *kc, KevueResponse *resp)
+bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp)
 {
+    kevue_serialize_request(req, kc->wbuf);
     if (!kevue__handle_write(kc)) {
         if (shutdown(kc->fd, SHUT_WR) < 0) {
             if (errno != ENOTCONN)
@@ -149,6 +150,7 @@ bool kevue__make_request(KevueClient *kc, KevueResponse *resp)
                 if (errno != ENOTCONN)
                     printf("ERROR: Shutting down failed: %s\n", strerror(errno));
             }
+            kevue_buffer_reset(kc->rbuf);
             return false;
         } else {
             break;
@@ -159,12 +161,14 @@ bool kevue__make_request(KevueClient *kc, KevueResponse *resp)
             if (errno != ENOTCONN)
                 printf("ERROR: Shutting down failed: %s\n", strerror(errno));
         }
+        kevue_buffer_reset(kc->rbuf);
         return false;
     }
     resp->total_len = h.total_len;
     KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
-    if (err == KEVUE_ERR_OK) kevue_print_response(resp);
     kevue_buffer_move_unread_bytes(kc->rbuf);
+    if (err != KEVUE_ERR_OK) return false;
+    kevue_print_response(resp);
     return true;
 }
 
@@ -175,8 +179,7 @@ bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     req.cmd = GET;
     req.key_len = key_len;
     req.key = key;
-    kevue_serialize_request(&req, kc->wbuf);
-    return kevue__make_request(kc, resp);
+    return kevue__make_request(kc, &req, resp);
 }
 
 bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len, char *val, uint16_t val_len)
@@ -188,8 +191,7 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     req.key = key;
     req.val_len = val_len;
     req.val = val;
-    kevue_serialize_request(&req, kc->wbuf);
-    return kevue__make_request(kc, resp);
+    return kevue__make_request(kc, &req, resp);
 }
 
 bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len)
@@ -199,8 +201,7 @@ bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16
     req.cmd = DELETE;
     req.key_len = key_len;
     req.key = key;
-    kevue_serialize_request(&req, kc->wbuf);
-    return kevue__make_request(kc, resp);
+    return kevue__make_request(kc, &req, resp);
 }
 
 KevueClient *kevue_client_create(char *host, uint16_t port)
@@ -239,6 +240,7 @@ void kevue_client_destroy(KevueClient *kc)
 
 int main(int argc, char **argv)
 {
+    // TODO: make CLI application to parse client requests
     char *host;
     int port;
     if (argc == 3) {
@@ -257,12 +259,12 @@ int main(int argc, char **argv)
     KevueClient *kc = kevue_client_create(host, port);
     KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
     while (true) {
-        kevue_client_get(kc, resp, "random", 6);
-        kevue_client_get(kc, resp, "random2", 7);
-        kevue_client_get(kc, resp, "random222", 9);
-        kevue_client_get(kc, resp, "random2222", 10);
-        kevue_client_set(kc, resp, "random", 6, "wasd", 4);
-        kevue_client_delete(kc, resp, "random", 6);
+        if (!kevue_client_get(kc, resp, "random", 6)) break;
+        if (!kevue_client_get(kc, resp, "random2", 7)) break;
+        if (!kevue_client_get(kc, resp, "random222", 9)) break;
+        if (!kevue_client_get(kc, resp, "random2222", 10)) break;
+        if (!kevue_client_set(kc, resp, "random", 6, "wasd", 4)) break;
+        if (!kevue_client_delete(kc, resp, "random", 6)) break;
         sleep(10);
     }
     kevue_destroy_response(resp);

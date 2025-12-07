@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #define MAX_CONNECTIONS 4092
-#define SERVER_WORKERS  1
+#define SERVER_WORKERS  10
 #define EPOLL_TIMEOUT   (30 * 1000)
 #define SND_BUF_SIZE    (1024 * 1024 * 2)
 #define RECV_BUF_SIZE   (1024 * 1024 * 2)

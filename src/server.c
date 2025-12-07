@@ -534,6 +534,7 @@ void kevue_server_destroy(KevueServer *ks)
 
 int kevue__create_server_sock(char *host, int port)
 {
+    // TODO: use modern API for creating network sockets/addresses
     int server_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (server_sock < 0) {
         printf("ERROR: Creating socket failed: %s\n", strerror(errno));

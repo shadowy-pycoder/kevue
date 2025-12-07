@@ -30,3 +30,4 @@ void kevue_buffer_grow(Buffer *buf, size_t n);
 void kevue_buffer_reset(Buffer *buf);
 void kevue_buffer_destroy(Buffer *buf);
 void kevue_buffer_move_unread_bytes(Buffer *buf);
+void kevue_buffer_print_hex(Buffer *buf);

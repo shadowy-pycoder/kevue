@@ -23,4 +23,6 @@ typedef struct KevueClient KevueClient;
 
 KevueClient *kevue_client_create(char *host, uint16_t port);
 void kevue_client_destroy(KevueClient *kc);
-void kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);
+bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);
+bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len, char *val, uint16_t val_len);
+bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);

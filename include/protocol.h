@@ -25,8 +25,9 @@
  *
  * Protocol structure (Response):
  *  Magic byte 0x22 (sum of ascii codes of "kevue" word modulo 255)
+ *  Total length including magic byte and this field -> uint32
  *  Error byte uint8
- *  Length of the reply uint16
+ *  Length of the reply uint16 (0 if no value)
  *  Reply: actual value (case sensitive)
  */
 
@@ -37,8 +38,10 @@
 
 #include <buffer.h>
 
-#define KEVUE_MAGIC_BYTE      "\x22"
-#define KEVUE_MAGIC_BYTE_SIZE 1
+#define KEVUE_MAGIC_BYTE          "\x22"
+#define KEVUE_MAGIC_BYTE_SIZE     1
+#define KEVUE_MESSAGE_HEADER_SIZE (KEVUE_MAGIC_BYTE_SIZE + 4)
+#define KEVUE_MESSAGE_MAX_LEN     UINT32_MAX
 
 #define COMMAND_LIST \
     X(GET)           \
@@ -51,13 +54,15 @@ typedef enum KevueCommand {
 #undef X
 } KevueCommand;
 
-#define ERROR_CODE_LIST                                \
-    X(ERR_OK, "OK")                                    \
-    X(ERR_BUFFER_TO_SMALL, "Buffer too small")         \
-    X(ERR_MAGIC_BYTE_INVALID, "Magic byte is invalid") \
-    X(ERR_UNKNOWN_COMMAND, "Unknown command")          \
-    X(ERR_LEN_INVALID, "Length is invalid")            \
-    X(ERR_NOT_FOUND, "Not found")
+#define ERROR_CODE_LIST                                      \
+    X(KEVUE_ERR_OK, "OK")                                    \
+    X(KEVUE_ERR_INCOMPLETE_READ, "Reading was not complete") \
+    X(KEVUE_ERR_MAGIC_BYTE_INVALID, "Magic byte is invalid") \
+    X(KEVUE_ERR_UNKNOWN_COMMAND, "Unknown command")          \
+    X(KEVUE_ERR_LEN_INVALID, "Length is invalid")            \
+    X(KEVUE_ERR_NOT_FOUND, "Not found")                      \
+    X(KEVUE_ERR_READ_FAILED, "Failed reading message")       \
+    X(KEVUE_ERR_EOF, "Peer closed connection")
 
 typedef enum KevueErr {
 #define X(name, str) name,
@@ -82,6 +87,12 @@ typedef struct KevueResponse {
     char *val;
 } KevueResponse;
 
+typedef struct KevueMessageHeader {
+    uint32_t total_len;
+    KevueErr err_code;
+} KevueMessageHeader;
+
+KevueMessageHeader kevue_read_message_header(int sock, Buffer *buf);
 KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
 void kevue_serialize_request(KevueRequest *req, Buffer *buf);
 KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf);

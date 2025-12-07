@@ -47,9 +47,10 @@ void kevue_buffer_destroy(Buffer *buf)
 
 void kevue_buffer_grow(Buffer *buf, size_t n)
 {
-    buf->ptr = (char *)realloc(buf->ptr, buf->capacity + n);
+    if (buf->capacity >= n) return;
+    buf->ptr = (char *)realloc(buf->ptr, n);
     assert(buf->ptr != NULL);
-    buf->capacity += n;
+    buf->capacity = n;
 }
 
 size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
@@ -77,4 +78,10 @@ void kevue_buffer_move_unread_bytes(Buffer *buf)
     memmove(buf->ptr, buf->ptr + buf->offset, buf->size - buf->offset);
     buf->size = buf->size - buf->offset;
     buf->offset = 0;
+}
+
+void kevue_buffer_print_hex(Buffer *buf)
+{
+    for (size_t i = 0; i < buf->size; i++) printf("%02x ", buf->ptr[i]);
+    printf("\n");
 }

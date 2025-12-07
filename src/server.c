@@ -61,7 +61,7 @@ struct KevueConnection {
     Address addr;
     Buffer *rbuf;
     Buffer *wbuf;
-    uint64_t written;
+    uint32_t total_len;
 };
 
 typedef struct EpollServerArgs {
@@ -69,22 +69,23 @@ typedef struct EpollServerArgs {
     int *esock;
 } EpollServerArgs;
 
-static int kevue_setnonblocking(int fd);
-static int kevue_epoll_add(int epfd, Socket *sock, uint32_t events);
-static int kevue_epoll_del(int epfd, Socket *sock);
-static void *kevue_handle_server_epoll(void *args);
-static int kevue_create_server_sock(char *host, int port);
-static bool kevue_connection_new(KevueConnection *c, int sock, SockAddr addr);
-static void kevue_connection_destroy(KevueConnection *c);
-static bool kevue_setup_connection(int epfd, int sock, SockAddr addr);
-static void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing);
-static bool kevue_handle_read(KevueConnection *c);
-static bool kevue_handle_write(KevueConnection *c);
-static void kevue_connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
-static void kevue_singal_handler(int sig);
-static void usage(void);
+static int kevue__setnonblocking(int fd);
+static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
+static int kevue__epoll_del(int epfd, Socket *sock);
+static void *kevue__handle_server_epoll(void *args);
+static int kevue__create_server_sock(char *host, int port);
+static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr);
+static void kevue__connection_destroy(KevueConnection *c);
+static bool kevue__setup_connection(int epfd, int sock, SockAddr addr);
+static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing);
+static bool kevue__handle_read(KevueConnection *c);
+static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
+static bool kevue__handle_write(KevueConnection *c);
+static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
+static void kevue__singal_handler(int sig);
+static void kevue__usage(void);
 
-int kevue_setnonblocking(int fd)
+int kevue__setnonblocking(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1)
@@ -92,7 +93,7 @@ int kevue_setnonblocking(int fd)
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-void *kevue_handle_server_epoll(void *args)
+void *kevue__handle_server_epoll(void *args)
 {
     pid_t tid = gettid();
     struct epoll_event *events = malloc(sizeof(struct epoll_event) * MAX_EVENTS);
@@ -116,7 +117,7 @@ void *kevue_handle_server_epoll(void *args)
     sc->sock = (Socket *)malloc(sizeof(Socket));
     sc->sock->fd = server_sock;
     sc->sock->c = sc;
-    if (kevue_epoll_add(epfd, sc->sock, EPOLLIN | EPOLLET) < 0) {
+    if (kevue__epoll_add(epfd, sc->sock, EPOLLIN | EPOLLET) < 0) {
         printf("ERROR: [%d] Adding server socket to epoll failed: %s\n", tid, strerror(errno));
         close(server_sock);
         free(events);
@@ -130,7 +131,7 @@ void *kevue_handle_server_epoll(void *args)
     ec->sock = (Socket *)malloc(sizeof(Socket));
     ec->sock->fd = esock;
     ec->sock->c = ec;
-    if (kevue_epoll_add(epfd, ec->sock, EPOLLIN | EPOLLET) < 0) {
+    if (kevue__epoll_add(epfd, ec->sock, EPOLLIN | EPOLLET) < 0) {
         printf("ERROR: [%d] Adding event socket to epoll failed: %s\n", tid, strerror(errno));
         free(events);
         free(ec->sock);
@@ -168,16 +169,16 @@ void *kevue_handle_server_epoll(void *args)
                         printf("ERROR: [%d] Accept connection failed: %s\n", tid, strerror(errno));
                         break;
                     }
-                    if (!kevue_setup_connection(epfd, client_sock, client_addr)) {
+                    if (!kevue__setup_connection(epfd, client_sock, client_addr)) {
                         break;
                     }
                 }
             } else if (sock->fd == esock) {
                 closing = true;
-                if (kevue_epoll_del(epfd, sc->sock) < 0) {
+                if (kevue__epoll_del(epfd, sc->sock) < 0) {
                     printf("ERROR: [%d] Removing server socket from epoll failed: %s\n", tid, strerror(errno));
                 }
-                if (kevue_epoll_del(epfd, ec->sock) < 0) {
+                if (kevue__epoll_del(epfd, ec->sock) < 0) {
                     printf("ERROR: [%d] Removing client socket from epoll failed: %s\n", tid, strerror(errno));
                 }
                 close(server_sock);
@@ -186,8 +187,8 @@ void *kevue_handle_server_epoll(void *args)
                 free(ec->sock);
                 free(ec);
             } else {
-                kevue_dispatch_client_events(sock, events[i].events, closing);
-                kevue_connection_cleanup(epfd, sock, events, i, nready);
+                kevue__dispatch_client_events(sock, events[i].events, closing);
+                kevue__connection_cleanup(epfd, sock, events, i, nready);
             }
         }
     }
@@ -199,10 +200,10 @@ void *kevue_handle_server_epoll(void *args)
     return NULL;
 }
 
-bool kevue_setup_connection(int epfd, int sock, SockAddr addr)
+bool kevue__setup_connection(int epfd, int sock, SockAddr addr)
 {
     pid_t tid = gettid();
-    if (kevue_setnonblocking(sock) < 0) {
+    if (kevue__setnonblocking(sock) < 0) {
         printf("ERROR: [%d] Set nonblockong failed: %s\n", tid, strerror(errno));
         close(sock);
         return false;
@@ -224,22 +225,22 @@ bool kevue_setup_connection(int epfd, int sock, SockAddr addr)
         close(sock);
         return false;
     }
-    if (!kevue_connection_new(c, sock, addr)) {
+    if (!kevue__connection_new(c, sock, addr)) {
         printf("ERROR: [%d] Client creation failed: %s\n", tid, strerror(errno));
         close(sock);
         return false;
     }
-    if (kevue_epoll_add(epfd, c->sock, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET) < 0) {
+    if (kevue__epoll_add(epfd, c->sock, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET) < 0) {
         printf("ERROR: [%d] Adding client socket to epoll failed: %s\n", tid, strerror(errno));
         close(sock);
-        kevue_connection_destroy(c);
+        kevue__connection_destroy(c);
         return false;
     }
     printf("INFO: [%d] New connection %s:%d\n", tid, c->addr.addr_str, c->addr.port);
     return true;
 }
 
-void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
+void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
 {
     pid_t tid = gettid();
     KevueConnection *c = sock->c;
@@ -250,42 +251,50 @@ void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
             if (errno != ENOTCONN)
                 printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
         }
-        kevue_handle_read(c);
+        kevue__handle_read(c);
         c->closed = true;
     } else if (events & EPOLLIN) {
-        if (c->closed || !kevue_handle_read(c)) {
+        if (c->total_len == 0) {
+            KevueMessageHeader h = kevue_read_message_header(c->sock->fd, c->rbuf);
+            if (h.err_code != KEVUE_ERR_OK) {
+                if (h.err_code == KEVUE_ERR_INCOMPLETE_READ) {
+                    return;
+                }
+                printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(h.err_code));
+                c->closed = true;
+            } else {
+                c->total_len = h.total_len;
+            }
+        }
+        if (c->closed || !kevue__handle_read_exactly(c, c->total_len)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
             }
             c->closed = true;
         } else {
-            while (c->rbuf->size > 0) {
-                KevueRequest req = { 0 };
-                KevueResponse resp = { 0 };
-                KevueErr err = kevue_deserialize_request(&req, c->rbuf);
-                if (err == ERR_OK) {
-                    kevue_print_request(&req);
-                    // TODO: dispatch command and do something in hash table
-                    resp.err_code = ERR_OK;
+            KevueRequest req = { 0 };
+            req.total_len = c->total_len;
+            KevueResponse resp = { 0 };
+            KevueErr err = kevue_deserialize_request(&req, c->rbuf);
+            if (err == KEVUE_ERR_OK) {
+                kevue_print_request(&req);
+                // TODO: dispatch command and do something in hash table
+                resp.err_code = KEVUE_ERR_OK;
+                if (req.cmd == GET) {
                     resp.val_len = req.key_len;
                     resp.val = req.key;
-                    kevue_serialize_response(&resp, c->wbuf);
-                    kevue_buffer_move_unread_bytes(c->rbuf);
-                } else if (err == ERR_BUFFER_TO_SMALL) {
-#ifdef DEBUG
-                    printf("DEBUG: [%d] %s\n", tid, kevue_error_to_string(err));
-#endif
-                    break;
-                } else {
-                    printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(err));
-                    resp.err_code = err;
-                    kevue_serialize_response(&resp, c->wbuf);
-                    c->closed = true;
-                    break;
                 }
+                kevue_serialize_response(&resp, c->wbuf);
+                kevue_buffer_move_unread_bytes(c->rbuf);
+                c->total_len = 0;
+            } else {
+                printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(err));
+                resp.err_code = err;
+                kevue_serialize_response(&resp, c->wbuf);
+                c->closed = true;
             }
-            if ((c->wbuf->size > 0 && !kevue_handle_write(c)) || c->closed) {
+            if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
                 if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                     if (errno != ENOTCONN)
                         printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
@@ -294,7 +303,8 @@ void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
             }
         }
     } else if (events & EPOLLOUT) {
-        if (!kevue_handle_write(c)) {
+        // TODO: handle EPOLLOUT
+        if (!kevue__handle_write(c)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     printf("ERROR: [%d] Shutting down failed: %s\n", tid, strerror(errno));
@@ -305,7 +315,35 @@ void kevue_dispatch_client_events(Socket *sock, uint32_t events, bool closing)
     return;
 }
 
-bool kevue_handle_read(KevueConnection *c)
+bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
+{
+    kevue_buffer_grow(c->rbuf, n);
+    pid_t tid = gettid();
+    while (c->rbuf->size < n) {
+        int nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
+        if (nr < 0) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
+                break;
+            if (errno == EINTR)
+                continue;
+            printf("ERROR: [%d] Reading message from %s:%d failed: %s\n", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+            return false;
+        } else if (nr == 0) {
+#ifdef DEBUG
+            printf("DEBUG: [%d] %s:%d:EOF\n", tid, c->addr.addr_str, c->addr.port);
+#endif
+            return false;
+        } else {
+            c->rbuf->size += nr;
+#ifdef DEBUG
+            printf("DEBUG: [%d] Read %d bytes from client %s:%d\n", tid, nr, c->addr.addr_str, c->addr.port);
+#endif
+        }
+    }
+    return true;
+}
+
+bool kevue__handle_read(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
@@ -327,15 +365,12 @@ bool kevue_handle_read(KevueConnection *c)
 #ifdef DEBUG
             printf("DEBUG: [%d] Read %d bytes from client %s:%d\n", tid, nr, c->addr.addr_str, c->addr.port);
 #endif
-            if (c->rbuf->size >= c->rbuf->capacity) {
-                break;
-            }
         }
     }
     return true;
 }
 
-bool kevue_handle_write(KevueConnection *c)
+bool kevue__handle_write(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
@@ -350,7 +385,6 @@ bool kevue_handle_write(KevueConnection *c)
         } else if (nw == 0) {
             break;
         } else {
-            c->written += nw;
             c->wbuf->offset += nw;
 #ifdef DEBUG
             printf("DEBUG: [%d] Written %d bytes -> %s:%d\n", tid, nw, c->addr.addr_str, c->addr.port);
@@ -364,7 +398,7 @@ bool kevue_handle_write(KevueConnection *c)
     return true;
 }
 
-void kevue_connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready)
+void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready)
 {
     KevueConnection *c = sock->c;
     if (c->closed) {
@@ -374,18 +408,18 @@ void kevue_connection_cleanup(int epfd, Socket *sock, struct epoll_event *events
                 return;
         }
         pid_t tid = gettid();
-        if (kevue_epoll_del(epfd, c->sock) < 0) {
+        if (kevue__epoll_del(epfd, c->sock) < 0) {
             printf("ERROR: [%d] Removing client socket from epoll failed: %s\n", tid, strerror(errno));
         }
         if (shutdown(c->sock->fd, SHUT_RDWR) < 0) {
             if (errno != ENOTCONN)
                 printf("ERROR: [%d] Shutting down failed for %s:%d: %s\n", tid, c->addr.addr_str, c->addr.port, strerror(errno));
         }
-        kevue_connection_destroy(c);
+        kevue__connection_destroy(c);
     }
 }
 
-int kevue_epoll_add(int epfd, Socket *sock, uint32_t events)
+int kevue__epoll_add(int epfd, Socket *sock, uint32_t events)
 {
     struct epoll_event ev;
     ev.data.ptr = sock;
@@ -393,12 +427,12 @@ int kevue_epoll_add(int epfd, Socket *sock, uint32_t events)
     return epoll_ctl(epfd, EPOLL_CTL_ADD, sock->fd, &ev);
 }
 
-int kevue_epoll_del(int epfd, Socket *sock)
+int kevue__epoll_del(int epfd, Socket *sock)
 {
     return epoll_ctl(epfd, EPOLL_CTL_DEL, sock->fd, NULL);
 }
 
-bool kevue_connection_new(KevueConnection *c, int sock, SockAddr addr)
+bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr)
 {
     pid_t tid = gettid();
     memset(c, 0, sizeof(*c));
@@ -423,7 +457,7 @@ bool kevue_connection_new(KevueConnection *c, int sock, SockAddr addr)
     return true;
 }
 
-void kevue_connection_destroy(KevueConnection *c)
+void kevue__connection_destroy(KevueConnection *c)
 {
     pid_t tid = gettid();
     printf("INFO: [%d] Closing connection %s:%d\n", tid, c->addr.addr_str, c->addr.port);
@@ -438,7 +472,7 @@ void kevue_connection_destroy(KevueConnection *c)
     free(c);
 }
 
-void kevue_singal_handler(int sig)
+void kevue__singal_handler(int sig)
 {
     if (!shutting_down) {
         shutting_down = true;
@@ -456,12 +490,12 @@ KevueServer *kevue_server_create(char *host, uint16_t port)
     ks->port = port;
     ks->efd = eventfd(0, EFD_NONBLOCK);
     for (int i = 0; i < SERVER_WORKERS; i++) {
-        ks->fds[i] = kevue_create_server_sock(host, port);
+        ks->fds[i] = kevue__create_server_sock(host, port);
         pthread_t thread = { 0 };
         ks->threads[i] = thread;
     }
     struct sigaction new_action;
-    new_action.sa_handler = kevue_singal_handler;
+    new_action.sa_handler = kevue__singal_handler;
     sigemptyset(&new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGINT, &new_action, NULL);
@@ -476,7 +510,7 @@ void kevue_server_start(KevueServer *ks)
         EpollServerArgs *esargs = (EpollServerArgs *)malloc(sizeof(EpollServerArgs));
         esargs->ssock = &ks->fds[i];
         esargs->esock = &ks->efd;
-        pthread_create(&ks->threads[i], NULL, kevue_handle_server_epoll, esargs);
+        pthread_create(&ks->threads[i], NULL, kevue__handle_server_epoll, esargs);
     }
     while (!shutting_down)
         pause();
@@ -498,7 +532,7 @@ void kevue_server_destroy(KevueServer *ks)
     free(ks);
 }
 
-int kevue_create_server_sock(char *host, int port)
+int kevue__create_server_sock(char *host, int port)
 {
     int server_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (server_sock < 0) {
@@ -547,7 +581,7 @@ int kevue_create_server_sock(char *host, int port)
     return server_sock;
 }
 
-void usage(void)
+void kevue__usage(void)
 {
     printf("Usage: kevue-server <host> <port>\n");
 }
@@ -560,10 +594,10 @@ int main(int argc, char **argv)
         host = argv[1];
         port = atoi(argv[2]);
         if (port < 0 || port > 65535) {
-            usage();
+            kevue__usage();
         }
     } else if (argc > 1) {
-        usage();
+        kevue__usage();
         exit(EXIT_FAILURE);
     } else {
         host = HOST;

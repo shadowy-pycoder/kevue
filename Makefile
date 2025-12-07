@@ -3,6 +3,7 @@ PROJDIR := $(realpath $(CURDIR))
 BUILD := $(PROJDIR)/build
 BIN := $(PROJDIR)/bin
 TARGETS := server client
+BINARIES := $(addprefix $(BIN)/$(PROJNAME)-,$(TARGETS))
 SRC := $(PROJDIR)/src
 INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
@@ -14,7 +15,7 @@ LDLIBS  =
 
 .PHONY: default all clean run compile_commands
 
-default: $(TARGETS)
+default: $(BINARIES)
 all: default
 
 OBJECTS := $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
@@ -31,13 +32,13 @@ $(BIN):
 $(BUILD)/%.o: $(SRC)/%.c $(HEADERS) | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-.PRECIOUS: $(TARGETS) $(OBJECTS)
+.PRECIOUS: $(OBJECTS)
 
-$(TARGETS): $(OBJECTS) | $(BIN)
-	$(CC) $(COMMON_OBJECTS) $(BUILD)/$@.o $(LDFLAGS) $(LDLIBS) -o $(BIN)/$(PROJNAME)-$@
+$(BIN)/$(PROJNAME)-%: $(COMMON_OBJECTS) $(BUILD)/%.o | $(BIN)
+	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
-run: $(TARGETS)
-	./$(notdir $(BIN))/kevue-server
+run: $(BIN)/$(PROJNAME)-server
+	./$(notdir $(BIN))/$(PROJNAME)-server
 
 clean:
 	rm -rf $(BUILD)

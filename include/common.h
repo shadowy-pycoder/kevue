@@ -16,11 +16,14 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define HOST          "0.0.0.0"
-#define PORT          6973
+#define PORT          "6973"
 #define BUF_SIZE      (32 * 1024)
 #define READ_TIMEOUT  10
 #define WRITE_TIMEOUT 10
 
 char *to_upper(char *s, size_t n);
+const char *inet_ntop2(void *addr, char *buf, size_t size);
+uint16_t ntohs2(void *addr);

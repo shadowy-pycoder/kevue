@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -31,6 +32,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <buffer.h>
@@ -38,16 +40,15 @@
 #include <protocol.h>
 #include <server.h>
 
-#define ADDR_SIZE  50
 #define MAX_EVENTS 500
 
 atomic_bool shutting_down = false;
 
-typedef const struct sockaddr_in SockAddr;
+typedef struct sockaddr_storage SockAddr;
 
 struct Address {
     int port;
-    char addr_str[ADDR_SIZE];
+    char addr_str[INET6_ADDRSTRLEN];
 };
 
 struct Socket {
@@ -73,7 +74,7 @@ static int kevue__setnonblocking(int fd);
 static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
 static int kevue__epoll_del(int epfd, Socket *sock);
 static void *kevue__handle_server_epoll(void *args);
-static int kevue__create_server_sock(char *host, int port);
+static int kevue__create_server_sock(char *host, char *port);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr);
@@ -158,8 +159,7 @@ void *kevue__handle_server_epoll(void *args)
                     continue;
                 }
                 while (true) {
-                    struct sockaddr_in client_addr = { 0 };
-                    client_addr.sin_family = AF_INET;
+                    struct sockaddr_storage client_addr;
                     socklen_t addr_len = sizeof(client_addr);
                     int client_sock = accept(sock->fd, (struct sockaddr *)&client_addr, &addr_len);
                     if (client_sock < 0) {
@@ -221,12 +221,12 @@ bool kevue__setup_connection(int epfd, int sock, SockAddr addr)
     }
     KevueConnection *c = (KevueConnection *)malloc(sizeof(KevueConnection));
     if (c == NULL) {
-        printf("ERROR: [%d] Allocating memory for client failed: %s\n", tid, strerror(errno));
+        printf("ERROR: [%d] Allocating memory for client failed\n", tid);
         close(sock);
         return false;
     }
     if (!kevue__connection_new(c, sock, addr)) {
-        printf("ERROR: [%d] Client creation failed: %s\n", tid, strerror(errno));
+        printf("ERROR: [%d] Client creation failed\n", tid);
         close(sock);
         return false;
     }
@@ -255,15 +255,13 @@ void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
         c->closed = true;
     } else if (events & EPOLLIN) {
         if (c->total_len == 0) {
-            KevueMessageHeader h = kevue_read_message_header(c->sock->fd, c->rbuf);
-            if (h.err_code != KEVUE_ERR_OK) {
-                if (h.err_code == KEVUE_ERR_INCOMPLETE_READ) {
+            KevueErr err = kevue_read_message_length(c->sock->fd, c->rbuf, &c->total_len);
+            if (err != KEVUE_ERR_OK) {
+                if (err == KEVUE_ERR_INCOMPLETE_READ) {
                     return;
                 }
-                printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(h.err_code));
+                printf("ERROR: [%d] %s\n", tid, kevue_error_to_string(err));
                 c->closed = true;
-            } else {
-                c->total_len = h.total_len;
             }
         }
         if (c->closed || !kevue__handle_read_exactly(c, c->total_len)) {
@@ -438,20 +436,22 @@ bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr)
     memset(c, 0, sizeof(*c));
     c->sock = (Socket *)malloc(sizeof(Socket));
     if (c->sock == NULL) {
-        printf("ERROR: [%d] Allocating memory for socket failed: %s\n", tid, strerror(errno));
+        printf("ERROR: [%d] Allocating memory for socket failed\n", tid);
         return false;
     }
     c->sock->c = c;
     c->sock->fd = sock;
     if (c->sock->fd < 0) {
-        printf("ERROR: [%d] Creating socket failed: %s\n", tid, strerror(errno));
+        printf("ERROR: [%d] Creating socket failed\n", tid);
         return false;
     }
     c->closed = false;
-    char *temp_ip = inet_ntoa(addr.sin_addr);
-    memset(c->addr.addr_str, 0, ADDR_SIZE);
-    memcpy(c->addr.addr_str, temp_ip, strlen(temp_ip));
-    c->addr.port = ntohs(addr.sin_port);
+    inet_ntop2(&addr, c->addr.addr_str, sizeof(c->addr.addr_str));
+    c->addr.port = ntohs2(&addr);
+    if (c->addr.port == 0) {
+        printf("ERROR: [%d] Extracting port failed\n", tid);
+        return false;
+    }
     c->rbuf = kevue_buffer_create(BUF_SIZE);
     c->wbuf = kevue_buffer_create(BUF_SIZE);
     return true;
@@ -482,15 +482,20 @@ void kevue__singal_handler(int sig)
     }
 }
 
-KevueServer *kevue_server_create(char *host, uint16_t port)
+KevueServer *kevue_server_create(char *host, char *port)
 {
     KevueServer *ks = (KevueServer *)malloc(sizeof(KevueServer));
     memset(ks, 0, sizeof(KevueServer));
     ks->host = host;
     ks->port = port;
     ks->efd = eventfd(0, EFD_NONBLOCK);
+    // TODO: handle socket creation failure
     for (int i = 0; i < SERVER_WORKERS; i++) {
         ks->fds[i] = kevue__create_server_sock(host, port);
+        if (ks->fds[i] < 0) {
+            free(ks);
+            return NULL;
+        }
         pthread_t thread = { 0 };
         ks->threads[i] = thread;
     }
@@ -514,7 +519,7 @@ void kevue_server_start(KevueServer *ks)
     }
     while (!shutting_down)
         pause();
-    printf("INFO: Shutting down %d servers on %s:%d... Please wait\n", SERVER_WORKERS, ks->host, ks->port);
+    printf("INFO: Shutting down %d servers on %s:%s... Please wait\n", SERVER_WORKERS, ks->host, ks->port);
     uint64_t one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
         printf("ERROR: writing to eventfd failed: %s\n", strerror(errno));
@@ -527,58 +532,76 @@ void kevue_server_start(KevueServer *ks)
 
 void kevue_server_destroy(KevueServer *ks)
 {
-    printf("INFO: %d servers on %s:%d gracefully shut down\n", SERVER_WORKERS, ks->host, ks->port);
+    printf("INFO: %d servers on %s:%s gracefully shut down\n", SERVER_WORKERS, ks->host, ks->port);
     close(ks->efd);
     free(ks);
 }
 
-int kevue__create_server_sock(char *host, int port)
+int kevue__create_server_sock(char *host, char *port)
 {
-    // TODO: use modern API for creating network sockets/addresses
-    int server_sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-    if (server_sock < 0) {
-        printf("ERROR: Creating socket failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+    int server_sock;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
+        printf("ERROR: getaddrinfo failed: %s\n", gai_strerror(rv));
+        return -1;
     }
-    int enable = 1;
-    if (setsockopt(server_sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, (const char *)&enable, sizeof(enable)) < 0) {
-        printf("ERROR: Setting TCP_DEFER_ACCEPT option failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        if ((server_sock = socket(p->ai_family, p->ai_socktype | SOCK_NONBLOCK, p->ai_protocol)) < 0) {
+            printf("ERROR: Creating socket failed: %s\n", strerror(errno));
+            continue;
+        }
+        int enable = 1;
+        if (setsockopt(server_sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, (const char *)&enable, sizeof(enable)) < 0) {
+            printf("ERROR: Setting TCP_DEFER_ACCEPT option failed: %s\n", strerror(errno));
+            close(server_sock);
+            return -1;
+        }
+        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable, sizeof(enable)) < 0) {
+            printf("ERROR: Setting SO_REUSEADDR option failed: %s\n", strerror(errno));
+            close(server_sock);
+            return -1;
+        }
+        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
+            printf("ERROR: Setting SO_REUSEPORT option failed: %s\n", strerror(errno));
+            close(server_sock);
+            return -1;
+        }
+        int send_buffer_size = SND_BUF_SIZE;
+        int recv_buffer_size = RECV_BUF_SIZE;
+        if (setsockopt(server_sock, SOL_SOCKET, SO_SNDBUF, &send_buffer_size, sizeof(send_buffer_size)) < 0) {
+            printf("ERROR: Setting SO_SNDBUF option failed: %s\n", strerror(errno));
+            close(server_sock);
+            return -1;
+        }
+        if (setsockopt(server_sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
+            printf("ERROR: Setting SO_RCVBUF option failed: %s\n", strerror(errno));
+            close(server_sock);
+            return -1;
+        }
+        if (bind(server_sock, p->ai_addr, p->ai_addrlen) < 0) {
+            printf("ERROR: Binding to address failed: %s\n", strerror(errno));
+            close(server_sock);
+            continue;
+        }
+        break;
     }
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable, sizeof(enable)) < 0) {
-        printf("ERROR: Setting SO_REUSEADDR option failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+    if (p == NULL) {
+        printf("ERROR: Bind failed: %s\n", strerror(errno));
+        close(server_sock);
+        return -1;
     }
-    if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
-        printf("ERROR: Setting SO_REUSEPORT option failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    int send_buffer_size = SND_BUF_SIZE;
-    int recv_buffer_size = RECV_BUF_SIZE;
-    if (setsockopt(server_sock, SOL_SOCKET, SO_SNDBUF, &send_buffer_size, sizeof(send_buffer_size)) < 0) {
-        printf("ERROR: Setting SO_SNDBUF option failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    if (setsockopt(server_sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
-        printf("ERROR: Setting SO_RCVBUF option failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    struct sockaddr_in server_addr = { 0 };
-    if (inet_pton(AF_INET, host, &server_addr.sin_addr) < 0) {
-        printf("ERROR: %s is not valid IP address\n", host);
-        exit(EXIT_FAILURE);
-    }
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        printf("ERROR: Binding to address failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    freeaddrinfo(servinfo);
     if (listen(server_sock, MAX_CONNECTIONS) < 0) {
         printf("ERROR: Listening on address failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+        close(server_sock);
+        return -1;
     }
-    printf("INFO: kevue listening on %s:%d\n", host, port);
+    printf("INFO: kevue listening on %s:%s\n", host, port);
     return server_sock;
 }
 
@@ -589,14 +612,16 @@ void kevue__usage(void)
 
 int main(int argc, char **argv)
 {
-    char *host;
-    int port;
+    char *host, *port;
     if (argc == 3) {
         host = argv[1];
-        port = atoi(argv[2]);
-        if (port < 0 || port > 65535) {
+        int port_num = atoi(argv[2]);
+        if (port_num < 0 || port_num > 65535) {
             kevue__usage();
+            exit(EXIT_FAILURE);
         }
+        host = argv[1];
+        port = argv[2];
     } else if (argc > 1) {
         kevue__usage();
         exit(EXIT_FAILURE);
@@ -605,6 +630,8 @@ int main(int argc, char **argv)
         port = PORT;
     }
     KevueServer *ks = kevue_server_create(host, port);
+    if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);
     kevue_server_destroy(ks);
+    return 0;
 }

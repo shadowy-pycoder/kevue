@@ -87,12 +87,7 @@ typedef struct KevueResponse {
     char *val;
 } KevueResponse;
 
-typedef struct KevueMessageHeader {
-    uint32_t total_len;
-    KevueErr err_code;
-} KevueMessageHeader;
-
-KevueMessageHeader kevue_read_message_header(int sock, Buffer *buf);
+KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len);
 KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
 void kevue_serialize_request(KevueRequest *req, Buffer *buf);
 KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf);

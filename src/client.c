@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <buffer.h>
@@ -32,7 +36,7 @@
 #include <protocol.h>
 
 static void kevue__usage(void);
-static int kevue__create_client_sock(int read_timeout, int write_timeout);
+static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
 static bool kevue__handle_read_exactly(KevueClient *c, size_t n);
 static bool kevue__handle_write(KevueClient *c);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
@@ -46,39 +50,64 @@ struct KevueClient {
     int write_timeout;
 };
 
-int kevue__create_client_sock(int read_timeout, int write_timeout)
+int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
 {
-    int client_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_sock < 0) {
-        printf("ERROR: Creating socket failed: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
+    int client_sock;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
+        printf("ERROR: getaddrinfo failed: %s\n", gai_strerror(rv));
+        return -1;
     }
-    int enable = 1;
-    if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
-        printf("ERROR: Setting TCP_NODELAY option for client failed: %s\n", strerror(errno));
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        if ((client_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
+            printf("ERROR: Creating socket failed: %s\n", strerror(errno));
+            continue;
+        }
+        int enable = 1;
+        if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
+            printf("ERROR: Setting TCP_NODELAY option for client failed: %s\n", strerror(errno));
+            close(client_sock);
+            return -1;
+        }
+        if (read_timeout > 0) {
+            struct timeval tv;
+            tv.tv_sec = read_timeout;
+            tv.tv_usec = 0;
+            if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+                printf("ERROR: Setting SO_RCVTIMEO option for client failed: %s\n", strerror(errno));
+                close(client_sock);
+                return -1;
+            }
+        }
+        if (write_timeout > 0) {
+            struct timeval tv;
+            tv.tv_sec = write_timeout;
+            tv.tv_usec = 0;
+            if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+                printf("ERROR: Setting SO_SNDTIMEO option for client failed: %s\n", strerror(errno));
+                close(client_sock);
+                return -1;
+            }
+        }
+        if (connect(client_sock, p->ai_addr, p->ai_addrlen) < 0) {
+            printf("ERROR: connecting to %s:%s failed: %s\n", host, port, strerror(errno));
+            continue;
+        }
+        printf("INFO: connected to %s:%s\n", host, port);
+        break;
+    }
+    if (p == NULL) {
+        printf("ERROR: Connect failed: %s\n", strerror(errno));
         close(client_sock);
-        exit(EXIT_FAILURE);
+        return -1;
     }
-    if (read_timeout > 0) {
-        struct timeval tv;
-        tv.tv_sec = read_timeout;
-        tv.tv_usec = 0;
-        if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
-            printf("ERROR: Setting SO_RCVTIMEO option for client failed: %s\n", strerror(errno));
-            close(client_sock);
-            exit(EXIT_FAILURE);
-        }
-    }
-    if (write_timeout > 0) {
-        struct timeval tv;
-        tv.tv_sec = write_timeout;
-        tv.tv_usec = 0;
-        if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
-            printf("ERROR: Setting SO_SNDTIMEO option for client failed: %s\n", strerror(errno));
-            close(client_sock);
-            exit(EXIT_FAILURE);
-        }
-    }
+    freeaddrinfo(servinfo);
     return client_sock;
 }
 
@@ -139,13 +168,14 @@ bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp
         }
         return false;
     }
-    KevueMessageHeader h = { 0 };
+    uint32_t total_len;
     while (true) {
-        h = kevue_read_message_header(kc->fd, kc->rbuf);
-        if (h.err_code != KEVUE_ERR_OK) {
-            if (h.err_code == KEVUE_ERR_INCOMPLETE_READ) {
+        KevueErr err = kevue_read_message_length(kc->fd, kc->rbuf, &total_len);
+        if (err != KEVUE_ERR_OK) {
+            if (err == KEVUE_ERR_INCOMPLETE_READ) {
                 continue;
             }
+            printf("ERROR: failed reading message length: %s\n", kevue_error_to_string(err));
             if (shutdown(kc->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     printf("ERROR: Shutting down failed: %s\n", strerror(errno));
@@ -156,7 +186,7 @@ bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp
             break;
         }
     }
-    if (!kevue__handle_read_exactly(kc, h.total_len)) {
+    if (!kevue__handle_read_exactly(kc, total_len)) {
         if (shutdown(kc->fd, SHUT_WR) < 0) {
             if (errno != ENOTCONN)
                 printf("ERROR: Shutting down failed: %s\n", strerror(errno));
@@ -164,7 +194,7 @@ bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp
         kevue_buffer_reset(kc->rbuf);
         return false;
     }
-    resp->total_len = h.total_len;
+    resp->total_len = total_len;
     KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
     kevue_buffer_move_unread_bytes(kc->rbuf);
     if (err != KEVUE_ERR_OK) return false;
@@ -204,28 +234,18 @@ bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16
     return kevue__make_request(kc, &req, resp);
 }
 
-KevueClient *kevue_client_create(char *host, uint16_t port)
+KevueClient *kevue_client_create(char *host, char *port)
 {
     KevueClient *kc = (KevueClient *)malloc(sizeof(KevueClient));
-    struct sockaddr_in server_addr = { 0 };
-    if (inet_pton(AF_INET, host, &server_addr.sin_addr) < 0) {
-        printf("ERROR: %s is not valid IP address\n", host);
-        exit(EXIT_FAILURE);
-    }
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    kc->server_addr = server_addr;
-    // TODO: make timeouts configurable
     kc->read_timeout = READ_TIMEOUT;
     kc->write_timeout = WRITE_TIMEOUT;
-    kc->fd = kevue__create_client_sock(kc->read_timeout, kc->write_timeout);
+    kc->fd = kevue__create_client_sock(host, port, kc->read_timeout, kc->write_timeout);
+    if (kc->fd < 0) {
+        free(kc);
+        return NULL;
+    }
     kc->rbuf = kevue_buffer_create(BUF_SIZE);
     kc->wbuf = kevue_buffer_create(BUF_SIZE);
-    if (connect(kc->fd, (struct sockaddr *)&kc->server_addr, sizeof(kc->server_addr)) < 0) {
-        printf("ERROR: connecting to %s:%d failed: %s\n", host, port, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    printf("INFO: connected to %s:%d\n", host, port);
     return kc;
 }
 
@@ -241,14 +261,15 @@ void kevue_client_destroy(KevueClient *kc)
 int main(int argc, char **argv)
 {
     // TODO: make CLI application to parse client requests
-    char *host;
-    int port;
+    char *host, *port;
     if (argc == 3) {
-        host = argv[1];
-        port = atoi(argv[2]);
-        if (port < 0 || port > 65535) {
+        int port_num = atoi(argv[2]);
+        if (port_num < 0 || port_num > 65535) {
             kevue__usage();
+            exit(EXIT_FAILURE);
         }
+        host = argv[1];
+        port = argv[2];
     } else if (argc > 1) {
         kevue__usage();
         exit(EXIT_FAILURE);
@@ -257,6 +278,7 @@ int main(int argc, char **argv)
         port = PORT;
     }
     KevueClient *kc = kevue_client_create(host, port);
+    if (kc == NULL) exit(EXIT_FAILURE);
     KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
     while (true) {
         if (!kevue_client_get(kc, resp, "random", 6)) break;

@@ -59,23 +59,19 @@ char *kevue_error_to_string(KevueErr e)
     return "Unknown";
 }
 
-KevueMessageHeader kevue_read_message_header(int sock, Buffer *buf)
+KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
 {
-    KevueMessageHeader h = { 0 };
     while (buf->size < KEVUE_MESSAGE_HEADER_SIZE) {
         int nr = read(sock, buf->ptr + buf->size, KEVUE_MESSAGE_HEADER_SIZE - buf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                h.err_code = KEVUE_ERR_INCOMPLETE_READ;
-                return h;
+                return KEVUE_ERR_INCOMPLETE_READ;
             }
             if (errno == EINTR)
                 continue;
-            h.err_code = KEVUE_ERR_READ_FAILED;
-            return h;
+            return KEVUE_ERR_READ_FAILED;
         } else if (nr == 0) {
-            h.err_code = KEVUE_ERR_EOF;
-            return h;
+            return KEVUE_ERR_EOF;
         } else {
             buf->size += nr;
 #ifdef DEBUG
@@ -85,15 +81,13 @@ KevueMessageHeader kevue_read_message_header(int sock, Buffer *buf)
     }
     assert(buf->offset == 0);
     if (memcmp(buf->ptr, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE) != 0) {
-        h.err_code = KEVUE_ERR_MAGIC_BYTE_INVALID;
-        return h;
+        return KEVUE_ERR_MAGIC_BYTE_INVALID;
     }
     buf->offset = KEVUE_MAGIC_BYTE_SIZE;
-    memcpy(&h.total_len, buf->ptr + buf->offset, sizeof(uint32_t));
-    h.total_len = ntohl(h.total_len);
-    h.err_code = KEVUE_ERR_OK;
+    memcpy(total_len, buf->ptr + buf->offset, sizeof(uint32_t));
+    *total_len = ntohl(*total_len);
     buf->offset += sizeof(uint32_t);
-    return h;
+    return KEVUE_ERR_OK;
 }
 
 KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)

@@ -14,12 +14,60 @@
  * limitations under the License.
  */
 
+#include <arpa/inet.h>
 #include <ctype.h>
+#include <netinet/in.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <sys/socket.h>
 
 char *to_upper(char *s, size_t n)
 {
     for (size_t i = 0; i < n; i++)
         s[i] = toupper(s[i]);
     return s;
+}
+
+// https://beej.us/guide/bgnet/html/split/slightly-advanced-techniques.html#poll
+const char *inet_ntop2(void *addr, char *buf, size_t size)
+{
+    struct sockaddr_storage *sas = addr;
+    struct sockaddr_in *sa4;
+    struct sockaddr_in6 *sa6;
+    void *src;
+
+    switch (sas->ss_family) {
+    case AF_INET:
+        sa4 = addr;
+        src = &(sa4->sin_addr);
+        break;
+    case AF_INET6:
+        sa6 = addr;
+        src = &(sa6->sin6_addr);
+        break;
+    default:
+        return NULL;
+    }
+    return inet_ntop(sas->ss_family, src, buf, size);
+}
+
+uint16_t ntohs2(void *addr)
+{
+    struct sockaddr_storage *sas = addr;
+    struct sockaddr_in *sa4;
+    struct sockaddr_in6 *sa6;
+    uint16_t port = 0;
+    switch (sas->ss_family) {
+    case AF_INET:
+        sa4 = addr;
+        port = sa4->sin_port;
+        break;
+    case AF_INET6:
+        sa6 = addr;
+        port = sa6->sin6_port;
+        break;
+    default:
+        return 0;
+    }
+    return ntohs(port);
 }

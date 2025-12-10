@@ -8,8 +8,8 @@ SRC := $(PROJDIR)/src
 INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
 CC := clang
-CFLAGS := -ggdb -Wall -Wextra -Wno-unused-function -pedantic -O2 -std=c2x -march=native
-CPPFLAGS := -I$(INCLUDE) -I$(LIB) -DDEBUG
+CFLAGS := -ggdb -Wall -Wextra -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -O2 -std=c2x -march=native
+CPPFLAGS := -I$(INCLUDE) -I$(LIB) -DDEBUG -D_GNU_SOURCE
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
 
@@ -18,9 +18,10 @@ LDLIBS  =
 default: $(BINARIES)
 all: default
 
-OBJECTS := $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
+OBJECTS = $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
+OBJECTS += $(patsubst $(LIB)/%.c, $(BUILD)/%.o, $(wildcard $(LIB)/*.c))
 COMMON_OBJECTS := $(filter-out $(foreach t,$(TARGETS),$(BUILD)/$(t).o),$(OBJECTS))
-HEADERS := $(wildcard $(INCLUDE)/*.h)
+HEADERS = $(wildcard $(INCLUDE)/*.h)
 HEADERS += $(wildcard $(LIB)/*.h)
 
 $(BUILD):
@@ -29,7 +30,10 @@ $(BUILD):
 $(BIN):
 	mkdir -p $(BIN)
 
-$(BUILD)/%.o: $(SRC)/%.c $(HEADERS) | $(BUILD)
+$(BUILD)/%.o: $(SRC)/%.c  $(HEADERS) | $(BUILD)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: $(LIB)/%.c $(HEADERS) | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 .PRECIOUS: $(OBJECTS)

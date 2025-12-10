@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#define _GNU_SOURCE
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
@@ -25,7 +24,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -33,6 +31,7 @@
 #include <buffer.h>
 #include <client.h>
 #include <common.h>
+#include <linenoise.h>
 #include <protocol.h>
 
 static void kevue__usage(void);
@@ -50,7 +49,7 @@ struct KevueClient {
     int write_timeout;
 };
 
-int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
+static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
 {
     int client_sock;
     struct addrinfo hints, *servinfo, *p;
@@ -111,12 +110,12 @@ int kevue__create_client_sock(char *host, char *port, int read_timeout, int writ
     return client_sock;
 }
 
-void kevue__usage(void)
+static void kevue__usage(void)
 {
     printf("Usage: kevue-client <host> <port>\n");
 }
 
-bool kevue__handle_read_exactly(KevueClient *c, size_t n)
+static bool kevue__handle_read_exactly(KevueClient *c, size_t n)
 {
     kevue_buffer_grow(c->rbuf, n);
     while (c->rbuf->size < n) {
@@ -137,7 +136,7 @@ bool kevue__handle_read_exactly(KevueClient *c, size_t n)
     return true;
 }
 
-bool kevue__handle_write(KevueClient *kc)
+static bool kevue__handle_write(KevueClient *kc)
 {
     while (kc->wbuf->offset < kc->wbuf->size) {
         int nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
@@ -158,7 +157,7 @@ bool kevue__handle_write(KevueClient *kc)
     return true;
 }
 
-bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp)
+static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp)
 {
     kevue_serialize_request(req, kc->wbuf);
     if (!kevue__handle_write(kc)) {
@@ -249,6 +248,24 @@ KevueClient *kevue_client_create(char *host, char *port)
     return kc;
 }
 
+void completion(const char *buf, linenoiseCompletions *lc)
+{
+    if (buf[0] == 'h') {
+        linenoiseAddCompletion(lc, "hello");
+        linenoiseAddCompletion(lc, "hello there");
+    }
+}
+
+char *hints(const char *buf, int *color, int *bold)
+{
+    if (!strcasecmp(buf, "hello")) {
+        *color = 90;
+        *bold = 0;
+        return " World";
+    }
+    return NULL;
+}
+
 void kevue_client_destroy(KevueClient *kc)
 {
     close(kc->fd);
@@ -262,6 +279,7 @@ int main(int argc, char **argv)
 {
     // TODO: make CLI application to parse client requests
     char *host, *port;
+    char *line;
     if (argc == 3) {
         int port_num = atoi(argv[2]);
         if (port_num < 0 || port_num > 65535) {
@@ -280,6 +298,32 @@ int main(int argc, char **argv)
     KevueClient *kc = kevue_client_create(host, port);
     if (kc == NULL) exit(EXIT_FAILURE);
     KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
+    linenoiseSetCompletionCallback(completion);
+    linenoiseSetHintsCallback(hints);
+    linenoiseHistoryLoad("history.txt");
+    while (1) {
+        line = linenoise("hello> ");
+        if (line == NULL) break;
+        if (!strncmp(line, "exit", 4)) {
+            break;
+        }
+        if (line[0] != '\0' && line[0] != '/') {
+            printf("echo: '%s'\n", line);
+            linenoiseHistoryAdd(line); /* Add to the history. */
+            linenoiseHistorySave("history.txt"); /* Save the history on disk. */
+        } else if (!strncmp(line, "/historylen", 11)) {
+            /* The "/historylen" command will change the history len. */
+            int len = atoi(line + 11);
+            linenoiseHistorySetMaxLen(len);
+        } else if (!strncmp(line, "/mask", 5)) {
+            linenoiseMaskModeEnable();
+        } else if (!strncmp(line, "/unmask", 7)) {
+            linenoiseMaskModeDisable();
+        } else if (line[0] == '/') {
+            printf("Unreconized command: %s\n", line);
+        }
+        free(line);
+    }
     while (true) {
         if (!kevue_client_get(kc, resp, "random", 6)) break;
         if (!kevue_client_get(kc, resp, "random2", 7)) break;

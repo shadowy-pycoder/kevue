@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include <buffer.h>
@@ -29,10 +30,10 @@
 
 static bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd);
 
-bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd)
+static bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd)
 {
     const char *cmd_name = kevue_command_to_string(cmd);
-    return strlen(cmd_name) == len && memcmp(data, cmd_name, len) == 0;
+    return strlen(cmd_name) == len && strncasecmp(data, cmd_name, len) == 0;
 }
 
 char *kevue_command_to_string(KevueCommand c)
@@ -96,7 +97,6 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
     if (req->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
-    to_upper(buf->ptr + buf->offset, req->cmd_len);
     if (kevue__compare_command(buf->ptr + buf->offset, req->cmd_len, GET)) {
         req->cmd = GET;
     } else if (kevue__compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {

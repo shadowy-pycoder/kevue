@@ -1,2 +1,11 @@
 kevue - A key-value in-memory database
 Copyright 2025 shadowy-pycoder
+
+The following components are included in this product:
+
+linenoise
+https://github.com/antirez/linenoise
+Original written by @antirez
+Copyright 2010-2023 Salvatore Sanfilippo <antirez at gmail dot com>
+Copyright 2010-2013 Pieter Noordhuis <pcnoordhuis at gmail dot com>
+Licensed under the BSD-2-Clause License

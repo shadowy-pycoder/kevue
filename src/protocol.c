@@ -28,9 +28,7 @@
 #include <common.h>
 #include <protocol.h>
 
-static bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd);
-
-static bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd)
+bool kevue_compare_command(char *data, uint8_t len, KevueCommand cmd)
 {
     const char *cmd_name = kevue_command_to_string(cmd);
     return strlen(cmd_name) == len && strncasecmp(data, cmd_name, len) == 0;
@@ -97,31 +95,37 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
     if (req->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
-    if (kevue__compare_command(buf->ptr + buf->offset, req->cmd_len, GET)) {
+    if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, GET)) {
         req->cmd = GET;
-    } else if (kevue__compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {
+    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {
         req->cmd = SET;
-    } else if (kevue__compare_command(buf->ptr + buf->offset, req->cmd_len, DELETE)) {
+    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, DELETE)) {
         req->cmd = DELETE;
+    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, HELLO)) {
+        req->cmd = HELLO;
     } else {
         return KEVUE_ERR_UNKNOWN_COMMAND;
     }
     buf->offset += req->cmd_len;
-    memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(uint16_t));
-    req->key_len = ntohs(req->key_len);
-    buf->offset += sizeof(uint16_t);
-    req->key = buf->ptr + buf->offset;
-    buf->offset += req->key_len;
     if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
-    req->val_len = 0;
-    req->val = NULL;
-    if (req->cmd == SET) {
-        memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
-        req->val_len = ntohs(req->val_len);
+    if (req->cmd != HELLO) {
+        memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(uint16_t));
+        req->key_len = ntohs(req->key_len);
         buf->offset += sizeof(uint16_t);
-        req->val = buf->ptr + buf->offset;
-        buf->offset += req->val_len;
+        req->key = buf->ptr + buf->offset;
+        buf->offset += req->key_len;
         if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
+
+        req->val_len = 0;
+        req->val = NULL;
+        if (req->cmd == SET) {
+            memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
+            req->val_len = ntohs(req->val_len);
+            buf->offset += sizeof(uint16_t);
+            req->val = buf->ptr + buf->offset;
+            buf->offset += req->val_len;
+            if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
+        }
     }
     return KEVUE_ERR_OK;
 }
@@ -131,8 +135,10 @@ void kevue_print_request(KevueRequest *req)
     printf("Total Length: %d\n", req->total_len);
     printf("Command Length: %d\n", req->cmd_len);
     printf("Command: %*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
-    printf("Key Length: %d\n", req->key_len);
-    printf("Key: %.*s\n", req->key_len, req->key);
+    if (req->key_len > 0) {
+        printf("Key Length: %d\n", req->key_len);
+        printf("Key: %.*s\n", req->key_len, req->key);
+    }
     if (req->val_len > 0) {
         printf("Value Length: %d\n", req->val_len);
         printf("Value: %.*s\n", req->val_len, req->val);
@@ -142,11 +148,15 @@ void kevue_print_request(KevueRequest *req)
 void kevue_serialize_request(KevueRequest *req, Buffer *buf)
 {
     assert(req->cmd_len > 0);
-    assert(req->key_len > 0);
-    req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len + sizeof(req->key_len) + req->key_len;
+    req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
+    if (req->cmd != HELLO) {
+        printf("%s\n", kevue_command_to_string(req->cmd));
+        assert(req->key_len > 0);
+        req->total_len += sizeof(req->key_len) + req->key_len * sizeof(*req->key);
+    }
     if (req->cmd == SET) {
         assert(req->val_len > 0);
-        req->total_len += sizeof(req->val_len) + req->val_len;
+        req->total_len += sizeof(req->val_len) + req->val_len * sizeof(*req->val);
     }
     if (buf->capacity < req->total_len) kevue_buffer_grow(buf, req->total_len - buf->capacity);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
@@ -154,10 +164,12 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
     kevue_buffer_append(buf, &tl, sizeof(req->total_len));
     kevue_buffer_append(buf, &req->cmd_len, sizeof(req->cmd_len));
     kevue_buffer_append(buf, kevue_command_to_string(req->cmd), req->cmd_len);
-    uint16_t kl = htons(req->key_len);
-    kevue_buffer_append(buf, &kl, sizeof(req->key_len));
-    kevue_buffer_append(buf, req->key, req->key_len);
-    if (req->cmd == SET) {
+    if (req->key_len > 0) {
+        uint16_t kl = htons(req->key_len);
+        kevue_buffer_append(buf, &kl, sizeof(req->key_len));
+        kevue_buffer_append(buf, req->key, req->key_len);
+    }
+    if (req->val_len > 0) {
         uint16_t vl = htons(req->val_len);
         kevue_buffer_append(buf, &vl, sizeof(req->val_len));
         kevue_buffer_append(buf, req->val, req->val_len);
@@ -179,7 +191,7 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     }
     if (resp->val_len > 0) {
         resp->val = (char *)malloc(resp->val_len);
-        memcpy(resp->val, buf->ptr + buf->offset, resp->val_len);
+        memcpy(resp->val, buf->ptr + buf->offset, resp->val_len * sizeof(*resp->val));
         buf->offset += resp->val_len;
         if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     }
@@ -197,7 +209,7 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
     resp->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(resp->total_len) + sizeof(uint8_t) + sizeof(resp->val_len);
     if (resp->err_code != KEVUE_ERR_OK) resp->val_len = 0;
     if (resp->val_len > 0) {
-        resp->total_len += resp->val_len;
+        resp->total_len += resp->val_len * sizeof(*resp->val);
     }
     if (buf->capacity < resp->total_len) kevue_buffer_grow(buf, resp->total_len - buf->capacity);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);

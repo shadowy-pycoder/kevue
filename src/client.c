@@ -36,6 +36,7 @@
 
 static void kevue__usage(void);
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
+static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
 static bool kevue__handle_read_exactly(KevueClient *c, size_t n);
 static bool kevue__handle_write(KevueClient *c);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
@@ -48,6 +49,12 @@ struct KevueClient {
     int read_timeout;
     int write_timeout;
 };
+
+static bool kevue__compare_command(char *data, uint8_t len, KevueCommand cmd)
+{
+    const char *cmd_name = kevue_command_to_string(cmd);
+    return strlen(cmd_name) == len && strncasecmp(data, cmd_name, len) == 0;
+}
 
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
 {
@@ -98,7 +105,6 @@ static int kevue__create_client_sock(char *host, char *port, int read_timeout, i
             printf("ERROR: connecting to %s:%s failed: %s\n", host, port, strerror(errno));
             continue;
         }
-        printf("INFO: connected to %s:%s\n", host, port);
         break;
     }
     if (p == NULL) {
@@ -172,9 +178,10 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         KevueErr err = kevue_read_message_length(kc->fd, kc->rbuf, &total_len);
         if (err != KEVUE_ERR_OK) {
             if (err == KEVUE_ERR_INCOMPLETE_READ) {
-                continue;
+                printf("ERROR: failed reading message length: timeout\n");
+            } else {
+                printf("ERROR: failed reading message length: %s\n", kevue_error_to_string(err));
             }
-            printf("ERROR: failed reading message length: %s\n", kevue_error_to_string(err));
             if (shutdown(kc->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     printf("ERROR: Shutting down failed: %s\n", strerror(errno));
@@ -198,6 +205,18 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
     kevue_buffer_move_unread_bytes(kc->rbuf);
     if (err != KEVUE_ERR_OK) return false;
     kevue_print_response(resp);
+    return true;
+}
+
+static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 5;
+    req.cmd = HELLO;
+    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val, resp->val_len, HELLO)) {
+        resp->err_code = KEVUE_ERR_HANDSHAKE;
+        return false;
+    }
     return true;
 }
 
@@ -245,6 +264,12 @@ KevueClient *kevue_client_create(char *host, char *port)
     }
     kc->rbuf = kevue_buffer_create(BUF_SIZE);
     kc->wbuf = kevue_buffer_create(BUF_SIZE);
+    KevueResponse resp = { 0 };
+    if (!kevue__client_hello(kc, &resp)) {
+        printf("%s\n", kevue_error_to_string(resp.err_code));
+        free(kc);
+        return NULL;
+    }
     return kc;
 }
 
@@ -297,12 +322,16 @@ int main(int argc, char **argv)
     }
     KevueClient *kc = kevue_client_create(host, port);
     if (kc == NULL) exit(EXIT_FAILURE);
+    printf("INFO: connected to %s:%s\n", host, port);
     KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
     linenoiseSetCompletionCallback(completion);
     linenoiseSetHintsCallback(hints);
     linenoiseHistoryLoad("history.txt");
+    char prompt[INET6_ADDRSTRLEN + 7 + 1];
+    int n = snprintf(prompt, INET6_ADDRSTRLEN + 7, "%s:%s> ", host, port);
+    prompt[n] = '\0';
     while (1) {
-        line = linenoise("hello> ");
+        line = linenoise(prompt);
         if (line == NULL) break;
         if (!strncmp(line, "exit", 4)) {
             break;

@@ -73,7 +73,7 @@ static int kevue__setnonblocking(int fd);
 static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
 static int kevue__epoll_del(int epfd, Socket *sock);
 static void *kevue__handle_server_epoll(void *args);
-static int kevue__create_server_sock(char *host, char *port);
+static int kevue__create_server_sock(char *host, char *port, bool check);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr);
@@ -282,6 +282,10 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                     resp.val_len = req.key_len;
                     resp.val = req.key;
                 }
+                if (req.cmd == HELLO) {
+                    resp.val_len = strlen(kevue_command_to_string(HELLO));
+                    resp.val = kevue_command_to_string(HELLO);
+                }
                 kevue_serialize_response(&resp, c->wbuf);
                 kevue_buffer_move_unread_bytes(c->rbuf);
                 c->total_len = 0;
@@ -481,7 +485,7 @@ static void kevue__singal_handler(int sig)
     }
 }
 
-static int kevue__create_server_sock(char *host, char *port)
+static int kevue__create_server_sock(char *host, char *port, bool check)
 {
     int server_sock;
     struct addrinfo hints, *servinfo, *p;
@@ -510,10 +514,12 @@ static int kevue__create_server_sock(char *host, char *port)
             close(server_sock);
             return -1;
         }
-        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
-            printf("ERROR: Setting SO_REUSEPORT option failed: %s\n", strerror(errno));
-            close(server_sock);
-            return -1;
+        if (!check) {
+            if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
+                printf("ERROR: Setting SO_REUSEPORT option failed: %s\n", strerror(errno));
+                close(server_sock);
+                return -1;
+            }
         }
         int send_buffer_size = SND_BUF_SIZE;
         int recv_buffer_size = RECV_BUF_SIZE;
@@ -535,7 +541,7 @@ static int kevue__create_server_sock(char *host, char *port)
         break;
     }
     if (p == NULL) {
-        printf("ERROR: Bind failed: %s\n", strerror(errno));
+        printf("ERROR: Failed creating socket\n");
         close(server_sock);
         return -1;
     }
@@ -556,6 +562,11 @@ static void kevue__usage(void)
 
 KevueServer *kevue_server_create(char *host, char *port)
 {
+    int server_sock;
+    if ((server_sock = kevue__create_server_sock(host, port, true)) < 0) {
+        return NULL;
+    }
+    close(server_sock);
     KevueServer *ks = (KevueServer *)malloc(sizeof(KevueServer));
     memset(ks, 0, sizeof(KevueServer));
     ks->host = host;
@@ -563,7 +574,7 @@ KevueServer *kevue_server_create(char *host, char *port)
     ks->efd = eventfd(0, EFD_NONBLOCK);
     // TODO: handle socket creation failure
     for (int i = 0; i < SERVER_WORKERS; i++) {
-        ks->fds[i] = kevue__create_server_sock(host, port);
+        ks->fds[i] = kevue__create_server_sock(host, port, false);
         if (ks->fds[i] < 0) {
             free(ks);
             return NULL;

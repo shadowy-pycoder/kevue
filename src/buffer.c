@@ -48,7 +48,7 @@ void kevue_buffer_destroy(Buffer *buf)
 void kevue_buffer_grow(Buffer *buf, size_t n)
 {
     if (buf->capacity >= n) return;
-    buf->ptr = (char *)realloc(buf->ptr, n);
+    buf->ptr = (char *)realloc(buf->ptr, n * sizeof(*buf->ptr));
     assert(buf->ptr != NULL);
     buf->capacity = n;
 }
@@ -60,10 +60,10 @@ size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (char *)realloc(buf->ptr, buf->capacity);
+        buf->ptr = (char *)realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr));
         assert(buf->ptr != NULL);
     }
-    memcpy(buf->ptr + buf->size, data, n);
+    memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
     return n;
 }
@@ -75,7 +75,7 @@ void kevue_buffer_move_unread_bytes(Buffer *buf)
         return;
     }
     if (buf->size == 0 || buf->offset == 0) return;
-    memmove(buf->ptr, buf->ptr + buf->offset, buf->size - buf->offset);
+    memmove(buf->ptr, buf->ptr + buf->offset, (buf->size - buf->offset) * sizeof(*buf->ptr));
     buf->size = buf->size - buf->offset;
     buf->offset = 0;
 }

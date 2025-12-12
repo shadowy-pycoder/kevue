@@ -44,6 +44,7 @@
 #define KEVUE_MESSAGE_MAX_LEN     UINT32_MAX
 
 #define COMMAND_LIST \
+    X(HELLO)         \
     X(GET)           \
     X(SET)           \
     X(DELETE)
@@ -62,7 +63,8 @@ typedef enum KevueCommand {
     X(KEVUE_ERR_LEN_INVALID, "Length is invalid")            \
     X(KEVUE_ERR_NOT_FOUND, "Not found")                      \
     X(KEVUE_ERR_READ_FAILED, "Failed reading message")       \
-    X(KEVUE_ERR_EOF, "Peer closed connection")
+    X(KEVUE_ERR_EOF, "Peer closed connection")               \
+    X(KEVUE_ERR_HANDSHAKE, "Handshake failed")
 
 typedef enum KevueErr {
 #define X(name, str) name,
@@ -97,3 +99,4 @@ void kevue_print_request(KevueRequest *req);
 void kevue_print_response(KevueResponse *resp);
 char *kevue_command_to_string(KevueCommand cmd);
 char *kevue_error_to_string(KevueErr e);
+bool kevue_compare_command(char *data, uint8_t len, KevueCommand cmd);

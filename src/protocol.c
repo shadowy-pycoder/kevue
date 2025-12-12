@@ -180,28 +180,31 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
 {
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
     if (resp->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
-    memcpy(&resp->err_code, buf->ptr + buf->offset, sizeof(uint8_t));
+    resp->err_code = (KevueErr)buf->ptr[buf->offset];
     buf->offset += sizeof(uint8_t);
+    if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     memcpy(&resp->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
     resp->val_len = ntohs(resp->val_len);
     buf->offset += sizeof(uint16_t);
+    if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->err_code != KEVUE_ERR_OK) {
         resp->val_len = 0;
         return KEVUE_ERR_OK;
     }
+    if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
-        resp->val = (char *)malloc(resp->val_len);
-        memcpy(resp->val, buf->ptr + buf->offset, resp->val_len * sizeof(*resp->val));
+        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len);
+        kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
-        if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     }
     return KEVUE_ERR_OK;
 }
 
 void kevue_destroy_response(KevueResponse *resp)
 {
-    if (resp->val_len > 0) free(resp->val);
+    kevue_buffer_destroy(resp->val);
     free(resp);
+    resp = NULL;
 }
 
 void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
@@ -209,7 +212,7 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
     resp->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(resp->total_len) + sizeof(uint8_t) + sizeof(resp->val_len);
     if (resp->err_code != KEVUE_ERR_OK) resp->val_len = 0;
     if (resp->val_len > 0) {
-        resp->total_len += resp->val_len * sizeof(*resp->val);
+        resp->total_len += resp->val_len * sizeof(*resp->val->ptr);
     }
     if (buf->capacity < resp->total_len) kevue_buffer_grow(buf, resp->total_len - buf->capacity);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
@@ -220,7 +223,7 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
     uint16_t vl = htons(resp->val_len);
     kevue_buffer_append(buf, &vl, sizeof(resp->val_len));
     if (resp->val_len > 0) {
-        kevue_buffer_append(buf, resp->val, resp->val_len);
+        kevue_buffer_append(buf, resp->val->ptr, resp->val_len);
     }
 }
 
@@ -231,6 +234,6 @@ void kevue_print_response(KevueResponse *resp)
     printf("Error Description: %s\n", kevue_error_to_string(resp->err_code));
     if (resp->val_len > 0) {
         printf("Value Length: %d\n", resp->val_len);
-        printf("Value: %.*s\n", resp->val_len, resp->val);
+        printf("Value: %.*s\n", resp->val_len, resp->val->ptr);
     }
 }

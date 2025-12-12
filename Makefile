@@ -8,9 +8,10 @@ SRC := $(PROJDIR)/src
 INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
 CC := clang
-CFLAGS := -ggdb -Wall -Wextra -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -O2 -std=c2x -march=native
+CFLAGS := -ggdb -Wall -Wextra -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -O1 -std=c2x -march=native
+CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -DDEBUG -D_GNU_SOURCE
-LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
+LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB) -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
 LDLIBS  =
 
 .PHONY: default all clean run compile_commands

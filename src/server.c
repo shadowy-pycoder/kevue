@@ -280,11 +280,13 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 resp.err_code = KEVUE_ERR_OK;
                 if (req.cmd == GET) {
                     resp.val_len = req.key_len;
-                    resp.val = req.key;
+                    resp.val = kevue_buffer_create(resp.val_len);
+                    kevue_buffer_write(resp.val, req.key, req.key_len);
                 }
                 if (req.cmd == HELLO) {
                     resp.val_len = strlen(kevue_command_to_string(HELLO));
-                    resp.val = kevue_command_to_string(HELLO);
+                    resp.val = kevue_buffer_create(resp.val_len);
+                    kevue_buffer_write(resp.val, kevue_command_to_string(HELLO), resp.val_len);
                 }
                 kevue_serialize_response(&resp, c->wbuf);
                 kevue_buffer_move_unread_bytes(c->rbuf);
@@ -295,6 +297,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 kevue_serialize_response(&resp, c->wbuf);
                 c->closed = true;
             }
+            kevue_buffer_destroy(resp.val);
             if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
                 if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                     if (errno != ENOTCONN)

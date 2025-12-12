@@ -34,6 +34,8 @@
 #include <linenoise.h>
 #include <protocol.h>
 
+#define PROMPT_LENGTH INET6_ADDRSTRLEN + 7 + 1
+
 static void kevue__usage(void);
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
@@ -213,10 +215,12 @@ static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
     KevueRequest req = { 0 };
     req.cmd_len = 5;
     req.cmd = HELLO;
-    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val, resp->val_len, HELLO)) {
+    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val->ptr, resp->val_len, HELLO)) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
+        kevue_buffer_destroy(resp->val);
         return false;
     }
+    kevue_buffer_destroy(resp->val);
     return true;
 }
 
@@ -324,16 +328,18 @@ int main(int argc, char **argv)
     if (kc == NULL) exit(EXIT_FAILURE);
     printf("INFO: connected to %s:%s\n", host, port);
     KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
+    memset(resp, 0, sizeof(*resp));
     linenoiseSetCompletionCallback(completion);
     linenoiseSetHintsCallback(hints);
     linenoiseHistoryLoad("history.txt");
-    char prompt[INET6_ADDRSTRLEN + 7 + 1];
-    int n = snprintf(prompt, INET6_ADDRSTRLEN + 7, "%s:%s> ", host, port);
+    char prompt[PROMPT_LENGTH];
+    int n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
     prompt[n] = '\0';
-    while (1) {
+    while (true) {
         line = linenoise(prompt);
         if (line == NULL) break;
         if (!strncmp(line, "exit", 4)) {
+            free(line);
             break;
         }
         if (line[0] != '\0' && line[0] != '/') {
@@ -353,14 +359,16 @@ int main(int argc, char **argv)
         }
         free(line);
     }
-    while (true) {
+    int count = 3;
+    while (count > 0) {
         if (!kevue_client_get(kc, resp, "random", 6)) break;
-        if (!kevue_client_get(kc, resp, "random2", 7)) break;
         if (!kevue_client_get(kc, resp, "random222", 9)) break;
         if (!kevue_client_get(kc, resp, "random2222", 10)) break;
         if (!kevue_client_set(kc, resp, "random", 6, "wasd", 4)) break;
         if (!kevue_client_delete(kc, resp, "random", 6)) break;
-        sleep(10);
+        if (!kevue_client_get(kc, resp, "random2", 7)) break;
+        sleep(1);
+        count--;
     }
     kevue_destroy_response(resp);
     kevue_client_destroy(kc);

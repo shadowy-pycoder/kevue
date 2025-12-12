@@ -26,6 +26,7 @@ typedef struct Buffer {
 
 Buffer *kevue_buffer_create(size_t capacity);
 size_t kevue_buffer_append(Buffer *buf, void *data, size_t n);
+size_t kevue_buffer_write(Buffer *buf, void *data, size_t n);
 void kevue_buffer_grow(Buffer *buf, size_t n);
 void kevue_buffer_reset(Buffer *buf);
 void kevue_buffer_destroy(Buffer *buf);

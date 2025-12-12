@@ -86,7 +86,7 @@ typedef struct KevueResponse {
     uint32_t total_len;
     KevueErr err_code;
     uint16_t val_len;
-    char *val;
+    Buffer *val;
 } KevueResponse;
 
 KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len);

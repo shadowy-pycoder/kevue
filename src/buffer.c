@@ -40,6 +40,7 @@ void kevue_buffer_reset(Buffer *buf)
 
 void kevue_buffer_destroy(Buffer *buf)
 {
+    if (buf == NULL) return;
     free(buf->ptr);
     free(buf);
     buf = NULL;
@@ -65,6 +66,21 @@ size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
+    return n;
+}
+
+size_t kevue_buffer_write(Buffer *buf, void *data, size_t n)
+{
+    size_t initial_capacity = buf->capacity;
+    while (buf->capacity <= n) {
+        buf->capacity *= 2;
+    }
+    if (buf->capacity > initial_capacity) {
+        buf->ptr = (char *)realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr));
+        assert(buf->ptr != NULL);
+    }
+    memcpy(buf->ptr, data, n * sizeof(*buf->ptr));
+    buf->size = n;
     return n;
 }
 

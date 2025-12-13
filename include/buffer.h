@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef struct Buffer {
@@ -27,6 +28,11 @@ typedef struct Buffer {
 Buffer *kevue_buffer_create(size_t capacity);
 size_t kevue_buffer_append(Buffer *buf, void *data, size_t n);
 size_t kevue_buffer_write(Buffer *buf, void *data, size_t n);
+int kevue_buffer_read_byte(Buffer *buf);
+void kevue_buffer_read_advance(Buffer *buf);
+int kevue_buffer_peek_byte(Buffer *buf);
+void kevue_buffer_read_until(Buffer *buf, Buffer *out, char until);
+bool kevue_buffer_at_eof(Buffer *buf);
 void kevue_buffer_grow(Buffer *buf, size_t n);
 void kevue_buffer_reset(Buffer *buf);
 void kevue_buffer_destroy(Buffer *buf);

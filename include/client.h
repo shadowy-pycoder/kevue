@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 typedef struct KevueClient KevueClient;
+typedef struct KevueClientParseResult KevueClientParseResult;
 
 KevueClient *kevue_client_create(char *host, char *port);
 void kevue_client_destroy(KevueClient *kc);

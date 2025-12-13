@@ -23,6 +23,7 @@
 
 Buffer *kevue_buffer_create(size_t capacity)
 {
+    // TODO: create buffer outside function (allow stack or heap allocation)
     Buffer *buf = (Buffer *)malloc(sizeof(Buffer));
     assert(buf != NULL);
     memset(buf, 0, sizeof(Buffer));
@@ -84,9 +85,41 @@ size_t kevue_buffer_write(Buffer *buf, void *data, size_t n)
     return n;
 }
 
+int kevue_buffer_read_byte(Buffer *buf)
+{
+    if (kevue_buffer_at_eof(buf)) return EOF;
+    return buf->ptr[buf->offset++];
+}
+
+void kevue_buffer_read_advance(Buffer *buf)
+{
+    buf->offset++;
+}
+
+int kevue_buffer_peek_byte(Buffer *buf)
+{
+    if (kevue_buffer_at_eof(buf)) return EOF;
+    return buf->ptr[buf->offset];
+}
+
+void kevue_buffer_read_until(Buffer *buf, Buffer *out, char until)
+{
+    char c;
+    while ((c = kevue_buffer_peek_byte(buf)) != EOF) {
+        if (c == until) break;
+        kevue_buffer_append(out, &c, sizeof(char));
+        kevue_buffer_read_advance(buf);
+    }
+}
+
+bool kevue_buffer_at_eof(Buffer *buf)
+{
+    return buf->offset >= buf->size;
+}
+
 void kevue_buffer_move_unread_bytes(Buffer *buf)
 {
-    if (buf->offset == buf->size) {
+    if (kevue_buffer_at_eof(buf)) {
         kevue_buffer_reset(buf);
         return;
     }

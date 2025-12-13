@@ -17,12 +17,32 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define HOST          "0.0.0.0"
 #define PORT          "6973"
 #define BUF_SIZE      (32 * 1024)
 #define READ_TIMEOUT  10
 #define WRITE_TIMEOUT 10
+
+// stolen from https://github.com/tsoding/nob.h
+#define UNREACHABLE(where)                                                                  \
+    do {                                                                                    \
+        fprintf(stderr, "%s:%d:%s UNREACHABLE: %s\n", __FILE__, __LINE__, __func__, where); \
+        exit(EXIT_FAILURE);                                                                 \
+    } while (0)
+
+#define TODO(what)                                                                  \
+    do {                                                                            \
+        fprintf(stderr, "%s:%d:%s TODO: %s\n", __FILE__, __LINE__, __func__, what); \
+        exit(EXIT_FAILURE);                                                         \
+    } while (0)
+
+#define UNUSED(v) (void)v
+
+#define print_err(fmt, ...) \
+    fprintf(stderr, "ERROR: %s: " fmt "\n", __func__, ##__VA_ARGS__)
 
 char *to_upper(char *s, size_t n);
 const char *inet_ntop2(void *addr, char *buf, size_t size);

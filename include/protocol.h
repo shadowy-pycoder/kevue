@@ -36,6 +36,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <allocator.h>
 #include <buffer.h>
 
 #define KEVUE_MAGIC_BYTE          "\x22"
@@ -87,6 +88,7 @@ typedef struct KevueResponse {
     KevueErr err_code;
     uint16_t val_len;
     Buffer *val;
+    KevueAllocator *ma;
 } KevueResponse;
 
 KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len);

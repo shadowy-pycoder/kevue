@@ -19,15 +19,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <allocator.h>
 #include <buffer.h>
 
-Buffer *kevue_buffer_create(size_t capacity)
+Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
 {
-    // TODO: create buffer outside function (allow stack or heap allocation)
-    Buffer *buf = (Buffer *)malloc(sizeof(Buffer));
+    Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
     assert(buf != NULL);
     memset(buf, 0, sizeof(Buffer));
-    buf->ptr = (char *)malloc(sizeof(char) * capacity);
+    buf->ma = ma;
+    buf->ptr = (char *)buf->ma->malloc(sizeof(char) * capacity, buf->ma->ctx);
     assert(buf->ptr != NULL);
     buf->capacity = capacity;
     return buf;
@@ -42,15 +43,14 @@ void kevue_buffer_reset(Buffer *buf)
 void kevue_buffer_destroy(Buffer *buf)
 {
     if (buf == NULL) return;
-    free(buf->ptr);
-    free(buf);
-    buf = NULL;
+    buf->ma->free(buf->ptr, buf->ma->ctx);
+    buf->ma->free(buf, buf->ma->ctx);
 }
 
 void kevue_buffer_grow(Buffer *buf, size_t n)
 {
     if (buf->capacity >= n) return;
-    buf->ptr = (char *)realloc(buf->ptr, n * sizeof(*buf->ptr));
+    buf->ptr = (char *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
     assert(buf->ptr != NULL);
     buf->capacity = n;
 }
@@ -62,7 +62,7 @@ size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (char *)realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr));
+        buf->ptr = (char *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
         assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
@@ -77,7 +77,7 @@ size_t kevue_buffer_write(Buffer *buf, void *data, size_t n)
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (char *)realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr));
+        buf->ptr = (char *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
         assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));

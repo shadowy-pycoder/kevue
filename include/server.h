@@ -17,6 +17,8 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#include <allocator.h>
+
 #define MAX_CONNECTIONS 4092
 #define SERVER_WORKERS  10
 #define EPOLL_TIMEOUT   (30 * 1000)
@@ -29,12 +31,13 @@ typedef struct KevueServer {
     int fds[SERVER_WORKERS];
     pthread_t threads[SERVER_WORKERS];
     int efd;
+    KevueAllocator *ma;
 } KevueServer;
 
 typedef struct Address Address;
 typedef struct Socket Socket;
 typedef struct KevueConnection KevueConnection;
 
-KevueServer *kevue_server_create(char *host, char *port);
+KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
 void kevue_server_start(KevueServer *ks);
 void kevue_server_destroy(KevueServer *ks);

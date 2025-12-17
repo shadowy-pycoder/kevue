@@ -15,6 +15,7 @@
  */
 
 #include <arpa/inet.h>
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
@@ -29,6 +30,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <allocator.h>
 #include <buffer.h>
 #include <client.h>
 #include <common.h>
@@ -40,12 +42,12 @@
 static void kevue__usage(void);
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
-static bool kevue__handle_read_exactly(KevueClient *c, size_t n);
-static bool kevue__handle_write(KevueClient *c);
+static bool kevue__handle_read_exactly(KevueClient *kc, size_t n);
+static bool kevue__handle_write(KevueClient *kc);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
 static void kevue__trim_left(Buffer *buf);
-static KevueClientParseResult *kevue__parse_command_line(Buffer *buf);
+static KevueClientParseResult *kevue__parse_command_line(Buffer *buf, KevueAllocator *ma);
 static void kevue__client_parse_result_destroy(KevueClientParseResult *pr);
 static void completion(const char *buf, linenoiseCompletions *lc);
 static char *hints(const char *buf, int *color, int *bold);
@@ -57,19 +59,21 @@ struct KevueClient {
     Buffer *wbuf;
     int read_timeout;
     int write_timeout;
+    KevueAllocator *ma;
 };
 
 struct KevueClientParseResult {
     KevueCommand cmd;
     Buffer *key;
     Buffer *value;
+    KevueAllocator *ma;
 };
 
 static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
 {
     if (pr->key != NULL) kevue_buffer_destroy(pr->key);
     if (pr->value != NULL) kevue_buffer_destroy(pr->value);
-    free(pr);
+    pr->ma->free(pr, pr->ma->ctx);
 }
 
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
@@ -304,12 +308,13 @@ static void kevue__trim_left(Buffer *buf)
     while (isspace((unsigned char)kevue_buffer_peek_byte(buf))) kevue_buffer_read_advance(buf);
 }
 
-static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
+static KevueClientParseResult *kevue__parse_command_line(Buffer *buf, KevueAllocator *ma)
 {
-    KevueClientParseResult *pr = (KevueClientParseResult *)malloc(sizeof(KevueClientParseResult));
+    KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
-    pr->key = kevue_buffer_create(BUF_SIZE);
+    pr->ma = ma;
+    pr->key = kevue_buffer_create(BUF_SIZE, pr->ma);
     kevue__trim_left(buf);
     if (kevue_buffer_at_eof(buf)) {
         printf("ERROR: Wrong arguments\n");
@@ -370,7 +375,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             return NULL;
         }
     }
-    pr->value = kevue_buffer_create(BUF_SIZE);
+    pr->value = kevue_buffer_create(BUF_SIZE, pr->ma);
     kevue_buffer_reset(pr->value);
     if (!kevue__parse_chunk(buf, pr->value)) {
         printf("ERROR: Wrong arguments\n");
@@ -418,19 +423,23 @@ bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16
     return kevue__make_request(kc, &req, resp);
 }
 
-KevueClient *kevue_client_create(char *host, char *port)
+KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma)
 {
-    KevueClient *kc = (KevueClient *)malloc(sizeof(KevueClient));
+    if (ma == NULL) ma = &kevue_default_allocator;
+    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(KevueClient), ma->ctx);
+    assert(kc != NULL);
+    kc->ma = ma;
     kc->read_timeout = READ_TIMEOUT;
     kc->write_timeout = WRITE_TIMEOUT;
     kc->fd = kevue__create_client_sock(host, port, kc->read_timeout, kc->write_timeout);
     if (kc->fd < 0) {
-        free(kc);
+        kc->ma->free(kc, kc->ma->ctx);
         return NULL;
     }
-    kc->rbuf = kevue_buffer_create(BUF_SIZE);
-    kc->wbuf = kevue_buffer_create(BUF_SIZE);
+    kc->rbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    kc->wbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
     KevueResponse resp = { 0 };
+    resp.ma = kc->ma;
     if (!kevue__client_hello(kc, &resp)) {
         printf("%s\n", kevue_error_to_string(resp.err_code));
         kevue_client_destroy(kc);
@@ -444,8 +453,7 @@ void kevue_client_destroy(KevueClient *kc)
     close(kc->fd);
     kevue_buffer_destroy(kc->rbuf);
     kevue_buffer_destroy(kc->wbuf);
-    free(kc);
-    kc = NULL;
+    kc->ma->free(kc, kc->ma->ctx);
 }
 
 int main(int argc, char **argv)
@@ -467,11 +475,12 @@ int main(int argc, char **argv)
         host = HOST;
         port = PORT;
     }
-    KevueClient *kc = kevue_client_create(host, port);
+    KevueClient *kc = kevue_client_create(host, port, NULL);
     if (kc == NULL) exit(EXIT_FAILURE);
     printf("INFO: connected to %s:%s\n", host, port);
-    KevueResponse *resp = (KevueResponse *)malloc(sizeof(KevueResponse));
+    KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
     memset(resp, 0, sizeof(*resp));
+    resp->ma = kc->ma;
     linenoiseSetCompletionCallback(completion);
     linenoiseSetHintsCallback(hints);
     linenoiseHistoryLoad("history.txt");
@@ -483,18 +492,18 @@ int main(int argc, char **argv)
         line = linenoise(prompt);
         if (line == NULL) break;
         if (line[0] == '\0') {
-            free(line);
+            kc->ma->free(line, kc->ma->ctx);
             continue;
         }
         if (!strncmp(line, "exit", 4) || !strncmp(line, "quit", 4) || !strncmp(line, "q", 1)) {
-            free(line);
+            kc->ma->free(line, kc->ma->ctx);
             break;
         }
-        Buffer *buf = kevue_buffer_create(strlen(line));
+        Buffer *buf = kevue_buffer_create(strlen(line), kc->ma);
         kevue_buffer_write(buf, line, strlen(line));
-        KevueClientParseResult *pr = kevue__parse_command_line(buf);
+        KevueClientParseResult *pr = kevue__parse_command_line(buf, kc->ma);
         if (pr == NULL) {
-            free(line);
+            kc->ma->free(line, kc->ma->ctx);
             continue;
         }
         switch (pr->cmd) {
@@ -521,7 +530,7 @@ int main(int argc, char **argv)
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); /* Add to the history. */
         linenoiseHistorySave("history.txt"); /* Save the history on disk. */
-        free(line);
+        kc->ma->free(line, kc->ma->ctx);
         kevue_buffer_destroy(buf);
     }
     kevue_destroy_response(resp);

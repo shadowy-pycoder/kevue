@@ -19,11 +19,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
 
+#include <allocator.h>
 #include <buffer.h>
 #include <common.h>
 #include <protocol.h>
@@ -178,6 +178,7 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
 
 KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
 {
+    assert(resp->ma != NULL);
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
     if (resp->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     resp->err_code = (KevueErr)buf->ptr[buf->offset];
@@ -193,7 +194,7 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     }
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
-        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len);
+        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len, resp->ma);
         kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
     }
@@ -203,8 +204,7 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
 void kevue_destroy_response(KevueResponse *resp)
 {
     kevue_buffer_destroy(resp->val);
-    free(resp);
-    resp = NULL;
+    resp->ma->free(resp, resp->ma->ctx);
 }
 
 void kevue_serialize_response(KevueResponse *resp, Buffer *buf)

@@ -16,13 +16,15 @@
 #pragma once
 
 #include <netinet/in.h>
-#include <protocol.h>
 #include <stdint.h>
+
+#include <allocator.h>
+#include <protocol.h>
 
 typedef struct KevueClient KevueClient;
 typedef struct KevueClientParseResult KevueClientParseResult;
 
-KevueClient *kevue_client_create(char *host, char *port);
+KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma);
 void kevue_client_destroy(KevueClient *kc);
 bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);
 bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len, char *val, uint16_t val_len);

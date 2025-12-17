@@ -289,7 +289,6 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             KevueRequest req = { 0 };
             req.total_len = c->total_len;
             KevueResponse resp = { 0 };
-            resp.ma = c->ma;
             KevueErr err = kevue_deserialize_request(&req, c->rbuf);
             if (err == KEVUE_ERR_OK) {
                 kevue_print_request(&req);

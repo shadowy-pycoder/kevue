@@ -111,20 +111,22 @@ static void *kevue__handle_server_epoll(void *args)
     int epfd = epoll_create1(0);
     if (epfd < 0) {
         print_err("[%d] Creating epoll file descriptor failed %s", tid, strerror(errno));
+        close(server_sock);
         ma->free(esargs, ma->ctx);
-        // TODO: do something else instead of exit
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     struct epoll_event *events = (struct epoll_event *)ma->malloc(sizeof(struct epoll_event) * MAX_EVENTS, ma->ctx);
     if (events == NULL) {
+        close(server_sock);
         ma->free(esargs, ma->ctx);
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     KevueConnection *sc = (KevueConnection *)ma->malloc(sizeof(KevueConnection), ma->ctx);
     if (sc == NULL) {
+        close(server_sock);
         ma->free(esargs, ma->ctx);
         ma->free(events, ma->ctx);
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     sc->ma = ma;
     sc->sock = (Socket *)ma->malloc(sizeof(Socket), ma->ctx);
@@ -136,24 +138,35 @@ static void *kevue__handle_server_epoll(void *args)
         ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     KevueConnection *ec = (KevueConnection *)ma->malloc(sizeof(KevueConnection), ma->ctx);
     if (ec == NULL) {
+        close(server_sock);
         ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     ec->sock = (Socket *)ma->malloc(sizeof(Socket), ma->ctx);
+    if (ec->sock == NULL) {
+        close(server_sock);
+        ma->free(events, ma->ctx);
+        ma->free(sc->sock, ma->ctx);
+        ma->free(sc, ma->ctx);
+        goto server_close;
+    }
     ec->sock->fd = esock;
     ec->sock->c = ec;
     if (kevue__epoll_add(epfd, ec->sock, EPOLLIN | EPOLLET) < 0) {
         print_err("[%d] Adding event socket to epoll failed: %s", tid, strerror(errno));
+        close(server_sock);
         ma->free(events, ma->ctx);
+        ma->free(sc->sock, ma->ctx);
+        ma->free(sc, ma->ctx);
         ma->free(ec->sock, ma->ctx);
         ma->free(ec, ma->ctx);
-        exit(EXIT_FAILURE);
+        goto server_close;
     }
     int nready;
     bool closing = false;
@@ -162,10 +175,18 @@ static void *kevue__handle_server_epoll(void *args)
         nready = epoll_wait(epfd, events, MAX_EVENTS, EPOLL_TIMEOUT);
         if (nready < 0) {
             print_err("[%d] Waiting for epoll failed: %s", tid, strerror(errno));
-            exit(EXIT_FAILURE);
+            close(server_sock);
+            ma->free(events, ma->ctx);
+            ma->free(sc->sock, ma->ctx);
+            ma->free(sc, ma->ctx);
+            ma->free(ec->sock, ma->ctx);
+            ma->free(ec, ma->ctx);
+            goto server_close;
         }
-        if (closing && nready == 0)
-            break;
+        if (closing && nready == 0) {
+            ma->free(events, ma->ctx);
+            goto server_close;
+        }
         for (int i = 0; i < nready; i++) {
             if (events[i].events == 0)
                 continue;
@@ -209,8 +230,8 @@ static void *kevue__handle_server_epoll(void *args)
             }
         }
     }
+server_close:
     print_debug("[%d] server closed", tid);
-    ma->free(events, ma->ctx);
     pthread_exit(NULL);
     return NULL;
 }
@@ -594,7 +615,11 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     ks->host = host;
     ks->port = port;
     ks->efd = eventfd(0, EFD_NONBLOCK);
-    // TODO: handle socket creation failure
+    if (ks->efd < 0) {
+        print_err("Creating eventfd failed: %s", strerror(errno));
+        ks->ma->free(ks, ks->ma->ctx);
+        return NULL;
+    }
     for (int i = 0; i < SERVER_WORKERS; i++) {
         ks->fds[i] = kevue__create_server_sock(host, port, false);
         if (ks->fds[i] < 0) {
@@ -628,7 +653,7 @@ void kevue_server_start(KevueServer *ks)
     print_info("Shutting down %d servers on %s:%s... Please wait", SERVER_WORKERS, ks->host, ks->port);
     uint64_t one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
-        print_err("writing to eventfd failed: %s", strerror(errno));
+        print_err("Writing to eventfd failed: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < SERVER_WORKERS; i++) {

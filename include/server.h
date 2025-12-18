@@ -34,10 +34,6 @@ typedef struct KevueServer {
     KevueAllocator *ma;
 } KevueServer;
 
-typedef struct Address Address;
-typedef struct Socket Socket;
-typedef struct KevueConnection KevueConnection;
-
 KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
 void kevue_server_start(KevueServer *ks);
 void kevue_server_destroy(KevueServer *ks);

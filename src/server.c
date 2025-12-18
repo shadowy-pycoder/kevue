@@ -45,6 +45,9 @@
 atomic_bool shutting_down = false;
 
 typedef struct sockaddr_storage SockAddr;
+typedef struct Address Address;
+typedef struct Socket Socket;
+typedef struct KevueConnection KevueConnection;
 
 struct Address {
     int port;
@@ -169,7 +172,7 @@ static void *kevue__handle_server_epoll(void *args)
             Socket *sock = (Socket *)events[i].data.ptr;
             if (sock->fd == server_sock && !closing) {
                 if (!(events[i].events & EPOLLIN)) {
-                    printf("INFO: [%d] Server is not ready to accept connections %d\n", tid, events[i].events);
+                    print_info("[%d] Server is not ready to accept connections %d", tid, events[i].events);
                     continue;
                 }
                 while (true) {
@@ -206,9 +209,7 @@ static void *kevue__handle_server_epoll(void *args)
             }
         }
     }
-#ifdef DEBUG
-    printf("DEBUG: [%d] server closed\n", tid);
-#endif
+    print_debug("[%d] server closed", tid);
     ma->free(events, ma->ctx);
     pthread_exit(NULL);
     return NULL;
@@ -251,7 +252,7 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
         kevue__connection_destroy(c);
         return false;
     }
-    printf("INFO: [%d] New connection %s:%d\n", tid, c->addr.addr_str, c->addr.port);
+    print_info("[%d] New connection %s:%d", tid, c->addr.addr_str, c->addr.port);
     return true;
 }
 
@@ -296,12 +297,12 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 resp.err_code = KEVUE_ERR_OK;
                 if (req.cmd == GET) {
                     resp.val_len = req.key_len;
-                    resp.val = kevue_buffer_create(resp.val_len, c->ma);
+                    resp.val = kevue_buffer_create(resp.val_len + 1, c->ma);
                     kevue_buffer_write(resp.val, req.key, req.key_len);
                 }
                 if (req.cmd == HELLO) {
                     resp.val_len = strlen(kevue_command_to_string(HELLO));
-                    resp.val = kevue_buffer_create(resp.val_len, c->ma);
+                    resp.val = kevue_buffer_create(resp.val_len + 1, c->ma);
                     kevue_buffer_write(resp.val, kevue_command_to_string(HELLO), resp.val_len);
                 }
                 kevue_serialize_response(&resp, c->wbuf);
@@ -349,15 +350,11 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
             print_err("[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nr == 0) {
-#ifdef DEBUG
-            printf("DEBUG: [%d] %s:%d:EOF\n", tid, c->addr.addr_str, c->addr.port);
-#endif
+            print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
             c->rbuf->size += nr;
-#ifdef DEBUG
-            printf("DEBUG: [%d] Read %d bytes from client %s:%d\n", tid, nr, c->addr.addr_str, c->addr.port);
-#endif
+            print_debug("[%d] Read %d bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -376,15 +373,11 @@ static bool kevue__handle_read(KevueConnection *c)
             print_err("[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nr == 0) {
-#ifdef DEBUG
-            printf("DEBUG: [%d] %s:%d:EOF\n", tid, c->addr.addr_str, c->addr.port);
-#endif
+            print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
             c->rbuf->size += nr;
-#ifdef DEBUG
-            printf("DEBUG: [%d] Read %d bytes from client %s:%d\n", tid, nr, c->addr.addr_str, c->addr.port);
-#endif
+            print_debug("[%d] Read %d bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -406,9 +399,7 @@ static bool kevue__handle_write(KevueConnection *c)
             break;
         } else {
             c->wbuf->offset += nw;
-#ifdef DEBUG
-            printf("DEBUG: [%d] Written %d bytes -> %s:%d\n", tid, nw, c->addr.addr_str, c->addr.port);
-#endif
+            print_debug("[%d] Written %d bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
             if (c->wbuf->offset >= c->wbuf->size) {
                 kevue_buffer_reset(c->wbuf);
                 break;
@@ -485,11 +476,11 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
 static void kevue__connection_destroy(KevueConnection *c)
 {
     pid_t tid = gettid();
-    printf("INFO: [%d] Closing connection %s:%d\n", tid, c->addr.addr_str, c->addr.port);
+    print_info("[%d] Closing connection %s:%d", tid, c->addr.addr_str, c->addr.port);
     if (close(c->sock->fd) < 0) {
         print_err("[%d] Closing socket failed for %s:%d: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
     } else {
-        printf("INFO: [%d] Connection to %s:%d closed\n", tid, c->addr.addr_str, c->addr.port);
+        print_info("[%d] Connection to %s:%d closed", tid, c->addr.addr_str, c->addr.port);
     }
     c->ma->free(c->sock, c->ma->ctx);
     kevue_buffer_destroy(c->rbuf);
@@ -579,7 +570,7 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
         close(server_sock);
         return -1;
     }
-    printf("INFO: kevue listening on %s:%s\n", host, port);
+    print_info("kevue server listening on %s:%s", host, port);
     return server_sock;
 }
 
@@ -634,7 +625,7 @@ void kevue_server_start(KevueServer *ks)
     }
     while (!shutting_down)
         pause();
-    printf("INFO: Shutting down %d servers on %s:%s... Please wait\n", SERVER_WORKERS, ks->host, ks->port);
+    print_info("Shutting down %d servers on %s:%s... Please wait", SERVER_WORKERS, ks->host, ks->port);
     uint64_t one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
         print_err("writing to eventfd failed: %s", strerror(errno));
@@ -647,7 +638,7 @@ void kevue_server_start(KevueServer *ks)
 
 void kevue_server_destroy(KevueServer *ks)
 {
-    printf("INFO: %d servers on %s:%s gracefully shut down\n", SERVER_WORKERS, ks->host, ks->port);
+    print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
     close(ks->efd);
     ks->ma->free(ks, ks->ma->ctx);
 }

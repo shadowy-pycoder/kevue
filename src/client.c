@@ -38,6 +38,8 @@
 
 #define PROMPT_LENGTH INET6_ADDRSTRLEN + 7 + 1
 
+typedef struct KevueClientParseResult KevueClientParseResult;
+
 static void kevue__usage(void);
 static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
@@ -144,14 +146,13 @@ static void kevue__usage(void)
     printf("Usage: kevue-client <host> <port>\n");
 }
 
-static bool kevue__handle_read_exactly(KevueClient *c, size_t n)
+static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
 {
-    kevue_buffer_grow(c->rbuf, n);
-    while (c->rbuf->size < n) {
-        int nr = read(c->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
+    kevue_buffer_grow(kc->rbuf, n);
+    while (kc->rbuf->size < n) {
+        int nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, n - kc->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
-                // TODO: deal with timeout
                 return false;
             if (errno == EINTR)
                 continue;
@@ -159,7 +160,8 @@ static bool kevue__handle_read_exactly(KevueClient *c, size_t n)
         } else if (nr == 0) {
             return false;
         } else {
-            c->rbuf->size += nr;
+            kc->rbuf->size += nr;
+            print_debug("Read %d bytes", nr);
         }
     }
     return true;
@@ -440,7 +442,7 @@ KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma)
     kc->wbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
     KevueResponse resp = { 0 };
     if (!kevue__client_hello(kc, &resp)) {
-        printf("%s\n", kevue_error_to_string(resp.err_code));
+        print_err("%s", kevue_error_to_string(resp.err_code));
         kevue_client_destroy(kc);
         return NULL;
     }
@@ -476,7 +478,7 @@ int main(int argc, char **argv)
     }
     KevueClient *kc = kevue_client_create(host, port, NULL);
     if (kc == NULL) exit(EXIT_FAILURE);
-    printf("INFO: connected to %s:%s\n", host, port);
+    print_info("Connected to %s:%s", host, port);
     KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
     memset(resp, 0, sizeof(*resp));
     linenoiseSetCompletionCallback(completion);
@@ -486,6 +488,7 @@ int main(int argc, char **argv)
     char prompt[PROMPT_LENGTH];
     int n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
     prompt[n] = '\0';
+    Buffer *cmdline = kevue_buffer_create(BUF_SIZE, kc->ma);
     while (true) {
         line = linenoise(prompt);
         if (line == NULL) break;
@@ -497,18 +500,18 @@ int main(int argc, char **argv)
             kc->ma->free(line, kc->ma->ctx);
             break;
         }
-        Buffer *buf = kevue_buffer_create(strlen(line), kc->ma);
-        kevue_buffer_write(buf, line, strlen(line));
-        KevueClientParseResult *pr = kevue__parse_command_line(buf);
+        kevue_buffer_write(cmdline, line, strlen(line));
+        KevueClientParseResult *pr = kevue__parse_command_line(cmdline);
         if (pr == NULL) {
             kc->ma->free(line, kc->ma->ctx);
+            kevue_buffer_reset(cmdline);
             continue;
         }
         switch (pr->cmd) {
         case GET:
             if (kevue_client_get(kc, resp, pr->key->ptr, pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
-                fputs("\n", stdout);
+                fputc('\n', stdout);
                 fflush(stdout);
             }
             break;
@@ -525,12 +528,14 @@ int main(int argc, char **argv)
         default:
             UNREACHABLE("Possibly forgot to add new command to switch case");
         }
+        kevue_buffer_reset(cmdline);
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); /* Add to the history. */
         linenoiseHistorySave("history.txt"); /* Save the history on disk. */
         kc->ma->free(line, kc->ma->ctx);
-        kevue_buffer_destroy(buf);
     }
-    kevue_destroy_response(resp);
+    kevue_buffer_destroy(cmdline);
+    kevue_buffer_destroy(resp->val);
+    kc->ma->free(resp, kc->ma->ctx);
     kevue_client_destroy(kc);
 }

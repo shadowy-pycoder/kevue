@@ -43,7 +43,7 @@ char *kevue_command_to_string(KevueCommand c)
         COMMAND_LIST
 #undef X
     }
-    return "Unknown";
+    UNREACHABLE("Unknown command");
 }
 
 char *kevue_error_to_string(KevueErr e)
@@ -55,7 +55,7 @@ char *kevue_error_to_string(KevueErr e)
         ERROR_CODE_LIST
 #undef X
     }
-    return "Unknown";
+    UNREACHABLE("Unknown error");
 }
 
 KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
@@ -73,9 +73,7 @@ KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
             return KEVUE_ERR_EOF;
         } else {
             buf->size += nr;
-#ifdef DEBUG
-            printf("DEBUG: Read %d bytes \n", nr);
-#endif
+            print_debug("Read %d bytes", nr);
         }
     }
     assert(buf->offset == 0);
@@ -132,17 +130,22 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
 
 void kevue_print_request(KevueRequest *req)
 {
-    printf("Total Length: %d\n", req->total_len);
-    printf("Command Length: %d\n", req->cmd_len);
-    printf("Command: %*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
+    fprintf(stdout, "Total Length: %d\n", req->total_len);
+    fprintf(stdout, "Command Length: %d\n", req->cmd_len);
+    fprintf(stdout, "Command: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
     if (req->key_len > 0) {
-        printf("Key Length: %d\n", req->key_len);
-        printf("Key: %.*s\n", req->key_len, req->key);
+        fprintf(stdout, "Key Length: %d\n", req->key_len);
+        fputs("Key: ", stdout);
+        fwrite(req->key, sizeof(*req->key), req->key_len, stdout);
+        fputc('\n', stdout);
     }
     if (req->val_len > 0) {
-        printf("Value Length: %d\n", req->val_len);
-        printf("Value: %.*s\n", req->val_len, req->val);
+        fprintf(stdout, "Value Length: %d\n", req->val_len);
+        fputs("Value: ", stdout);
+        fwrite(req->val, sizeof(*req->val), req->val_len, stdout);
+        fputc('\n', stdout);
     }
+    fflush(stdout);
 }
 
 void kevue_serialize_request(KevueRequest *req, Buffer *buf)
@@ -150,7 +153,6 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
     assert(req->cmd_len > 0);
     req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
     if (req->cmd != HELLO) {
-        printf("%s\n", kevue_command_to_string(req->cmd));
         assert(req->key_len > 0);
         req->total_len += sizeof(req->key_len) + req->key_len * sizeof(*req->key);
     }
@@ -193,18 +195,13 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     }
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
-        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len, buf->ma);
+        if (resp->val == NULL) {
+            resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
+        }
         kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
     }
     return KEVUE_ERR_OK;
-}
-
-void kevue_destroy_response(KevueResponse *resp)
-{
-    KevueAllocator *ma = resp->val->ma;
-    kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
 }
 
 void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
@@ -229,11 +226,14 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
 
 void kevue_print_response(KevueResponse *resp)
 {
-    printf("Total Length: %d\n", resp->total_len);
-    printf("Error Code: %d\n", resp->err_code);
-    printf("Error Description: %s\n", kevue_error_to_string(resp->err_code));
+    fprintf(stdout, "Total Length: %d\n", resp->total_len);
+    fprintf(stdout, "Error Code: %d\n", resp->err_code);
+    fprintf(stdout, "Error Description: %s\n", kevue_error_to_string(resp->err_code));
     if (resp->val_len > 0) {
-        printf("Value Length: %d\n", resp->val_len);
-        printf("Value: %.*s\n", resp->val_len, resp->val->ptr);
+        fprintf(stdout, "Value Length: %d\n", resp->val_len);
+        fputs("Value: ", stdout);
+        fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
+        fputc('\n', stdout);
     }
+    fflush(stdout);
 }

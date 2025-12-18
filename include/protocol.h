@@ -94,7 +94,6 @@ KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len);
 KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf);
 void kevue_serialize_request(KevueRequest *req, Buffer *buf);
 KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf);
-void kevue_destroy_response(KevueResponse *resp);
 void kevue_serialize_response(KevueResponse *resp, Buffer *buf);
 void kevue_print_request(KevueRequest *req);
 void kevue_print_response(KevueResponse *resp);

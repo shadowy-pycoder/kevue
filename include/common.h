@@ -44,6 +44,15 @@
 #define print_err(fmt, ...) \
     fprintf(stderr, "ERROR: %s: " fmt "\n", __func__, ##__VA_ARGS__)
 
+#ifdef DEBUG
+#define print_debug(fmt, ...) \
+    fprintf(stdout, "DEBUG: %s:%d:%s: " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#else
+#define print_debug(fmt, ...) ((void)0)
+#endif
+
+#define print_info(fmt, ...) fprintf(stdout, "INFO: " fmt "\n", ##__VA_ARGS__)
+
 char *to_upper(char *s, size_t n);
 const char *inet_ntop2(void *addr, char *buf, size_t size);
 uint16_t ntohs2(void *addr);

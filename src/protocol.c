@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <allocator.h>
@@ -61,7 +62,7 @@ char *kevue_error_to_string(KevueErr e)
 KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
 {
     while (buf->size < KEVUE_MESSAGE_HEADER_SIZE) {
-        int nr = read(sock, buf->ptr + buf->size, KEVUE_MESSAGE_HEADER_SIZE - buf->size);
+        ssize_t nr = read(sock, buf->ptr + buf->size, KEVUE_MESSAGE_HEADER_SIZE - buf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 return KEVUE_ERR_INCOMPLETE_READ;
@@ -72,8 +73,8 @@ KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
         } else if (nr == 0) {
             return KEVUE_ERR_EOF;
         } else {
-            buf->size += nr;
-            print_debug("Read %d bytes", nr);
+            buf->size += (size_t)nr;
+            print_debug("Read %ld bytes", nr);
         }
     }
     assert(buf->offset == 0);
@@ -215,7 +216,7 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
     uint32_t tl = htonl(resp->total_len);
     kevue_buffer_append(buf, &tl, sizeof(resp->total_len));
-    uint8_t ec = resp->err_code;
+    uint8_t ec = (uint8_t)resp->err_code;
     kevue_buffer_append(buf, &ec, sizeof(uint8_t));
     uint16_t vl = htons(resp->val_len);
     kevue_buffer_append(buf, &vl, sizeof(resp->val_len));

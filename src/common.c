@@ -24,12 +24,12 @@
 char *to_upper(char *s, size_t n)
 {
     for (size_t i = 0; i < n; i++)
-        s[i] = toupper(s[i]);
+        s[i] = (char)toupper(s[i]);
     return s;
 }
 
 // https://beej.us/guide/bgnet/html/split/slightly-advanced-techniques.html#poll
-const char *inet_ntop2(void *addr, char *buf, size_t size)
+const char *inet_ntop2(void *addr, char *buf, socklen_t size)
 {
     struct sockaddr_storage *sas = addr;
     struct sockaddr_in *sa4;

@@ -104,7 +104,7 @@ int kevue_buffer_peek_byte(Buffer *buf)
 void kevue_buffer_read_until(Buffer *buf, Buffer *out, char until)
 {
     char c;
-    while ((c = kevue_buffer_peek_byte(buf)) != EOF) {
+    while ((c = (char)kevue_buffer_peek_byte(buf)) != EOF) {
         if (c == until) break;
         kevue_buffer_append(out, &c, sizeof(char));
         kevue_buffer_read_advance(buf);

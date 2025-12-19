@@ -8,13 +8,20 @@ SRC := $(PROJDIR)/src
 INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
 CC := clang
-CFLAGS := -ggdb -Wall -Wextra -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -O1 -std=c2x -march=native
-CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
-CPPFLAGS := -I$(INCLUDE) -I$(LIB) -DDEBUG -D_GNU_SOURCE
-LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB) -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -std=c2x -march=native
+CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE
+LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
+DEBUG ?= 1
+ifeq ($(DEBUG),1)
+CFLAGS += -ggdb -O0 -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+CPPFLAGS += -DDEBUG
+LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+else
+CFLAGS += -Os
+endif
 
-.PHONY: default all clean run compile_commands
+.PHONY: default all clean run debug release compile_commands
 
 default: $(BINARIES)
 all: default
@@ -35,15 +42,23 @@ $(BUILD)/%.o: $(SRC)/%.c  $(HEADERS) | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: $(LIB)/%.c $(HEADERS) | $(BUILD)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -w -c $< -o $@
 
 .PRECIOUS: $(OBJECTS)
+
+$(BIN)/$(PROJNAME)-server: LDLIBS += -pthread
 
 $(BIN)/$(PROJNAME)-%: $(COMMON_OBJECTS) $(BUILD)/%.o | $(BIN)
 	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
 run: $(BIN)/$(PROJNAME)-server
 	./$(notdir $(BIN))/$(PROJNAME)-server
+
+debug:
+	$(MAKE) DEBUG=1
+
+release:
+	$(MAKE) DEBUG=0
 
 clean:
 	rm -rf $(BUILD)

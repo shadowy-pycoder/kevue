@@ -150,7 +150,7 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
 {
     kevue_buffer_grow(kc->rbuf, n);
     while (kc->rbuf->size < n) {
-        int nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, n - kc->rbuf->size);
+        ssize_t nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, n - kc->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return false;
@@ -160,8 +160,8 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
         } else if (nr == 0) {
             return false;
         } else {
-            kc->rbuf->size += nr;
-            print_debug("Read %d bytes", nr);
+            kc->rbuf->size += (size_t)nr;
+            print_debug("Read %ld bytes", nr);
         }
     }
     return true;
@@ -170,7 +170,7 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
 static bool kevue__handle_write(KevueClient *kc)
 {
     while (kc->wbuf->offset < kc->wbuf->size) {
-        int nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
+        ssize_t nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 // TODO: deal with timeout
@@ -181,7 +181,7 @@ static bool kevue__handle_write(KevueClient *kc)
         } else if (nw == 0) {
             continue;
         } else {
-            kc->wbuf->offset += nw;
+            kc->wbuf->offset += (size_t)nw;
         }
     }
     kevue_buffer_reset(kc->wbuf);
@@ -238,7 +238,7 @@ static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
     KevueRequest req = { 0 };
     req.cmd_len = 5;
     req.cmd = HELLO;
-    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val->ptr, resp->val_len, HELLO)) {
+    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         kevue_buffer_destroy(resp->val);
         return false;
@@ -289,7 +289,7 @@ static char *hints(const char *buf, int *color, int *bold)
 
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out)
 {
-    char c = kevue_buffer_peek_byte(buf);
+    char c = (char)kevue_buffer_peek_byte(buf);
     switch (c) {
     case '"':
     case '\'':
@@ -328,11 +328,11 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_compare_command(pr->key->ptr, pr->key->size, GET)) {
+    if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, GET)) {
         pr->cmd = GET;
-    } else if (kevue_compare_command(pr->key->ptr, pr->key->size, SET)) {
+    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, SET)) {
         pr->cmd = SET;
-    } else if (kevue_compare_command(pr->key->ptr, pr->key->size, DELETE)) {
+    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, DELETE)) {
         pr->cmd = DELETE;
     } else {
         printf("ERROR: Wrong command\n");
@@ -509,19 +509,19 @@ int main(int argc, char **argv)
         }
         switch (pr->cmd) {
         case GET:
-            if (kevue_client_get(kc, resp, pr->key->ptr, pr->key->size)) {
+            if (kevue_client_get(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fputc('\n', stdout);
                 fflush(stdout);
             }
             break;
         case SET:
-            if (kevue_client_set(kc, resp, pr->key->ptr, pr->key->size, pr->value->ptr, pr->value->size)) {
+            if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
                 printf("OK\n");
             }
             break;
         case DELETE:
-            if (kevue_client_delete(kc, resp, pr->key->ptr, pr->key->size)) {
+            if (kevue_client_delete(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
             }
             break;

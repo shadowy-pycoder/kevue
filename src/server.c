@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -322,7 +323,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                     kevue_buffer_write(resp.val, req.key, req.key_len);
                 }
                 if (req.cmd == HELLO) {
-                    resp.val_len = strlen(kevue_command_to_string(HELLO));
+                    resp.val_len = (uint16_t)strlen(kevue_command_to_string(HELLO));
                     resp.val = kevue_buffer_create(resp.val_len + 1, c->ma);
                     kevue_buffer_write(resp.val, kevue_command_to_string(HELLO), resp.val_len);
                 }
@@ -362,7 +363,7 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
     kevue_buffer_grow(c->rbuf, n);
     pid_t tid = gettid();
     while (c->rbuf->size < n) {
-        int nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
+        ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
@@ -374,8 +375,8 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
             print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
-            c->rbuf->size += nr;
-            print_debug("[%d] Read %d bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
+            c->rbuf->size += (size_t)nr;
+            print_debug("[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -385,7 +386,7 @@ static bool kevue__handle_read(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
-        int nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, c->rbuf->capacity - c->rbuf->size);
+        ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, c->rbuf->capacity - c->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
@@ -397,8 +398,8 @@ static bool kevue__handle_read(KevueConnection *c)
             print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
-            c->rbuf->size += nr;
-            print_debug("[%d] Read %d bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
+            c->rbuf->size += (size_t)nr;
+            print_debug("[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -408,7 +409,7 @@ static bool kevue__handle_write(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
-        int nw = write(c->sock->fd, c->wbuf->ptr + c->wbuf->offset, c->wbuf->size - c->wbuf->offset);
+        ssize_t nw = write(c->sock->fd, c->wbuf->ptr + c->wbuf->offset, c->wbuf->size - c->wbuf->offset);
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
@@ -419,8 +420,8 @@ static bool kevue__handle_write(KevueConnection *c)
         } else if (nw == 0) {
             break;
         } else {
-            c->wbuf->offset += nw;
-            print_debug("[%d] Written %d bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
+            c->wbuf->offset += (size_t)nw;
+            print_debug("[%d] Written %ld bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
             if (c->wbuf->offset >= c->wbuf->size) {
                 kevue_buffer_reset(c->wbuf);
                 break;
@@ -482,7 +483,7 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
         return false;
     }
     c->closed = false;
-    inet_ntop2(&addr, c->addr.addr_str, sizeof(c->addr.addr_str));
+    inet_ntop2(&addr, c->addr.addr_str, (socklen_t)sizeof(c->addr.addr_str));
     c->addr.port = ntohs2(&addr);
     if (c->addr.port == 0) {
         print_err("[%d] Extracting port failed", tid);

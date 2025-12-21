@@ -40,6 +40,9 @@
 #include <common.h>
 #include <protocol.h>
 #include <server.h>
+#ifdef USE_TCMALLOC
+#include <tcmalloc_allocator.h>
+#endif
 
 #define MAX_EVENTS 500
 
@@ -688,7 +691,11 @@ int main(int argc, char **argv)
         host = HOST;
         port = PORT;
     }
-    KevueServer *ks = kevue_server_create(host, port, NULL);
+    KevueAllocator *ma = NULL;
+#ifdef USE_TCMALLOC
+    ma = &kevue_tcmalloc_allocator;
+#endif
+    KevueServer *ks = kevue_server_create(host, port, ma);
     if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);
     kevue_server_destroy(ks);

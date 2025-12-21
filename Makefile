@@ -14,11 +14,30 @@ LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
 DEBUG ?= 1
 ifeq ($(DEBUG),1)
-CFLAGS += -ggdb -O0 -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
-CPPFLAGS += -DDEBUG
-LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  CFLAGS += -ggdb -O0 -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  CPPFLAGS += -DDEBUG
+  LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
 else
-CFLAGS += -Os
+  CFLAGS += -Os
+endif
+
+USE_TCMALLOC ?= auto
+
+ifeq ($(USE_TCMALLOC),auto)
+  ifeq ($(shell pkg-config --exists libtcmalloc && echo yes),yes)
+    USE_TCMALLOC := yes
+  else
+    USE_TCMALLOC := no
+  endif
+endif
+
+ifeq ($(USE_TCMALLOC),yes)
+  CFLAGS  += -DUSE_TCMALLOC
+  ifeq ($(DEBUG), 1)
+    LDLIBS  += -ltcmalloc_debug
+  else
+    LDLIBS  += -ltcmalloc
+  endif
 endif
 
 .PHONY: default all clean run debug release compile_commands
@@ -31,6 +50,7 @@ OBJECTS += $(patsubst $(LIB)/%.c, $(BUILD)/%.o, $(wildcard $(LIB)/*.c))
 COMMON_OBJECTS := $(filter-out $(foreach t,$(TARGETS),$(BUILD)/$(t).o),$(OBJECTS))
 HEADERS = $(wildcard $(INCLUDE)/*.h)
 HEADERS += $(wildcard $(LIB)/*.h)
+
 
 $(BUILD):
 	mkdir -p $(BUILD)

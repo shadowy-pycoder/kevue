@@ -36,6 +36,10 @@
 #include <linenoise.h>
 #include <protocol.h>
 
+#ifdef USE_TCMALLOC
+#include <tcmalloc_allocator.h>
+#endif
+
 #define PROMPT_LENGTH INET6_ADDRSTRLEN + 7 + 1
 
 typedef struct KevueClientParseResult KevueClientParseResult;
@@ -476,7 +480,11 @@ int main(int argc, char **argv)
         host = HOST;
         port = PORT;
     }
-    KevueClient *kc = kevue_client_create(host, port, NULL);
+    KevueAllocator *ma = NULL; // kevue_default_allocator
+#ifdef USE_TCMALLOC
+    ma = &kevue_tcmalloc_allocator;
+#endif
+    KevueClient *kc = kevue_client_create(host, port, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
     print_info("Connected to %s:%s", host, port);
     KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
@@ -493,17 +501,17 @@ int main(int argc, char **argv)
         line = linenoise(prompt);
         if (line == NULL) break;
         if (line[0] == '\0') {
-            kc->ma->free(line, kc->ma->ctx);
+            free(line);
             continue;
         }
         if (!strncmp(line, "exit", 4) || !strncmp(line, "quit", 4) || !strncmp(line, "q", 1)) {
-            kc->ma->free(line, kc->ma->ctx);
+            free(line);
             break;
         }
         kevue_buffer_write(cmdline, line, strlen(line));
         KevueClientParseResult *pr = kevue__parse_command_line(cmdline);
         if (pr == NULL) {
-            kc->ma->free(line, kc->ma->ctx);
+            free(line);
             kevue_buffer_reset(cmdline);
             continue;
         }
@@ -532,7 +540,7 @@ int main(int argc, char **argv)
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); /* Add to the history. */
         linenoiseHistorySave("history.txt"); /* Save the history on disk. */
-        kc->ma->free(line, kc->ma->ctx);
+        free(line);
     }
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);

@@ -14,26 +14,17 @@
  * limitations under the License.
  */
 #pragma once
-#include <pthread.h>
-#include <stdint.h>
+
+#include <stdbool.h>
+#include <stddef.h>
 
 #include <allocator.h>
-#include <common.h>
+#include <buffer.h>
 
-#define MAX_CONNECTIONS 4092
-#define EPOLL_TIMEOUT   (30 * 1000)
-#define SND_BUF_SIZE    (1024 * 1024 * 2)
-#define RECV_BUF_SIZE   (1024 * 1024 * 2)
+typedef struct HashMap HashMap;
 
-typedef struct KevueServer {
-    const char *host;
-    const char *port;
-    int fds[SERVER_WORKERS];
-    pthread_t threads[SERVER_WORKERS];
-    int efd;
-    KevueAllocator *ma;
-} KevueServer;
-
-KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
-void kevue_server_start(KevueServer *ks);
-void kevue_server_destroy(KevueServer *ks);
+HashMap *kevue_hm_create(KevueAllocator *ma);
+void kevue_hm_destroy(HashMap *hm);
+bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_len);
+bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf);
+bool kevue_hm_del(HashMap *hm, char *key, size_t key_len);

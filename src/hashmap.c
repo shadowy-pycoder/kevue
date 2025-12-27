@@ -1,0 +1,194 @@
+/*
+ * Copyright 2025 shadowy-pycoder
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <rapidhash.h>
+
+#include <allocator.h>
+#include <buffer.h>
+#include <common.h>
+#include <dyna.h>
+#include <hashmap.h>
+
+#define HASHMAP_BUCKET_INITIAL_COUNT       (SERVER_WORKERS * 8) // rounded up to the power of two
+#define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 4
+#define HASHMAP_MAX_LOAD                   1.0f
+#define HASHMAP_MIN_LOAD                   0.25f
+
+typedef struct Entry {
+    uint64_t hash;
+    size_t key_len;
+    size_t val_len;
+    uint8_t data[];
+} Entry;
+
+typedef struct Bucket {
+    Entry **ptr;
+    size_t len;
+    size_t cap;
+    KevueAllocator *ma;
+    pthread_mutex_t lock;
+} Bucket;
+
+struct HashMap {
+    Bucket *buckets; // static array
+    size_t bucket_count;
+    atomic_size_t slots_taken;
+    KevueAllocator *ma;
+    pthread_mutex_t resize_lock;
+};
+
+HashMap *kevue_hm_create(KevueAllocator *ma)
+{
+    HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
+    if (hm == NULL) return NULL;
+    memset(hm, 0, sizeof(*hm));
+    hm->ma = ma;
+    size_t bucket_count = round_up_pow2(HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
+    hm->buckets = hm->ma->malloc(bucket_count * sizeof(Bucket), hm->ma->ctx);
+    if (hm->buckets == NULL) {
+        hm->ma->free(hm, hm->ma->ctx);
+        return NULL;
+    }
+    hm->bucket_count = bucket_count;
+    for (size_t bucket = 0; bucket < bucket_count; bucket++) {
+        hm->buckets[bucket].ptr = NULL;
+    }
+    return hm;
+}
+
+void kevue_hm_destroy(HashMap *hm)
+{
+    if (hm == NULL) return;
+    for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
+        if (hm->buckets[bucket].ptr != NULL) {
+            kevue_dyna_foreach(&hm->buckets[bucket], entry_ptr) hm->ma->free(*entry_ptr, hm->ma->ctx);
+            kevue_dyna_deinit(&hm->buckets[bucket]);
+        }
+    }
+    hm->ma->free(hm->buckets, hm->ma->ctx);
+    hm->ma->free(hm, hm->ma->ctx);
+}
+
+bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_len)
+{
+    if (hm == NULL || hm->ma == NULL || key_len == 0 || val_len == 0) return false;
+    pthread_mutex_lock(&hm->resize_lock);
+    if ((long double)atomic_load(&hm->slots_taken) / hm->bucket_count > HASHMAP_MAX_LOAD) {
+        // TODO: resize
+    }
+    uint64_t hash = rapidhash(key, key_len);
+    size_t idx = hash % hm->bucket_count;
+    pthread_mutex_lock(&hm->buckets[idx].lock);
+    pthread_mutex_unlock(&hm->resize_lock);
+    bool bucket_init = false;
+    if (hm->buckets[idx].ptr != NULL) {
+        // check if key already exist
+        kevue_dyna_foreach(&hm->buckets[idx], entry_ptr)
+        {
+            Entry *entry = *entry_ptr;
+            if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
+                if (val_len > entry->val_len) {
+                    ptrdiff_t eidx = entry_ptr - hm->buckets[idx].ptr;
+                    hm->buckets[idx].ptr[eidx] = hm->ma->realloc(hm->buckets[idx].ptr[eidx], sizeof(*entry) + key_len + val_len, hm->ma->ctx);
+                    entry = hm->buckets[idx].ptr[eidx];
+                }
+                entry->val_len = val_len;
+                memcpy(entry->data, key, key_len);
+                memcpy(entry->data + key_len, val, val_len);
+                pthread_mutex_unlock(&hm->buckets[idx].lock);
+                return true;
+            }
+        }
+    } else {
+        bucket_init = true;
+        kevue_dyna_init(&hm->buckets[idx], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm->ma);
+    }
+    Entry *entry = hm->ma->malloc(sizeof(*entry) + key_len + val_len, hm->ma->ctx);
+    if (entry == NULL) {
+        if (bucket_init) kevue_dyna_deinit(&hm->buckets[idx]);
+        pthread_mutex_unlock(&hm->buckets[idx].lock);
+        return false;
+    }
+    entry->hash = hash;
+    entry->key_len = key_len;
+    entry->val_len = val_len;
+    memcpy(entry->data, key, key_len);
+    memcpy(entry->data + key_len, val, val_len);
+    kevue_dyna_append(&hm->buckets[idx], entry);
+    atomic_fetch_add(&hm->slots_taken, 1);
+    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    return true;
+}
+
+bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
+{
+    if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
+    uint64_t hash = rapidhash(key, key_len);
+    size_t idx = hash % hm->bucket_count;
+    pthread_mutex_lock(&hm->buckets[idx].lock);
+    if (hm->buckets[idx].ptr == NULL) {
+        return false;
+    }
+    kevue_dyna_foreach(&hm->buckets[idx], entry_ptr)
+    {
+        Entry *entry = *entry_ptr;
+        if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
+            kevue_buffer_write(buf, entry->data + entry->key_len, entry->val_len);
+            pthread_mutex_unlock(&hm->buckets[idx].lock);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    return false;
+}
+
+bool kevue_hm_del(HashMap *hm, char *key, size_t key_len)
+{
+    if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
+    pthread_mutex_lock(&hm->resize_lock);
+    if (hm->bucket_count > HASHMAP_BUCKET_INITIAL_COUNT) {
+        if ((long double)atomic_load(&hm->slots_taken) / hm->bucket_count < HASHMAP_MIN_LOAD) {
+            // TODO: resize
+        }
+    }
+    uint64_t hash = rapidhash(key, key_len);
+    size_t idx = hash % hm->bucket_count;
+    pthread_mutex_lock(&hm->buckets[idx].lock);
+    pthread_mutex_unlock(&hm->resize_lock);
+    if (hm->buckets[idx].ptr == NULL) {
+        pthread_mutex_unlock(&hm->buckets[idx].lock);
+        return false;
+    }
+    kevue_dyna_foreach(&hm->buckets[idx], entry_ptr)
+    {
+        Entry *entry = *entry_ptr;
+        if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
+            ptrdiff_t eidx = entry_ptr - hm->buckets[idx].ptr;
+            hm->ma->free(*entry_ptr, hm->ma->ctx);
+            kevue_dyna_remove(&hm->buckets[idx], (size_t)eidx);
+            atomic_fetch_sub(&hm->slots_taken, 1);
+            pthread_mutex_unlock(&hm->buckets[idx].lock);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    return false;
+}

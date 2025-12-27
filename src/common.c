@@ -71,3 +71,20 @@ uint16_t ntohs2(void *addr)
     }
     return ntohs(port);
 }
+
+size_t round_up_pow2(size_t x)
+{
+    if (x <= 1)
+        return 1;
+
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+#if SIZE_MAX > UINT32_MAX
+    x |= x >> 32;
+#endif
+    return x + 1;
+}

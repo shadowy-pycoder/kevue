@@ -12,16 +12,22 @@ CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-functi
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
+USE_TCMALLOC ?= auto
 DEBUG ?= 1
+ASAN ?= 1
+
 ifeq ($(DEBUG),1)
-  CFLAGS += -ggdb -O0 -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  CFLAGS += -ggdb -O0
   CPPFLAGS += -DDEBUG
-  LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
 else
   CFLAGS += -Os
 endif
 
-USE_TCMALLOC ?= auto
+ifeq ($(ASAN),1)
+  CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  USE_TCMALLOC := no
+endif
 
 ifeq ($(USE_TCMALLOC),auto)
   ifeq ($(shell pkg-config --exists libtcmalloc && echo yes),yes)
@@ -32,7 +38,7 @@ ifeq ($(USE_TCMALLOC),auto)
 endif
 
 ifeq ($(USE_TCMALLOC),yes)
-  CFLAGS  += -DUSE_TCMALLOC
+  CPPFLAGS  += -DUSE_TCMALLOC
   ifeq ($(DEBUG), 1)
     LDLIBS  += -ltcmalloc_debug
   else
@@ -78,7 +84,7 @@ debug:
 	$(MAKE) DEBUG=1
 
 release:
-	$(MAKE) DEBUG=0
+	$(MAKE) DEBUG=0 ASAN=0
 
 clean:
 	rm -rf $(BUILD)

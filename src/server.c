@@ -23,7 +23,6 @@
 #include <netinet/tcp.h>
 #include <pthread.h>
 #include <signal.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -46,7 +45,7 @@
 
 #define MAX_EVENTS 500
 
-atomic_bool shutting_down = false;
+bool shutting_down = false;
 
 typedef struct sockaddr_storage SockAddr;
 typedef struct Address Address;

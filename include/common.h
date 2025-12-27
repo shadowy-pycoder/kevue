@@ -20,11 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define HOST          "0.0.0.0"
-#define PORT          "6973"
-#define BUF_SIZE      (32 * 1024)
-#define READ_TIMEOUT  10
-#define WRITE_TIMEOUT 10
+#define HOST           "0.0.0.0"
+#define PORT           "6973"
+#define BUF_SIZE       (32 * 1024)
+#define READ_TIMEOUT   10
+#define WRITE_TIMEOUT  10
+#define SERVER_WORKERS 10
 
 // stolen from https://github.com/tsoding/nob.h
 #define UNREACHABLE(where)                                                                  \
@@ -56,3 +57,4 @@
 char *to_upper(char *s, size_t n);
 const char *inet_ntop2(void *addr, char *buf, size_t size);
 uint16_t ntohs2(void *addr);
+size_t round_up_pow2(size_t x);

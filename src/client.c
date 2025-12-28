@@ -29,11 +29,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <linenoise.h>
+
 #include <allocator.h>
 #include <buffer.h>
 #include <client.h>
 #include <common.h>
-#include <linenoise.h>
+#include <dyna.h>
 #include <protocol.h>
 
 #ifdef USE_TCMALLOC
@@ -165,7 +167,7 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
             return false;
         } else {
             kc->rbuf->size += (size_t)nr;
-            print_debug("Read %ld bytes", nr);
+            print_debug("Read %zu bytes", nr);
         }
     }
     return true;
@@ -231,7 +233,7 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
     }
     resp->total_len = total_len;
     KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
-    kevue_buffer_move_unread_bytes(kc->rbuf);
+    kevue_buffer_reset(kc->rbuf);
     if (err != KEVUE_ERR_OK) return false;
     kevue_print_response(resp);
     return true;

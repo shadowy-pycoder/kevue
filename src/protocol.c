@@ -184,16 +184,16 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
     if (resp->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     resp->err_code = (KevueErr)buf->ptr[buf->offset];
+    if (resp->err_code != KEVUE_ERR_OK) {
+        resp->val_len = 0;
+        return resp->err_code;
+    }
     buf->offset += sizeof(uint8_t);
     if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     memcpy(&resp->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
     resp->val_len = ntohs(resp->val_len);
     buf->offset += sizeof(uint16_t);
     if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
-    if (resp->err_code != KEVUE_ERR_OK) {
-        resp->val_len = 0;
-        return KEVUE_ERR_OK;
-    }
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
         if (resp->val == NULL) {

@@ -19,6 +19,7 @@
 
 #include <allocator.h>
 #include <common.h>
+#include <hashmap.h>
 
 #define MAX_CONNECTIONS 4092
 #define EPOLL_TIMEOUT   (30 * 1000)
@@ -32,6 +33,7 @@ typedef struct KevueServer {
     pthread_t threads[SERVER_WORKERS];
     int efd;
     KevueAllocator *ma;
+    HashMap *hm;
 } KevueServer;
 
 KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);

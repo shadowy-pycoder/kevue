@@ -37,6 +37,7 @@
 #include <allocator.h>
 #include <buffer.h>
 #include <common.h>
+#include <hashmap.h>
 #include <protocol.h>
 #include <server.h>
 #ifdef USE_TCMALLOC
@@ -70,12 +71,15 @@ struct KevueConnection {
     Buffer *wbuf;
     uint32_t total_len;
     KevueAllocator *ma;
+    HashMap *hm;
+    Buffer *hmbuf;
 };
 
 typedef struct EpollServerArgs {
     int *ssock;
     int *esock;
     KevueAllocator *ma;
+    HashMap *hm;
 } EpollServerArgs;
 
 static int kevue__setnonblocking(int fd);
@@ -83,9 +87,9 @@ static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
 static int kevue__epoll_del(int epfd, Socket *sock);
 static void *kevue__handle_server_epoll(void *args);
 static int kevue__create_server_sock(char *host, char *port, bool check);
-static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma);
+static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__connection_destroy(KevueConnection *c);
-static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma);
+static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing);
 static bool kevue__handle_read(KevueConnection *c);
 static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
@@ -110,6 +114,7 @@ static void *kevue__handle_server_epoll(void *args)
     int server_sock = *esargs->ssock;
     int esock = *esargs->esock;
     KevueAllocator *ma = esargs->ma;
+    HashMap *hm = esargs->hm;
     ma->free(esargs, ma->ctx);
     int epfd = epoll_create1(0);
     if (epfd < 0) {
@@ -135,6 +140,7 @@ static void *kevue__handle_server_epoll(void *args)
     sc->sock = (Socket *)ma->malloc(sizeof(Socket), ma->ctx);
     sc->sock->fd = server_sock;
     sc->sock->c = sc;
+    sc->hm = hm;
     if (kevue__epoll_add(epfd, sc->sock, EPOLLIN | EPOLLET) < 0) {
         print_err("[%d] Adding server socket to epoll failed: %s", tid, strerror(errno));
         close(server_sock);
@@ -161,6 +167,7 @@ static void *kevue__handle_server_epoll(void *args)
     }
     ec->sock->fd = esock;
     ec->sock->c = ec;
+    ec->hm = hm;
     if (kevue__epoll_add(epfd, ec->sock, EPOLLIN | EPOLLET) < 0) {
         print_err("[%d] Adding event socket to epoll failed: %s", tid, strerror(errno));
         close(server_sock);
@@ -177,6 +184,7 @@ static void *kevue__handle_server_epoll(void *args)
         // NOTE: memory leak when EPOLL_TIMEOUT occurs with pending connections
         nready = epoll_wait(epfd, events, MAX_EVENTS, EPOLL_TIMEOUT);
         if (nready < 0) {
+            if (errno == EINTR) continue;
             print_err("[%d] Waiting for epoll failed: %s", tid, strerror(errno));
             close(server_sock);
             ma->free(events, ma->ctx);
@@ -210,7 +218,7 @@ static void *kevue__handle_server_epoll(void *args)
                         print_err("[%d] Accept connection failed: %s", tid, strerror(errno));
                         break;
                     }
-                    if (!kevue__setup_connection(epfd, client_sock, client_addr, ma)) {
+                    if (!kevue__setup_connection(epfd, client_sock, client_addr, ma, hm)) {
                         break;
                     }
                 }
@@ -239,7 +247,7 @@ server_close:
     return NULL;
 }
 
-static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma)
+static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm)
 {
     pid_t tid = gettid();
     if (kevue__setnonblocking(sock) < 0) {
@@ -264,7 +272,7 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
         close(sock);
         return false;
     }
-    if (!kevue__connection_new(c, sock, addr, ma)) {
+    if (!kevue__connection_new(c, sock, addr, ma, hm)) {
         print_err("[%d] Client creation failed", tid);
         close(sock);
         ma->free(c, ma->ctx);
@@ -319,18 +327,37 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 kevue_print_request(&req);
                 // TODO: dispatch command and do something in hash table
                 resp.err_code = KEVUE_ERR_OK;
-                if (req.cmd == GET) {
-                    resp.val_len = req.key_len;
-                    resp.val = kevue_buffer_create(resp.val_len + 1, c->ma);
-                    kevue_buffer_write(resp.val, req.key, req.key_len);
-                }
-                if (req.cmd == HELLO) {
+                switch (req.cmd) {
+                case HELLO:
                     resp.val_len = (uint16_t)strlen(kevue_command_to_string(HELLO));
-                    resp.val = kevue_buffer_create(resp.val_len + 1, c->ma);
-                    kevue_buffer_write(resp.val, kevue_command_to_string(HELLO), resp.val_len);
+                    kevue_buffer_write(c->hmbuf, kevue_command_to_string(HELLO), resp.val_len);
+                    resp.val = c->hmbuf;
+                    break;
+                case GET:
+                    if (!kevue_hm_get(c->hm, req.key, req.key_len, c->hmbuf)) {
+                        resp.err_code = KEVUE_ERR_NOT_FOUND;
+                    } else {
+                        resp.val_len = (uint16_t)c->hmbuf->size;
+                        resp.val = c->hmbuf;
+                    }
+                    break;
+                case SET:
+                    if (!kevue_hm_put(c->hm, req.key, req.key_len, req.val, req.val_len)) {
+                        resp.err_code = KEVUE_ERR_OPERATION;
+                    }
+                    break;
+                case DELETE:
+                    if (!kevue_hm_del(c->hm, req.key, req.key_len)) {
+                        resp.err_code = KEVUE_ERR_NOT_FOUND;
+                    }
+                    break;
+                default:
+                    UNREACHABLE("Possibly forgot to add new command to switch case");
                 }
+                kevue_print_response(&resp);
                 kevue_serialize_response(&resp, c->wbuf);
                 kevue_buffer_move_unread_bytes(c->rbuf);
+                kevue_buffer_reset(c->hmbuf);
                 c->total_len = 0;
             } else {
                 print_err("[%d] %s", tid, kevue_error_to_string(err));
@@ -338,7 +365,6 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 kevue_serialize_response(&resp, c->wbuf);
                 c->closed = true;
             }
-            kevue_buffer_destroy(resp.val);
             if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
                 if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                     if (errno != ENOTCONN)
@@ -367,10 +393,8 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
     while (c->rbuf->size < n) {
         ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
         if (nr < 0) {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-                break;
-            if (errno == EINTR)
-                continue;
+            if (errno == EWOULDBLOCK || errno == EAGAIN) break;
+            if (errno == EINTR) continue;
             print_err("[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nr == 0) {
@@ -413,10 +437,8 @@ static bool kevue__handle_write(KevueConnection *c)
     while (true) {
         ssize_t nw = write(c->sock->fd, c->wbuf->ptr + c->wbuf->offset, c->wbuf->size - c->wbuf->offset);
         if (nw < 0) {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-                break;
-            if (errno == EINTR)
-                continue;
+            if (errno == EWOULDBLOCK || errno == EAGAIN) break;
+            if (errno == EINTR) continue;
             print_err("[%d] Writing message -> %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nw == 0) {
@@ -467,7 +489,7 @@ static int kevue__epoll_del(int epfd, Socket *sock)
     return epoll_ctl(epfd, EPOLL_CTL_DEL, sock->fd, NULL);
 }
 
-static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma)
+static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm)
 {
     pid_t tid = gettid();
     memset(c, 0, sizeof(*c));
@@ -494,6 +516,8 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
     }
     c->rbuf = kevue_buffer_create(BUF_SIZE, ma);
     c->wbuf = kevue_buffer_create(BUF_SIZE, ma);
+    c->hm = hm;
+    c->hmbuf = kevue_buffer_create(BUF_SIZE, ma);
     return true;
 }
 
@@ -509,6 +533,7 @@ static void kevue__connection_destroy(KevueConnection *c)
     c->ma->free(c->sock, c->ma->ctx);
     kevue_buffer_destroy(c->rbuf);
     kevue_buffer_destroy(c->wbuf);
+    kevue_buffer_destroy(c->hmbuf);
     c->ma->free(c, c->ma->ctx);
 }
 
@@ -632,6 +657,12 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
         pthread_t thread = { 0 };
         ks->threads[i] = thread;
     }
+    HashMap *hm = kevue_hm_create(ks->ma);
+    if (hm == NULL) {
+        ks->ma->free(ks, ks->ma->ctx);
+        return NULL;
+    }
+    ks->hm = hm;
     struct sigaction new_action;
     new_action.sa_handler = kevue__singal_handler;
     sigemptyset(&new_action.sa_mask);
@@ -649,6 +680,7 @@ void kevue_server_start(KevueServer *ks)
         esargs->ssock = &ks->fds[i];
         esargs->esock = &ks->efd;
         esargs->ma = ks->ma;
+        esargs->hm = ks->hm;
         pthread_create(&ks->threads[i], NULL, kevue__handle_server_epoll, esargs);
     }
     while (!shutting_down)
@@ -668,6 +700,7 @@ void kevue_server_destroy(KevueServer *ks)
 {
     print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
     close(ks->efd);
+    kevue_hm_destroy(ks->hm);
     ks->ma->free(ks, ks->ma->ctx);
 }
 

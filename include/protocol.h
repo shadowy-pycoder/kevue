@@ -65,7 +65,8 @@ typedef enum KevueCommand {
     X(KEVUE_ERR_NOT_FOUND, "Not found")                      \
     X(KEVUE_ERR_READ_FAILED, "Failed reading message")       \
     X(KEVUE_ERR_EOF, "Peer closed connection")               \
-    X(KEVUE_ERR_HANDSHAKE, "Handshake failed")
+    X(KEVUE_ERR_HANDSHAKE, "Handshake failed")               \
+    X(KEVUE_ERR_OPERATION, "Operation failed")
 
 typedef enum KevueErr {
 #define X(name, str) name,

@@ -15,7 +15,6 @@
  */
 
 #include <arpa/inet.h>
-#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
@@ -266,7 +265,7 @@ static void completion(const char *buf, linenoiseCompletions *lc)
         break;
     case 'd':
     case 'D':
-        linenoiseAddCompletion(lc, "DELETE");
+        linenoiseAddCompletion(lc, "DEL");
         break;
     default:
     }
@@ -285,7 +284,7 @@ static char *hints(const char *buf, int *color, int *bold)
         *bold = 0;
         return "key value";
     }
-    if (!strncasecmp(buf, "DELETE ", 7)) {
+    if (!strncasecmp(buf, "DEL ", 4)) {
         *color = 90;
         *bold = 0;
         return "key";
@@ -338,8 +337,8 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         pr->cmd = GET;
     } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, SET)) {
         pr->cmd = SET;
-    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, DELETE)) {
-        pr->cmd = DELETE;
+    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+        pr->cmd = DEL;
     } else {
         printf("ERROR: Wrong command\n");
         kevue__client_parse_result_destroy(pr);
@@ -421,11 +420,11 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_delete(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len)
+bool kevue_client_del(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 6;
-    req.cmd = DELETE;
+    req.cmd_len = 3;
+    req.cmd = DEL;
     req.key_len = key_len;
     req.key = key;
     return kevue__make_request(kc, &req, resp);
@@ -435,7 +434,7 @@ KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma)
 {
     if (ma == NULL) ma = &kevue_default_allocator;
     KevueClient *kc = (KevueClient *)ma->malloc(sizeof(KevueClient), ma->ctx);
-    assert(kc != NULL);
+    if (kc == NULL) return NULL;
     kc->ma = ma;
     kc->read_timeout = READ_TIMEOUT;
     kc->write_timeout = WRITE_TIMEOUT;
@@ -465,6 +464,8 @@ void kevue_client_destroy(KevueClient *kc)
 
 int main(int argc, char **argv)
 {
+    // TODO: handle Ctrl+C ask confirmation
+    // TODO: make CLI async to detect closed connections
     char *host, *port;
     char *line;
     if (argc == 3) {
@@ -523,15 +524,15 @@ int main(int argc, char **argv)
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fputc('\n', stdout);
                 fflush(stdout);
-            }
+            } // TODO: propagate error, add this to make_request to ensure error is always set
             break;
         case SET:
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
                 printf("OK\n");
             }
             break;
-        case DELETE:
-            if (kevue_client_delete(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+        case DEL:
+            if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
             }
             break;

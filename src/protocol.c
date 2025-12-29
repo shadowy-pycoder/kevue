@@ -98,8 +98,8 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
         req->cmd = GET;
     } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {
         req->cmd = SET;
-    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, DELETE)) {
-        req->cmd = DELETE;
+    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, DEL)) {
+        req->cmd = DEL;
     } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, HELLO)) {
         req->cmd = HELLO;
     } else {

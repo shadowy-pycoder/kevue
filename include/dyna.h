@@ -39,6 +39,7 @@
 #define kevue_dyna_deinit(dyna)                         \
     do {                                                \
         assert((dyna) != NULL);                         \
+        assert((dyna)->ptr != NULL);                    \
         (dyna)->ma->free((dyna)->ptr, (dyna)->ma->ctx); \
         (dyna)->ptr = NULL;                             \
     } while (0)

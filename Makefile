@@ -9,6 +9,7 @@ INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
 CC := clang
 CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -std=c2x -march=native
+CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =

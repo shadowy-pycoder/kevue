@@ -346,7 +346,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                         resp.err_code = KEVUE_ERR_OPERATION;
                     }
                     break;
-                case DELETE:
+                case DEL:
                     if (!kevue_hm_del(c->hm, req.key, req.key_len)) {
                         resp.err_code = KEVUE_ERR_NOT_FOUND;
                     }

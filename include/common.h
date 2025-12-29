@@ -54,6 +54,22 @@
 
 #define print_info(fmt, ...) fprintf(stdout, "INFO: " fmt "\n", ##__VA_ARGS__)
 
+#if defined(__GNUC__) || defined(__clang__)
+#define max(a, b) ({        \
+    __typeof__(a) _a = (a); \
+    __typeof__(b) _b = (b); \
+    _a > _b ? _a : _b;      \
+})
+#define min(a, b) ({        \
+    __typeof__(a) _a = (a); \
+    __typeof__(b) _b = (b); \
+    _a < _b ? _a : _b;      \
+})
+#else
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 char *to_upper(char *s, size_t n);
 const char *inet_ntop2(void *addr, char *buf, size_t size);
 uint16_t ntohs2(void *addr);

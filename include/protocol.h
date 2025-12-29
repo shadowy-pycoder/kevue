@@ -17,9 +17,9 @@
  * Protocol structure (Request):
  *  Magic byte 0x22 (sum of ascii codes of "kevue" word modulo 255)
  *  Total length including magic byte and this field -> uint32
- *  Length of the command (GET/SET/DELETE) - 1 byte
- *  Command (GET/SET/DELETE) case insensitive
- *  Depends on the command GET/DELETE -> key -> uint16 length [key]
+ *  Length of the command (GET/SET/DEL) - 1 byte
+ *  Command (GET/SET/DEL) case insensitive
+ *  Depends on the command GET/DEL -> key -> uint16 length [key]
  *  SET -> key, value -> uint16 length [key] uint16 length [value]
  *  Use ntohs/htons for uint16 length conversion
  *
@@ -48,7 +48,7 @@
     X(HELLO)         \
     X(GET)           \
     X(SET)           \
-    X(DELETE)
+    X(DEL)
 
 typedef enum KevueCommand {
 #define X(name) name,

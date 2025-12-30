@@ -267,6 +267,10 @@ static void completion(const char *buf, linenoiseCompletions *lc)
     case 'D':
         linenoiseAddCompletion(lc, "DEL");
         break;
+    case 'p':
+    case 'P':
+        linenoiseAddCompletion(lc, "PING");
+        break;
     default:
     }
     return;
@@ -288,6 +292,11 @@ static char *hints(const char *buf, int *color, int *bold)
         *color = 90;
         *bold = 0;
         return "key";
+    }
+    if (!strncasecmp(buf, "PING ", 5)) {
+        *color = 90;
+        *bold = 0;
+        return "[message]";
     }
     return NULL;
 }
@@ -316,6 +325,7 @@ static void kevue__trim_left(Buffer *buf)
 
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
+    // TODO: improve command dispatching
     KevueAllocator *ma = buf->ma;
     KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
@@ -339,6 +349,8 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         pr->cmd = SET;
     } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
         pr->cmd = DEL;
+    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+        pr->cmd = PING;
     } else {
         printf("ERROR: Wrong command\n");
         kevue__client_parse_result_destroy(pr);
@@ -346,12 +358,12 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     }
     size_t offset = buf->offset;
     kevue__trim_left(buf);
-    if (buf->offset == offset) {
+    if (buf->offset == offset && pr->cmd != PING) {
         printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_buffer_at_eof(buf)) {
+    if (kevue_buffer_at_eof(buf) && pr->cmd != PING) {
         printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
@@ -428,6 +440,21 @@ bool kevue_client_del(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     req.key_len = key_len;
     req.key = key;
     return kevue__make_request(kc, &req, resp);
+}
+
+bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, char *message, uint16_t message_len)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 4;
+    req.cmd = PING;
+    req.key_len = message_len;
+    req.key = message;
+    return kevue__make_request(kc, &req, resp);
+}
+
+bool kevue_client_ping(KevueClient *kc, KevueResponse *resp)
+{
+    return kevue_client_ping_with_message(kc, resp, "", 0);
 }
 
 KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma)
@@ -534,6 +561,13 @@ int main(int argc, char **argv)
         case DEL:
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
+            }
+            break;
+        case PING:
+            if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+                fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
+                fputc('\n', stdout);
+                fflush(stdout);
             }
             break;
         default:

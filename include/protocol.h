@@ -48,7 +48,8 @@
     X(HELLO)         \
     X(GET)           \
     X(SET)           \
-    X(DEL)
+    X(DEL)           \
+    X(PING)
 
 typedef enum KevueCommand {
 #define X(name) name,

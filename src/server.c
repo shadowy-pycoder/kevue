@@ -325,7 +325,6 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             KevueErr err = kevue_deserialize_request(&req, c->rbuf);
             if (err == KEVUE_ERR_OK) {
                 kevue_print_request(&req);
-                // TODO: dispatch command and do something in hash table
                 resp.err_code = KEVUE_ERR_OK;
                 switch (req.cmd) {
                 case HELLO:
@@ -350,6 +349,16 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                     if (!kevue_hm_del(c->hm, req.key, req.key_len)) {
                         resp.err_code = KEVUE_ERR_NOT_FOUND;
                     }
+                    break;
+                case PING:
+                    if (req.key_len > 0) {
+                        resp.val_len = req.key_len;
+                        kevue_buffer_write(c->hmbuf, req.key, req.key_len);
+                    } else {
+                        resp.val_len = 4;
+                        kevue_buffer_write(c->hmbuf, "PONG", resp.val_len);
+                    }
+                    resp.val = c->hmbuf;
                     break;
                 default:
                     UNREACHABLE("Possibly forgot to add new command to switch case");

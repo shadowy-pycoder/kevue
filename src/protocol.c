@@ -102,29 +102,33 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
         req->cmd = DEL;
     } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, HELLO)) {
         req->cmd = HELLO;
+    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, PING)) {
+        req->cmd = PING;
     } else {
         return KEVUE_ERR_UNKNOWN_COMMAND;
     }
     buf->offset += req->cmd_len;
     if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
-    if (req->cmd != HELLO) {
-        memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(uint16_t));
-        req->key_len = ntohs(req->key_len);
-        buf->offset += sizeof(uint16_t);
-        req->key = buf->ptr + buf->offset;
-        buf->offset += req->key_len;
-        if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
+    memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(uint16_t));
+    req->key_len = ntohs(req->key_len);
+    buf->offset += sizeof(uint16_t);
+    if (req->key_len == 0) {
+        if (req->cmd == PING || req->cmd == HELLO) return KEVUE_ERR_OK;
+        return KEVUE_ERR_LEN_INVALID;
+    }
+    req->key = buf->ptr + buf->offset;
+    buf->offset += req->key_len;
+    if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
 
-        req->val_len = 0;
-        req->val = NULL;
-        if (req->cmd == SET) {
-            memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
-            req->val_len = ntohs(req->val_len);
-            buf->offset += sizeof(uint16_t);
-            req->val = buf->ptr + buf->offset;
-            buf->offset += req->val_len;
-            if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
-        }
+    req->val_len = 0;
+    req->val = NULL;
+    if (req->cmd == SET) {
+        memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(uint16_t));
+        req->val_len = ntohs(req->val_len);
+        buf->offset += sizeof(uint16_t);
+        req->val = buf->ptr + buf->offset;
+        buf->offset += req->val_len;
+        if (buf->offset > req->total_len) return KEVUE_ERR_LEN_INVALID;
     }
     return KEVUE_ERR_OK;
 }
@@ -134,8 +138,8 @@ void kevue_print_request(KevueRequest *req)
     fprintf(stdout, "Total Length: %d\n", req->total_len);
     fprintf(stdout, "Command Length: %d\n", req->cmd_len);
     fprintf(stdout, "Command: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
+    fprintf(stdout, "Key Length: %d\n", req->key_len);
     if (req->key_len > 0) {
-        fprintf(stdout, "Key Length: %d\n", req->key_len);
         fputs("Key: ", stdout);
         fwrite(req->key, sizeof(*req->key), req->key_len, stdout);
         fputc('\n', stdout);
@@ -153,10 +157,8 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
 {
     assert(req->cmd_len > 0);
     req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
-    if (req->cmd != HELLO) {
-        assert(req->key_len > 0);
-        req->total_len += sizeof(req->key_len) + req->key_len * sizeof(*req->key);
-    }
+    if (req->cmd != HELLO && req->cmd != PING) assert(req->key_len > 0);
+    req->total_len += sizeof(req->key_len) + req->key_len * sizeof(*req->key);
     if (req->cmd == SET) {
         assert(req->val_len > 0);
         req->total_len += sizeof(req->val_len) + req->val_len * sizeof(*req->val);
@@ -167,9 +169,9 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
     kevue_buffer_append(buf, &tl, sizeof(req->total_len));
     kevue_buffer_append(buf, &req->cmd_len, sizeof(req->cmd_len));
     kevue_buffer_append(buf, kevue_command_to_string(req->cmd), req->cmd_len);
+    uint16_t kl = htons(req->key_len);
+    kevue_buffer_append(buf, &kl, sizeof(req->key_len));
     if (req->key_len > 0) {
-        uint16_t kl = htons(req->key_len);
-        kevue_buffer_append(buf, &kl, sizeof(req->key_len));
         kevue_buffer_append(buf, req->key, req->key_len);
     }
     if (req->val_len > 0) {
@@ -196,9 +198,7 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     if (buf->offset > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
-        if (resp->val == NULL) {
-            resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
-        }
+        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
         kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
     }

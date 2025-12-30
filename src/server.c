@@ -628,7 +628,7 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
         close(server_sock);
         return -1;
     }
-    print_info("kevue server listening on %s:%s", host, port);
+    if (!check) print_info("kevue server listening on %s:%s", host, port);
     return server_sock;
 }
 

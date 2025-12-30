@@ -33,6 +33,14 @@
 #define HASHMAP_MIN_LOAD                   0.25f
 #define HASHMAP_RESIZE_FACTOR              2
 
+#if SERVER_WORKERS == 1
+#define mutex_lock(l)   ((void)0)
+#define mutex_unlock(l) ((void)0)
+#else
+#define mutex_lock(l)   pthread_mutex_lock(l)
+#define mutex_unlock(l) pthread_mutex_unlock(l)
+#endif
+
 static void kevue__hm_resize(HashMap *hm, size_t new_size);
 
 typedef struct Entry {
@@ -93,14 +101,14 @@ void kevue_hm_destroy(HashMap *hm)
 bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_len)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0 || val_len == 0) return false;
-    pthread_mutex_lock(&hm->resize_lock);
+    mutex_lock(&hm->resize_lock);
     if ((double)atomic_load(&hm->slots_taken) / (double)hm->bucket_count > HASHMAP_MAX_LOAD) {
         kevue__hm_resize(hm, hm->bucket_count * HASHMAP_RESIZE_FACTOR);
     }
     uint64_t hash = rapidhash(key, key_len);
     size_t idx = hash % hm->bucket_count;
-    pthread_mutex_lock(&hm->buckets[idx].lock);
-    pthread_mutex_unlock(&hm->resize_lock);
+    mutex_lock(&hm->buckets[idx].lock);
+    mutex_unlock(&hm->resize_lock);
     bool bucket_init = false;
     if (hm->buckets[idx].ptr != NULL) {
         // check if key already exist
@@ -116,7 +124,7 @@ bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_
                 entry->val_len = val_len;
                 memcpy(entry->data, key, key_len);
                 memcpy(entry->data + key_len, val, val_len);
-                pthread_mutex_unlock(&hm->buckets[idx].lock);
+                mutex_unlock(&hm->buckets[idx].lock);
                 return true;
             }
         }
@@ -127,7 +135,7 @@ bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_
     Entry *entry = hm->ma->malloc(sizeof(*entry) + key_len + val_len, hm->ma->ctx);
     if (entry == NULL) {
         if (bucket_init) kevue_dyna_deinit(&hm->buckets[idx]);
-        pthread_mutex_unlock(&hm->buckets[idx].lock);
+        mutex_unlock(&hm->buckets[idx].lock);
         return false;
     }
     entry->hash = hash;
@@ -136,7 +144,7 @@ bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_
     memcpy(entry->data, key, key_len);
     memcpy(entry->data + key_len, val, val_len);
     kevue_dyna_append(&hm->buckets[idx], entry);
-    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    mutex_unlock(&hm->buckets[idx].lock);
     atomic_fetch_add(&hm->slots_taken, 1);
     return true;
 }
@@ -146,7 +154,7 @@ bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
     uint64_t hash = rapidhash(key, key_len);
     size_t idx = hash % hm->bucket_count;
-    pthread_mutex_lock(&hm->buckets[idx].lock);
+    mutex_lock(&hm->buckets[idx].lock);
     if (hm->buckets[idx].ptr == NULL) {
         return false;
     }
@@ -155,18 +163,18 @@ bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
         Entry *entry = *entry_ptr;
         if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
             kevue_buffer_write(buf, entry->data + entry->key_len, entry->val_len);
-            pthread_mutex_unlock(&hm->buckets[idx].lock);
+            mutex_unlock(&hm->buckets[idx].lock);
             return true;
         }
     }
-    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    mutex_unlock(&hm->buckets[idx].lock);
     return false;
 }
 
 bool kevue_hm_del(HashMap *hm, char *key, size_t key_len)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
-    pthread_mutex_lock(&hm->resize_lock);
+    mutex_lock(&hm->resize_lock);
     if (hm->bucket_count > HASHMAP_BUCKET_INITIAL_COUNT) {
         if ((double)atomic_load(&hm->slots_taken) / (double)hm->bucket_count < HASHMAP_MIN_LOAD) {
             kevue__hm_resize(hm, max(HASHMAP_BUCKET_INITIAL_COUNT, hm->bucket_count / HASHMAP_RESIZE_FACTOR));
@@ -174,10 +182,10 @@ bool kevue_hm_del(HashMap *hm, char *key, size_t key_len)
     }
     uint64_t hash = rapidhash(key, key_len);
     size_t idx = hash % hm->bucket_count;
-    pthread_mutex_lock(&hm->buckets[idx].lock);
-    pthread_mutex_unlock(&hm->resize_lock);
+    mutex_lock(&hm->buckets[idx].lock);
+    mutex_unlock(&hm->resize_lock);
     if (hm->buckets[idx].ptr == NULL) {
-        pthread_mutex_unlock(&hm->buckets[idx].lock);
+        mutex_unlock(&hm->buckets[idx].lock);
         return false;
     }
     kevue_dyna_foreach(&hm->buckets[idx], entry_ptr)
@@ -188,11 +196,11 @@ bool kevue_hm_del(HashMap *hm, char *key, size_t key_len)
             hm->ma->free(*entry_ptr, hm->ma->ctx);
             kevue_dyna_remove(&hm->buckets[idx], (size_t)eidx);
             atomic_fetch_sub(&hm->slots_taken, 1);
-            pthread_mutex_unlock(&hm->buckets[idx].lock);
+            mutex_unlock(&hm->buckets[idx].lock);
             return true;
         }
     }
-    pthread_mutex_unlock(&hm->buckets[idx].lock);
+    mutex_unlock(&hm->buckets[idx].lock);
     return false;
 }
 
@@ -207,7 +215,7 @@ static void kevue__hm_resize(HashMap *hm, size_t new_size)
         new_buckets[bucket].ptr = NULL;
     }
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
-        pthread_mutex_lock(&hm->buckets[bucket].lock);
+        mutex_lock(&hm->buckets[bucket].lock);
     }
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
         if (hm->buckets[bucket].ptr == NULL) continue;
@@ -226,7 +234,7 @@ static void kevue__hm_resize(HashMap *hm, size_t new_size)
     Bucket *old_buckets = hm->buckets;
     hm->buckets = new_buckets;
     for (size_t bucket = 0; bucket < old_size; bucket++) {
-        pthread_mutex_unlock(&old_buckets[bucket].lock);
+        mutex_unlock(&old_buckets[bucket].lock);
         if (old_buckets[bucket].ptr == NULL) continue;
         kevue_dyna_deinit(&old_buckets[bucket]);
     }

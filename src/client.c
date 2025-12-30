@@ -649,7 +649,7 @@ int main(int argc, char **argv)
         case DEL:
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
-            }
+            } // TODO: else show something
             break;
         case PING:
             if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
@@ -673,4 +673,5 @@ client_close:
     kevue_buffer_destroy(resp->val);
     kc->ma->free(resp, kc->ma->ctx);
     kevue_client_destroy(kc);
+    return 0;
 }

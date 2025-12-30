@@ -20,12 +20,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define HOST           "0.0.0.0"
-#define PORT           "6973"
-#define BUF_SIZE       (32 * 1024)
-#define READ_TIMEOUT   10
-#define WRITE_TIMEOUT  10
+#define HOST          "0.0.0.0"
+#define PORT          "6973"
+#define BUF_SIZE      (32 * 1024)
+#define READ_TIMEOUT  10
+#define WRITE_TIMEOUT 10
+
+#ifndef SERVER_WORKERS
 #define SERVER_WORKERS 10
+#endif
 
 // stolen from https://github.com/tsoding/nob.h
 #define UNREACHABLE(where)                                                                  \
@@ -40,7 +43,7 @@
         exit(EXIT_FAILURE);                                                         \
     } while (0)
 
-#define UNUSED(v) (void)v
+#define UNUSED(v) ((void)v)
 
 #define print_err(fmt, ...) \
     fprintf(stderr, "ERROR: %s: " fmt "\n", __func__, ##__VA_ARGS__)

@@ -74,7 +74,6 @@ KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
             return KEVUE_ERR_EOF;
         } else {
             buf->size += (size_t)nr;
-            print_debug("Read %ld bytes", nr);
         }
     }
     assert(buf->offset == 0);

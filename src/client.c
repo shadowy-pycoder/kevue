@@ -23,8 +23,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <sys/time.h>
+#include <sys/timerfd.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -41,7 +44,9 @@
 #include <tcmalloc_allocator.h>
 #endif
 
-#define PROMPT_LENGTH INET6_ADDRSTRLEN + 7 + 1
+#define PING_INTERVAL_SECONDS 15
+#define PROMPT_LENGTH         INET6_ADDRSTRLEN + 7 + 1
+#define MAX_EVENTS            2
 
 typedef struct KevueClientParseResult KevueClientParseResult;
 
@@ -166,7 +171,6 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
             return false;
         } else {
             kc->rbuf->size += (size_t)nr;
-            print_debug("Read %zu bytes", nr);
         }
     }
     return true;
@@ -234,7 +238,6 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
     KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
     kevue_buffer_reset(kc->rbuf);
     if (err != KEVUE_ERR_OK) return false;
-    kevue_print_response(resp);
     return true;
 }
 
@@ -272,6 +275,8 @@ static void completion(const char *buf, linenoiseCompletions *lc)
         linenoiseAddCompletion(lc, "PING");
         break;
     default:
+        linenoiseAddCompletion(lc, "GET");
+        break;
     }
     return;
 }
@@ -492,7 +497,6 @@ void kevue_client_destroy(KevueClient *kc)
 int main(int argc, char **argv)
 {
     // TODO: handle Ctrl+C ask confirmation
-    // TODO: make CLI async to detect closed connections
     char *host, *port;
     char *line;
     if (argc == 3) {
@@ -517,6 +521,43 @@ int main(int argc, char **argv)
     KevueClient *kc = kevue_client_create(host, port, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
     print_info("Connected to %s:%s", host, port);
+    struct epoll_event *events = malloc(sizeof(struct epoll_event) * MAX_EVENTS);
+    if (events == NULL) {
+        kevue_client_destroy(kc);
+        exit(EXIT_FAILURE);
+    }
+    int epfd = epoll_create1(0);
+    if (epfd < 0) {
+        print_err("Creating epoll file descriptor failed %s", strerror(errno));
+        kevue_client_destroy(kc);
+        free(events);
+        exit(EXIT_FAILURE);
+    }
+    int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    if (tfd < 0) {
+        print_err("Creating timer socket failed: %s", strerror(errno));
+        kevue_client_destroy(kc);
+        free(events);
+        exit(EXIT_FAILURE);
+    }
+    struct itimerspec timer = { 0 };
+    timer.it_value.tv_sec = PING_INTERVAL_SECONDS;
+    timer.it_interval.tv_sec = PING_INTERVAL_SECONDS;
+    if (timerfd_settime(tfd, 0, &timer, NULL) < 0) {
+        print_err("Setting timer failed: %s", strerror(errno));
+        kevue_client_destroy(kc);
+        free(events);
+        exit(EXIT_FAILURE);
+    }
+    struct epoll_event ev;
+    ev.data.fd = tfd;
+    ev.events = EPOLLIN;
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
+        print_err("Adding timer socket to epoll failed: %s", strerror(errno));
+        kevue_client_destroy(kc);
+        free(events);
+        exit(EXIT_FAILURE);
+    }
     KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
     memset(resp, 0, sizeof(*resp));
     linenoiseSetCompletionCallback(completion);
@@ -527,8 +568,53 @@ int main(int argc, char **argv)
     int n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, kc->ma);
+    int nready;
     while (true) {
-        line = linenoise(prompt);
+        struct linenoiseState ls;
+        char buf[BUF_SIZE];
+        linenoiseEditStart(&ls, -1, -1, buf, sizeof(buf), prompt);
+        ev.data.fd = ls.ifd;
+        ev.events = EPOLLIN;
+        if (epoll_ctl(epfd, EPOLL_CTL_ADD, ls.ifd, &ev) < 0) {
+            print_err("Adding ifd socket to epoll failed: %s", strerror(errno));
+            linenoiseHide(&ls);
+            break;
+        }
+        bool editing_finished = false;
+        while (!editing_finished) {
+            nready = epoll_wait(epfd, events, MAX_EVENTS, -1);
+            if (nready < 0) {
+                if (errno == EINTR) continue;
+                print_err("Waiting for epoll failed: %s", strerror(errno));
+                linenoiseHide(&ls);
+                goto client_close;
+            }
+            for (int i = 0; i < nready; i++) {
+                if (events[i].events == 0) continue;
+                if (events[i].events & EPOLLERR) {
+                    linenoiseHide(&ls);
+                    goto client_close;
+                }
+                if (events[i].data.fd == tfd) {
+                    if (!kevue_client_ping(kc, resp)) {
+                        linenoiseHide(&ls);
+                        goto client_close;
+                    }
+                    uint64_t exp;
+                    ssize_t res = read(tfd, &exp, sizeof(exp));
+                    UNUSED(res);
+                    continue;
+                }
+                line = linenoiseEditFeed(&ls);
+                if (line != linenoiseEditMore) editing_finished = true;
+            }
+        }
+        if (epoll_ctl(epfd, EPOLL_CTL_DEL, ls.ifd, NULL) < 0) {
+            print_err("Deleting ifd socket from epoll failed: %s", strerror(errno));
+            linenoiseHide(&ls);
+            break;
+        }
+        linenoiseEditStop(&ls);
         if (line == NULL) break;
         if (line[0] == '\0') {
             free(line);
@@ -551,6 +637,8 @@ int main(int argc, char **argv)
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fputc('\n', stdout);
                 fflush(stdout);
+            } else {
+                printf("(nil)\n");
             } // TODO: propagate error, add this to make_request to ensure error is always set
             break;
         case SET:
@@ -579,6 +667,8 @@ int main(int argc, char **argv)
         linenoiseHistorySave("history.txt"); /* Save the history on disk. */
         free(line);
     }
+client_close:
+    kc->ma->free(events, kc->ma->ctx);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
     kc->ma->free(resp, kc->ma->ctx);

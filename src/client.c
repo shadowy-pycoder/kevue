@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/time.h>
 #include <sys/timerfd.h>
 #include <sys/types.h>
@@ -40,8 +41,14 @@
 #include <dyna.h>
 #include <protocol.h>
 
+#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#error "You can define only one memory allocator at a time"
+#endif
 #ifdef USE_TCMALLOC
 #include <tcmalloc_allocator.h>
+#endif
+#ifdef USE_JEMALLOC
+#include <jemalloc_allocator.h>
 #endif
 
 #define PING_INTERVAL_SECONDS 15
@@ -496,7 +503,6 @@ void kevue_client_destroy(KevueClient *kc)
 
 int main(int argc, char **argv)
 {
-    // TODO: handle Ctrl+C ask confirmation
     char *host, *port;
     char *line;
     if (argc == 3) {
@@ -515,13 +521,15 @@ int main(int argc, char **argv)
         port = PORT;
     }
     KevueAllocator *ma = NULL; // kevue_default_allocator
-#ifdef USE_TCMALLOC
+#if defined(USE_TCMALLOC)
     ma = &kevue_tcmalloc_allocator;
+#elif defined(USE_JEMALLOC)
+    ma = &kevue_jemalloc_allocator;
 #endif
     KevueClient *kc = kevue_client_create(host, port, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
     print_info("Connected to %s:%s", host, port);
-    struct epoll_event *events = malloc(sizeof(struct epoll_event) * MAX_EVENTS);
+    struct epoll_event *events = kc->ma->malloc(sizeof(struct epoll_event) * MAX_EVENTS, kc->ma->ctx);
     if (events == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -529,15 +537,16 @@ int main(int argc, char **argv)
     int epfd = epoll_create1(0);
     if (epfd < 0) {
         print_err("Creating epoll file descriptor failed %s", strerror(errno));
+        kc->ma->free(events, kc->ma->ctx);
         kevue_client_destroy(kc);
-        free(events);
         exit(EXIT_FAILURE);
     }
     int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if (tfd < 0) {
         print_err("Creating timer socket failed: %s", strerror(errno));
+        close(epfd);
+        kc->ma->free(events, kc->ma->ctx);
         kevue_client_destroy(kc);
-        free(events);
         exit(EXIT_FAILURE);
     }
     struct itimerspec timer = { 0 };
@@ -545,8 +554,10 @@ int main(int argc, char **argv)
     timer.it_interval.tv_sec = PING_INTERVAL_SECONDS;
     if (timerfd_settime(tfd, 0, &timer, NULL) < 0) {
         print_err("Setting timer failed: %s", strerror(errno));
+        close(epfd);
+        close(tfd);
+        kc->ma->free(events, kc->ma->ctx);
         kevue_client_destroy(kc);
-        free(events);
         exit(EXIT_FAILURE);
     }
     struct epoll_event ev;
@@ -554,8 +565,10 @@ int main(int argc, char **argv)
     ev.events = EPOLLIN;
     if (epoll_ctl(epfd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
         print_err("Adding timer socket to epoll failed: %s", strerror(errno));
+        close(epfd);
+        close(tfd);
+        kc->ma->free(events, kc->ma->ctx);
         kevue_client_destroy(kc);
-        free(events);
         exit(EXIT_FAILURE);
     }
     KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
@@ -582,6 +595,7 @@ int main(int argc, char **argv)
         }
         bool editing_finished = false;
         while (!editing_finished) {
+            errno = 0;
             nready = epoll_wait(epfd, events, MAX_EVENTS, -1);
             if (nready < 0) {
                 if (errno == EINTR) continue;
@@ -606,7 +620,21 @@ int main(int argc, char **argv)
                     continue;
                 }
                 line = linenoiseEditFeed(&ls);
-                if (line != linenoiseEditMore) editing_finished = true;
+                if (line != linenoiseEditMore) {
+                    if (errno == EAGAIN || errno == ENOENT) { // Ctrl+C  Ctrl+D hit
+                        linenoiseHide(&ls);
+                        fprintf(stdout, "Exit? [Y/n]: ");
+                        fflush(stdout);
+                        int c = getchar();
+                        if (c == 'Y' || c == 'y' || c == '\n') {
+                            linenoiseHide(&ls);
+                            goto client_close;
+                        }
+                        linenoiseShow(&ls);
+                    } else {
+                        editing_finished = true;
+                    }
+                }
             }
         }
         if (epoll_ctl(epfd, EPOLL_CTL_DEL, ls.ifd, NULL) < 0) {
@@ -664,10 +692,13 @@ int main(int argc, char **argv)
         kevue_buffer_reset(cmdline);
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); /* Add to the history. */
+        // TODO: save history to another location
         linenoiseHistorySave("history.txt"); /* Save the history on disk. */
         free(line);
     }
 client_close:
+    close(epfd);
+    close(tfd);
     kc->ma->free(events, kc->ma->ctx);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);

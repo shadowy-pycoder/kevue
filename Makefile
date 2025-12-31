@@ -13,13 +13,10 @@ CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
+USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
-
-ifdef SERVER_WORKERS
-CPPFLAGS += -DSERVER_WORKERS=$(SERVER_WORKERS)
-endif
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
@@ -31,24 +28,44 @@ endif
 ifeq ($(ASAN),1)
   CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
   LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
-  USE_TCMALLOC := no
+  USE_TCMALLOC := 0
+  USE_JEMALLOC := 0
 endif
+
 
 ifeq ($(USE_TCMALLOC),auto)
   ifeq ($(shell pkg-config --exists libtcmalloc && echo yes),yes)
-    USE_TCMALLOC := yes
+    USE_TCMALLOC := 1
+    USE_JEMALLOC := 0
   else
-    USE_TCMALLOC := no
+    USE_TCMALLOC := 0
   endif
 endif
 
-ifeq ($(USE_TCMALLOC),yes)
+ifeq ($(USE_TCMALLOC),1)
   CPPFLAGS  += -DUSE_TCMALLOC
   ifeq ($(DEBUG), 1)
     LDLIBS  += -ltcmalloc_debug
   else
     LDLIBS  += -ltcmalloc
   endif
+endif
+
+ifeq ($(USE_JEMALLOC),auto)
+  ifeq ($(shell pkg-config --exists jemalloc && echo yes),yes)
+    USE_JEMALLOC := 1
+  else
+    USE_JEMALLOC := 0
+  endif
+endif
+
+ifeq ($(USE_JEMALLOC),1)
+  CPPFLAGS  += -DUSE_JEMALLOC
+  LDLIBS  += -ljemalloc
+endif
+
+ifdef SERVER_WORKERS
+CPPFLAGS += -DSERVER_WORKERS=$(SERVER_WORKERS)
 endif
 
 .PHONY: default all clean run debug release compile_commands

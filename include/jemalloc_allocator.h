@@ -14,27 +14,7 @@
  * limitations under the License.
  */
 #pragma once
-#include <pthread.h>
-#include <stdint.h>
 
 #include <allocator.h>
-#include <common.h>
-#include <hashmap.h>
 
-#define MAX_CONNECTIONS 4092
-#define SND_BUF_SIZE    (1024 * 1024 * 2)
-#define RECV_BUF_SIZE   (1024 * 1024 * 2)
-
-typedef struct KevueServer {
-    const char *host;
-    const char *port;
-    int fds[SERVER_WORKERS];
-    pthread_t threads[SERVER_WORKERS];
-    int efd;
-    KevueAllocator *ma;
-    HashMap *hm;
-} KevueServer;
-
-KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
-void kevue_server_start(KevueServer *ks);
-void kevue_server_destroy(KevueServer *ks);
+extern KevueAllocator kevue_jemalloc_allocator;

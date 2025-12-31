@@ -152,10 +152,14 @@ bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_
 bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
+    // NOTE: make sure resize lock is not needed here
+    // mutex_lock(&hm->resize_lock);
     uint64_t hash = rapidhash(key, key_len);
     size_t idx = hash % hm->bucket_count;
     mutex_lock(&hm->buckets[idx].lock);
+    // mutex_unlock(&hm->resize_lock);
     if (hm->buckets[idx].ptr == NULL) {
+        mutex_unlock(&hm->buckets[idx].lock);
         return false;
     }
     kevue_dyna_foreach(&hm->buckets[idx], entry_ptr)

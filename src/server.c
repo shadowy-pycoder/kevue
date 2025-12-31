@@ -40,11 +40,19 @@
 #include <hashmap.h>
 #include <protocol.h>
 #include <server.h>
+
+#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#error "You can define only one memory allocator at a time"
+#endif
 #ifdef USE_TCMALLOC
 #include <tcmalloc_allocator.h>
 #endif
+#ifdef USE_JEMALLOC
+#include <jemalloc_allocator.h>
+#endif
 
-#define MAX_EVENTS 500
+#define MAX_EVENTS    500
+#define EPOLL_TIMEOUT (30 * 1000)
 
 bool shutting_down = false;
 
@@ -733,8 +741,10 @@ int main(int argc, char **argv)
         port = PORT;
     }
     KevueAllocator *ma = NULL;
-#ifdef USE_TCMALLOC
+#if defined(USE_TCMALLOC)
     ma = &kevue_tcmalloc_allocator;
+#elif defined(USE_JEMALLOC)
+    ma = &kevue_jemalloc_allocator;
 #endif
     KevueServer *ks = kevue_server_create(host, port, ma);
     if (ks == NULL) exit(EXIT_FAILURE);

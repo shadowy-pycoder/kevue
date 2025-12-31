@@ -189,7 +189,6 @@ static bool kevue__handle_write(KevueClient *kc)
         ssize_t nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
-                // TODO: deal with timeout
                 return false;
             if (errno == EINTR)
                 continue;
@@ -208,9 +207,11 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
 {
     kevue_serialize_request(req, kc->wbuf);
     if (!kevue__handle_write(kc)) {
-        if (shutdown(kc->fd, SHUT_WR) < 0) {
-            if (errno != ENOTCONN)
-                print_err("Shutting down failed: %s", strerror(errno));
+        shutdown(kc->fd, SHUT_WR);
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            resp->err_code = KEVUE_ERR_WRITE_TIMEOUT;
+        } else {
+            resp->err_code = KEVUE_ERR_WRITE_FAILED;
         }
         return false;
     }
@@ -219,14 +220,11 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         KevueErr err = kevue_read_message_length(kc->fd, kc->rbuf, &total_len);
         if (err != KEVUE_ERR_OK) {
             if (err == KEVUE_ERR_INCOMPLETE_READ) {
-                print_err("Failed reading message length: timeout");
+                resp->err_code = KEVUE_ERR_READ_TIMEOUT;
             } else {
-                print_err("Failed reading message length: %s", kevue_error_to_string(err));
+                resp->err_code = err;
             }
-            if (shutdown(kc->fd, SHUT_WR) < 0) {
-                if (errno != ENOTCONN)
-                    print_err("Shutting down failed: %s", strerror(errno));
-            }
+            shutdown(kc->fd, SHUT_WR);
             kevue_buffer_reset(kc->rbuf);
             return false;
         } else {
@@ -234,17 +232,22 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         }
     }
     if (!kevue__handle_read_exactly(kc, total_len)) {
-        if (shutdown(kc->fd, SHUT_WR) < 0) {
-            if (errno != ENOTCONN)
-                print_err("Shutting down failed: %s", strerror(errno));
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            resp->err_code = KEVUE_ERR_READ_TIMEOUT;
+        } else {
+            resp->err_code = KEVUE_ERR_READ_FAILED;
         }
+        shutdown(kc->fd, SHUT_WR);
         kevue_buffer_reset(kc->rbuf);
         return false;
     }
     resp->total_len = total_len;
     KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
     kevue_buffer_reset(kc->rbuf);
-    if (err != KEVUE_ERR_OK) return false;
+    if (err != KEVUE_ERR_OK) {
+        resp->err_code = err;
+        return false;
+    }
     return true;
 }
 
@@ -319,6 +322,7 @@ static bool kevue__parse_chunk(Buffer *buf, Buffer *out)
     switch (c) {
     case '"':
     case '\'':
+    case '`':
         kevue_buffer_read_advance(buf);
         kevue_buffer_read_until(buf, out, c);
         if (kevue_buffer_peek_byte(buf) != c) return false;
@@ -582,7 +586,9 @@ int main(int argc, char **argv)
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, kc->ma);
     int nready;
+    bool unrecoverable_error_occured = false;
     while (true) {
+        if (unrecoverable_error_occured) goto client_close_fail;
         struct linenoiseState ls;
         char buf[BUF_SIZE];
         linenoiseEditStart(&ls, -1, -1, buf, sizeof(buf), prompt);
@@ -591,7 +597,7 @@ int main(int argc, char **argv)
         if (epoll_ctl(epfd, EPOLL_CTL_ADD, ls.ifd, &ev) < 0) {
             print_err("Adding ifd socket to epoll failed: %s", strerror(errno));
             linenoiseHide(&ls);
-            break;
+            goto client_close_fail;
         }
         bool editing_finished = false;
         while (!editing_finished) {
@@ -601,18 +607,19 @@ int main(int argc, char **argv)
                 if (errno == EINTR) continue;
                 print_err("Waiting for epoll failed: %s", strerror(errno));
                 linenoiseHide(&ls);
-                goto client_close;
+                goto client_close_fail;
             }
             for (int i = 0; i < nready; i++) {
                 if (events[i].events == 0) continue;
                 if (events[i].events & EPOLLERR) {
                     linenoiseHide(&ls);
-                    goto client_close;
+                    goto client_close_fail;
                 }
                 if (events[i].data.fd == tfd) {
                     if (!kevue_client_ping(kc, resp)) {
+                        print_err("%s", kevue_error_to_string(resp->err_code));
                         linenoiseHide(&ls);
-                        goto client_close;
+                        goto client_close_fail;
                     }
                     uint64_t exp;
                     ssize_t res = read(tfd, &exp, sizeof(exp));
@@ -640,7 +647,7 @@ int main(int argc, char **argv)
         if (epoll_ctl(epfd, EPOLL_CTL_DEL, ls.ifd, NULL) < 0) {
             print_err("Deleting ifd socket from epoll failed: %s", strerror(errno));
             linenoiseHide(&ls);
-            break;
+            goto client_close_fail;
         }
         linenoiseEditStop(&ls);
         if (line == NULL) break;
@@ -650,7 +657,7 @@ int main(int argc, char **argv)
         }
         if (!strncmp(line, "exit", 4) || !strncmp(line, "quit", 4) || !strncmp(line, "q", 1)) {
             free(line);
-            break;
+            goto client_close;
         }
         kevue_buffer_write(cmdline, line, strlen(line));
         KevueClientParseResult *pr = kevue__parse_command_line(cmdline);
@@ -666,24 +673,42 @@ int main(int argc, char **argv)
                 fputc('\n', stdout);
                 fflush(stdout);
             } else {
-                printf("(nil)\n");
-            } // TODO: propagate error, add this to make_request to ensure error is always set
+                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
+                    printf("%s\n", kevue_error_to_string(resp->err_code));
+                } else {
+                    print_err("%s", kevue_error_to_string(resp->err_code));
+                    unrecoverable_error_occured = true;
+                }
+            }
             break;
         case SET:
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
                 printf("OK\n");
+            } else {
+                print_err("%s", kevue_error_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
             }
             break;
         case DEL:
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
-            } // TODO: else show something
+            } else {
+                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
+                    printf("%s\n", kevue_error_to_string(resp->err_code));
+                } else {
+                    print_err("%s", kevue_error_to_string(resp->err_code));
+                    unrecoverable_error_occured = true;
+                }
+            }
             break;
         case PING:
             if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fputc('\n', stdout);
                 fflush(stdout);
+            } else {
+                print_err("%s", kevue_error_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
             }
             break;
         default:
@@ -705,4 +730,13 @@ client_close:
     kc->ma->free(resp, kc->ma->ctx);
     kevue_client_destroy(kc);
     return 0;
+client_close_fail:
+    close(epfd);
+    close(tfd);
+    kc->ma->free(events, kc->ma->ctx);
+    kevue_buffer_destroy(cmdline);
+    kevue_buffer_destroy(resp->val);
+    kc->ma->free(resp, kc->ma->ctx);
+    kevue_client_destroy(kc);
+    exit(EXIT_FAILURE);
 }

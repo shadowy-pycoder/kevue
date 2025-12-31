@@ -509,6 +509,7 @@ int main(int argc, char **argv)
 {
     char *host, *port;
     char *line;
+    // TODO: add more args and use something like flag.h for parsing
     if (argc == 3) {
         int port_num = atoi(argv[2]);
         if (port_num < 0 || port_num > 65535) {

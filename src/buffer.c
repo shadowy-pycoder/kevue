@@ -15,6 +15,7 @@
  */
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,7 +28,7 @@ Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
     assert(buf != NULL);
     memset(buf, 0, sizeof(Buffer));
     buf->ma = ma;
-    buf->ptr = (char *)buf->ma->malloc(sizeof(char) * capacity, buf->ma->ctx);
+    buf->ptr = (uint8_t *)buf->ma->malloc(sizeof(*buf->ptr) * capacity, buf->ma->ctx);
     assert(buf->ptr != NULL);
     buf->capacity = capacity;
     return buf;
@@ -49,19 +50,19 @@ void kevue_buffer_destroy(Buffer *buf)
 void kevue_buffer_grow(Buffer *buf, size_t n)
 {
     if (buf->capacity >= n) return;
-    buf->ptr = (char *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
+    buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
     assert(buf->ptr != NULL);
     buf->capacity = n;
 }
 
-size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
+size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
     while (buf->capacity <= buf->size + n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (char *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
         assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
@@ -69,14 +70,14 @@ size_t kevue_buffer_append(Buffer *buf, void *data, size_t n)
     return n;
 }
 
-size_t kevue_buffer_write(Buffer *buf, void *data, size_t n)
+size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
     while (buf->capacity <= n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (char *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
         assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));

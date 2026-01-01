@@ -29,7 +29,7 @@
 #include <common.h>
 #include <protocol.h>
 
-bool kevue_compare_command(char *data, uint8_t len, KevueCommand cmd)
+bool kevue_compare_command(const char *data, uint8_t len, KevueCommand cmd)
 {
     const char *cmd_name = kevue_command_to_string(cmd);
     return strlen(cmd_name) == len && strncasecmp(data, cmd_name, len) == 0;
@@ -93,15 +93,15 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
     if (req->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
-    if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, GET)) {
+    if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, GET)) {
         req->cmd = GET;
-    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, SET)) {
+    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, SET)) {
         req->cmd = SET;
-    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, DEL)) {
+    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, DEL)) {
         req->cmd = DEL;
-    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, HELLO)) {
+    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, HELLO)) {
         req->cmd = HELLO;
-    } else if (kevue_compare_command(buf->ptr + buf->offset, req->cmd_len, PING)) {
+    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, PING)) {
         req->cmd = PING;
     } else {
         return KEVUE_ERR_UNKNOWN_COMMAND;

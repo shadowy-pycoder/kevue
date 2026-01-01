@@ -17,11 +17,12 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <allocator.h>
 
 typedef struct Buffer {
-    char *ptr;
+    uint8_t *ptr;
     size_t size;
     size_t offset;
     size_t capacity;
@@ -29,8 +30,8 @@ typedef struct Buffer {
 } Buffer;
 
 Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma);
-size_t kevue_buffer_append(Buffer *buf, void *data, size_t n);
-size_t kevue_buffer_write(Buffer *buf, void *data, size_t n);
+size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
+size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
 int kevue_buffer_read_byte(Buffer *buf);
 void kevue_buffer_read_advance(Buffer *buf);
 int kevue_buffer_peek_byte(Buffer *buf);

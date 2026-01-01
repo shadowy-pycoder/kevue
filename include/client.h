@@ -23,10 +23,10 @@
 
 typedef struct KevueClient KevueClient;
 
-KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma);
+KevueClient *kevue_client_create(const char *host, const char *port, KevueAllocator *ma);
 void kevue_client_destroy(KevueClient *kc);
-bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);
-bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len, char *val, uint16_t val_len);
-bool kevue_client_del(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len);
+bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len);
+bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len, const void *val, uint16_t val_len);
+bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len);
 bool kevue_client_ping(KevueClient *kc, KevueResponse *resp);
-bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, char *message, uint16_t message_len);
+bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len);

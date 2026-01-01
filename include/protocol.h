@@ -83,9 +83,9 @@ typedef struct KevueRequest {
     uint8_t cmd_len;
     KevueCommand cmd;
     uint16_t key_len;
-    char *key;
+    const uint8_t *key;
     uint16_t val_len;
-    char *val;
+    const uint8_t *val;
 } KevueRequest;
 
 typedef struct KevueResponse {
@@ -104,4 +104,4 @@ void kevue_print_request(KevueRequest *req);
 void kevue_print_response(KevueResponse *resp);
 char *kevue_command_to_string(KevueCommand cmd);
 char *kevue_error_to_string(KevueErr e);
-bool kevue_compare_command(char *data, uint8_t len, KevueCommand cmd);
+bool kevue_compare_command(const char *data, uint8_t len, KevueCommand cmd);

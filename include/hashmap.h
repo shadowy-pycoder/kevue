@@ -25,6 +25,6 @@ typedef struct HashMap HashMap;
 
 HashMap *kevue_hm_create(KevueAllocator *ma);
 void kevue_hm_destroy(HashMap *hm);
-bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_len);
-bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf);
-bool kevue_hm_del(HashMap *hm, char *key, size_t key_len);
+bool kevue_hm_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len);
+bool kevue_hm_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
+bool kevue_hm_del(HashMap *hm, const void *key, size_t key_len);

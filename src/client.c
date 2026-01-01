@@ -58,7 +58,7 @@
 typedef struct KevueClientParseResult KevueClientParseResult;
 
 static void kevue__usage(void);
-static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout);
+static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout);
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
 static bool kevue__handle_read_exactly(KevueClient *kc, size_t n);
 static bool kevue__handle_write(KevueClient *kc);
@@ -94,7 +94,7 @@ static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
     pr->ma->free(pr, pr->ma->ctx);
 }
 
-static int kevue__create_client_sock(char *host, char *port, int read_timeout, int write_timeout)
+static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout)
 {
     int client_sock;
     struct addrinfo hints, *servinfo, *p;
@@ -256,7 +256,7 @@ static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
     KevueRequest req = { 0 };
     req.cmd_len = 5;
     req.cmd = HELLO;
-    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command(resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
+    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command((char *)resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         kevue_buffer_destroy(resp->val);
         return false;
@@ -359,13 +359,13 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, GET)) {
+    if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
         pr->cmd = GET;
-    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, SET)) {
+    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
         pr->cmd = SET;
-    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
         pr->cmd = DEL;
-    } else if (kevue_compare_command(pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
         pr->cmd = PING;
     } else {
         printf("ERROR: Wrong command\n");
@@ -426,7 +426,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     return pr;
 }
 
-bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len)
+bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
 {
     KevueRequest req = { 0 };
     req.cmd_len = 3;
@@ -436,7 +436,7 @@ bool kevue_client_get(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len, char *val, uint16_t val_len)
+bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len, const void *val, uint16_t val_len)
 {
     KevueRequest req = { 0 };
     req.cmd_len = 3;
@@ -448,7 +448,7 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_del(KevueClient *kc, KevueResponse *resp, char *key, uint16_t key_len)
+bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
 {
     KevueRequest req = { 0 };
     req.cmd_len = 3;
@@ -458,7 +458,7 @@ bool kevue_client_del(KevueClient *kc, KevueResponse *resp, char *key, uint16_t 
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, char *message, uint16_t message_len)
+bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len)
 {
     KevueRequest req = { 0 };
     req.cmd_len = 4;
@@ -473,7 +473,7 @@ bool kevue_client_ping(KevueClient *kc, KevueResponse *resp)
     return kevue_client_ping_with_message(kc, resp, "", 0);
 }
 
-KevueClient *kevue_client_create(char *host, char *port, KevueAllocator *ma)
+KevueClient *kevue_client_create(const char *host, const char *port, KevueAllocator *ma)
 {
     if (ma == NULL) ma = &kevue_default_allocator;
     KevueClient *kc = (KevueClient *)ma->malloc(sizeof(KevueClient), ma->ctx);
@@ -674,12 +674,8 @@ int main(int argc, char **argv)
                 fputc('\n', stdout);
                 fflush(stdout);
             } else {
-                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
-                    printf("%s\n", kevue_error_to_string(resp->err_code));
-                } else {
-                    print_err("%s", kevue_error_to_string(resp->err_code));
-                    unrecoverable_error_occured = true;
-                }
+                print_err("%s", kevue_error_to_string(resp->err_code));
+                if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
             }
             break;
         case SET:
@@ -694,12 +690,8 @@ int main(int argc, char **argv)
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
             } else {
-                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
-                    printf("%s\n", kevue_error_to_string(resp->err_code));
-                } else {
-                    print_err("%s", kevue_error_to_string(resp->err_code));
-                    unrecoverable_error_occured = true;
-                }
+                print_err("%s", kevue_error_to_string(resp->err_code));
+                if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
             }
             break;
         case PING:

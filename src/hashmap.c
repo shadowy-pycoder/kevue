@@ -98,7 +98,7 @@ void kevue_hm_destroy(HashMap *hm)
     hm->ma->free(hm, hm->ma->ctx);
 }
 
-bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_len)
+bool kevue_hm_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0 || val_len == 0) return false;
     mutex_lock(&hm->resize_lock);
@@ -149,7 +149,7 @@ bool kevue_hm_put(HashMap *hm, char *key, size_t key_len, char *val, size_t val_
     return true;
 }
 
-bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
+bool kevue_hm_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
     // NOTE: make sure resize lock is not needed here
@@ -175,7 +175,7 @@ bool kevue_hm_get(HashMap *hm, char *key, size_t key_len, Buffer *buf)
     return false;
 }
 
-bool kevue_hm_del(HashMap *hm, char *key, size_t key_len)
+bool kevue_hm_del(HashMap *hm, const void *key, size_t key_len)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
     mutex_lock(&hm->resize_lock);

@@ -157,10 +157,10 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
     assert(req->cmd_len > 0);
     req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
     if (req->cmd != HELLO && req->cmd != PING) assert(req->key_len > 0);
-    req->total_len += sizeof(req->key_len) + req->key_len * sizeof(*req->key);
+    req->total_len += (uint32_t)sizeof(req->key_len) + req->key_len * (uint32_t)sizeof(*req->key);
     if (req->cmd == SET) {
         assert(req->val_len > 0);
-        req->total_len += sizeof(req->val_len) + req->val_len * sizeof(*req->val);
+        req->total_len += (uint32_t)sizeof(req->val_len) + req->val_len * (uint32_t)sizeof(*req->val);
     }
     if (buf->capacity < req->total_len) kevue_buffer_grow(buf, req->total_len - buf->capacity);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);

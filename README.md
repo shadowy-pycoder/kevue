@@ -3,7 +3,7 @@
 `kevue` is a multithreaded TCP server and client that maps its endpoints to hash table operations (get/put/delete).
 
 > [!WARNING]
-> This project is not in production ready state yet
+> This project is not in production ready state yet. Moreover, this is my second project in C so expect many bugs, memory leaks with undefined behaviour
 
 # Installation
 
@@ -52,6 +52,7 @@ Server supports several commands: `GET`, `SET`, `DELETE`, `PING` (to test connec
 
 - [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
 - [ ] Add tests and benchmarks
+- [ ] Make it compilable with C++ compilers
 - [ ] Load/save from persistent storage
 - [ ] Add more commands
 - [ ] Add arena memory allocator

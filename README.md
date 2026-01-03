@@ -1,1 +1,56 @@
-# kevue - A key-value in-memory database
+# kevue - key-value in-memory database
+
+`kevue` is a multithreaded TCP server and client that maps its endpoints to hash table operations (get/put/delete).
+
+# Installation
+
+Create `kevue-server` and `kevue-client` executables in the `./bin/` directory by running the following command:
+
+```shell
+make release
+```
+
+# Usage
+
+Run the server:
+
+```shell
+make run
+# or ./bin/kevue-server 0.0.0.0 12111
+```
+
+Run the client:
+
+```shell
+./bin/kevue-client 0.0.0.0 12111
+```
+
+```shell
+# client console session example
+INFO: Connected to 0.0.0.0:12111
+0.0.0.0:12111> get hello
+ERROR: main: Not found
+0.0.0.0:12111> set hello world
+OK
+0.0.0.0:12111> get hello
+world
+0.0.0.0:12111> del hello
+OK
+0.0.0.0:12111> get hello
+ERROR: main: Not found
+0.0.0.0:12111>
+```
+
+In both cases `host` and `port` can be omitted, default values will be used.
+
+Server supports several commands: `GET`, `SET`, `DELETE`, `PING`.
+
+## Contributing
+
+Are you a developer?
+
+- Fork the repository
+- Create your feature branch: `git switch -c my-new-feature`
+- Commit your changes: `git commit -am 'Add some feature'`
+- Push to the branch: `git push origin my-new-feature`
+- Submit a pull request

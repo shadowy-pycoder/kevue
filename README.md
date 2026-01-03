@@ -2,6 +2,9 @@
 
 `kevue` is a multithreaded TCP server and client that maps its endpoints to hash table operations (get/put/delete).
 
+> [!WARNING]
+> This project is not in production ready state yet
+
 # Installation
 
 Create `kevue-server` and `kevue-client` executables in the `./bin/` directory by running the following command:
@@ -43,7 +46,16 @@ ERROR: main: Not found
 
 In both cases `host` and `port` can be omitted, default values will be used.
 
-Server supports several commands: `GET`, `SET`, `DELETE`, `PING`.
+Server supports several commands: `GET`, `SET`, `DELETE`, `PING` (to test connection), `HELLO` (to establish connection).
+
+## TODO
+
+- [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
+- [ ] Add tests and benchmarks
+- [ ] Load/save from persistent storage
+- [ ] Add more commands
+- [ ] Add arena memory allocator
+- [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing )
 
 ## Contributing
 
@@ -54,3 +66,7 @@ Are you a developer?
 - Commit your changes: `git commit -am 'Add some feature'`
 - Push to the branch: `git push origin my-new-feature`
 - Submit a pull request
+
+## License
+
+Apache 2.0

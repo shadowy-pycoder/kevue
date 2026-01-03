@@ -5,7 +5,7 @@
 > [!WARNING]
 > This project is not in production ready state yet. Moreover, this is my second project in C so expect many bugs, memory leaks with undefined behaviour
 
-# Installation
+## Installation
 
 Create `kevue-server` and `kevue-client` executables in the `./bin/` directory by running the following command:
 
@@ -13,7 +13,7 @@ Create `kevue-server` and `kevue-client` executables in the `./bin/` directory b
 make release
 ```
 
-# Usage
+## Usage
 
 Run the server:
 

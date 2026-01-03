@@ -51,6 +51,7 @@ Server supports several commands: `GET`, `SET`, `DELETE`, `PING` (to test connec
 ## TODO
 
 - [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
+- [ ] Add comments and documentation
 - [ ] Add tests and benchmarks
 - [ ] Make it compilable with C++ compilers
 - [ ] Load/save from persistent storage

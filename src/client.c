@@ -144,6 +144,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
         }
         if (connect(client_sock, p->ai_addr, p->ai_addrlen) < 0) {
             print_err("Connecting to %s:%s failed: %s", host, port, strerror(errno));
+            close(client_sock);
             continue;
         }
         break;
@@ -207,12 +208,12 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
 {
     kevue_serialize_request(req, kc->wbuf);
     if (!kevue__handle_write(kc)) {
-        shutdown(kc->fd, SHUT_WR);
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
             resp->err_code = KEVUE_ERR_WRITE_TIMEOUT;
         } else {
             resp->err_code = KEVUE_ERR_WRITE_FAILED;
         }
+        shutdown(kc->fd, SHUT_WR);
         return false;
     }
     uint32_t total_len;

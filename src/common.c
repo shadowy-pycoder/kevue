@@ -29,7 +29,7 @@ char *to_upper(char *s, size_t n)
 }
 
 // https://beej.us/guide/bgnet/html/split/slightly-advanced-techniques.html#poll
-const char *inet_ntop2(void *addr, char *buf, socklen_t size)
+const char *inet_ntop2(void *addr, char *buf, size_t size)
 {
     struct sockaddr_storage *sas = addr;
     struct sockaddr_in *sa4;
@@ -48,7 +48,7 @@ const char *inet_ntop2(void *addr, char *buf, socklen_t size)
     default:
         return NULL;
     }
-    return inet_ntop(sas->ss_family, src, buf, size);
+    return inet_ntop(sas->ss_family, src, buf, (socklen_t)size);
 }
 
 uint16_t ntohs2(void *addr)

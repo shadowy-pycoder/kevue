@@ -1,5 +1,5 @@
 // Authored by https://www.reddit.com/user/skeeto/
-// clang -g3 -fsanitize=thread,undefined -Iinclude -Ilib ./tests/crash.c -o ./bin/kevue-crash-test
+// clang -g3 -fsanitize=thread,undefined -Iinclude -Ilib ./tests/crash.c -o ./bin/kevue-crash-test -DDEBUG
 #include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/common.c"
@@ -21,6 +21,6 @@ int main()
     for (long long i = 0;;) {
         char key[32] = {};
         int len = snprintf(key, sizeof(key), "%lld", i++);
-        kevue_hm_put(m, key, len, ".", 1);
+        if (!kevue_hm_put(m, key, len, ".", 1)) return 0;
     }
 }

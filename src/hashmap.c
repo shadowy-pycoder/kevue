@@ -27,18 +27,17 @@
 #include <hashmap.h>
 
 #define HASHMAP_BUCKET_INITIAL_COUNT       (SERVER_WORKERS * 8U) // rounded up to the power of two
+#define HASHMAP_BUCKET_MAX_COUNT           8388608U
 #define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 2U
 #define HASHMAP_MAX_LOAD                   1.0f
 #define HASHMAP_MIN_LOAD                   0.25f
 #define HASHMAP_RESIZE_FACTOR              2
+#define HASHMAP_SLOTS_MAX_COUNT            (HASHMAP_BUCKET_MAX_COUNT * HASHMAP_BUCKET_ENTRY_INITIAL_COUNT) // 16777216
 
-#if SERVER_WORKERS == 1
-#define mutex_lock(l)   ((void)0)
-#define mutex_unlock(l) ((void)0)
-#else
-#define mutex_lock(l)   pthread_mutex_lock(l)
-#define mutex_unlock(l) pthread_mutex_unlock(l)
-#endif
+#define mutex_lock(l)    pthread_mutex_lock(l)
+#define mutex_unlock(l)  pthread_mutex_unlock(l)
+#define mutex_init(l, f) pthread_mutex_init(l, f)
+#define mutex_destroy(l) pthread_mutex_destroy(l)
 
 static void kevue__hm_resize(HashMap *hm, size_t new_size);
 
@@ -70,17 +69,18 @@ HashMap *kevue_hm_create(KevueAllocator *ma)
     HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
     if (hm == NULL) return NULL;
     hm->ma = ma;
-    size_t bucket_count = round_up_pow2(HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
+    size_t bucket_count = round_up_pow2(HASHMAP_BUCKET_INITIAL_COUNT);
     hm->buckets = hm->ma->malloc(bucket_count * sizeof(Bucket), hm->ma->ctx);
     if (hm->buckets == NULL) {
         hm->ma->free(hm, hm->ma->ctx);
         return NULL;
     }
-    pthread_mutex_init(&hm->resize_lock, NULL);
+    mutex_init(&hm->resize_lock, NULL);
     hm->bucket_count = bucket_count;
+    hm->slots_taken = 0;
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
         kevue_dyna_init(&hm->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm->ma);
-        pthread_mutex_init(&hm->buckets[bucket].lock, NULL);
+        mutex_init(&hm->buckets[bucket].lock, NULL);
     }
     return hm;
 }
@@ -89,14 +89,14 @@ void kevue_hm_destroy(HashMap *hm)
 {
     if (hm == NULL) return;
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
-        pthread_mutex_destroy(&hm->buckets[bucket].lock);
+        mutex_destroy(&hm->buckets[bucket].lock);
         if (hm->buckets[bucket].len > 0) {
             kevue_dyna_foreach(&hm->buckets[bucket], entry_ptr) hm->ma->free(*entry_ptr, hm->ma->ctx);
         }
         kevue_dyna_deinit(&hm->buckets[bucket]);
     }
     hm->ma->free(hm->buckets, hm->ma->ctx);
-    pthread_mutex_destroy(&hm->resize_lock);
+    mutex_destroy(&hm->resize_lock);
     hm->ma->free(hm, hm->ma->ctx);
 }
 
@@ -104,8 +104,14 @@ bool kevue_hm_put(HashMap *hm, const void *key, size_t key_len, const void *val,
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0 || val_len == 0) return false;
     mutex_lock(&hm->resize_lock);
-    if ((double)hm->slots_taken / (double)hm->bucket_count > HASHMAP_MAX_LOAD) {
-        kevue__hm_resize(hm, hm->bucket_count * HASHMAP_RESIZE_FACTOR);
+    if (hm->slots_taken >= HASHMAP_SLOTS_MAX_COUNT) {
+        mutex_unlock(&hm->resize_lock);
+        return false;
+    }
+    if (hm->bucket_count < HASHMAP_BUCKET_MAX_COUNT) {
+        if ((double)hm->slots_taken / (double)hm->bucket_count > HASHMAP_MAX_LOAD) {
+            kevue__hm_resize(hm, hm->bucket_count * HASHMAP_RESIZE_FACTOR);
+        }
     }
     uint64_t hash = rapidhash(key, key_len);
     size_t idx = hash % hm->bucket_count;
@@ -211,21 +217,18 @@ bool kevue_hm_del(HashMap *hm, const void *key, size_t key_len)
 static void kevue__hm_resize(HashMap *hm, size_t new_size)
 {
     print_debug("HashMap %s %zu -> %zu", new_size > hm->bucket_count ? "grows" : "shrinks", hm->bucket_count, new_size);
-    // TODO: consider adding hard limit for the number of locks
-    for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
-        mutex_lock(&hm->buckets[bucket].lock);
-    }
-    for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
-        mutex_unlock(&hm->buckets[bucket].lock);
-        pthread_mutex_destroy(&hm->buckets[bucket].lock);
-    }
     Bucket *new_buckets = hm->ma->malloc(new_size * sizeof(Bucket), hm->ma->ctx);
     if (new_buckets == NULL) {
         return;
     }
+    for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
+        mutex_lock(&hm->buckets[bucket].lock);
+        mutex_unlock(&hm->buckets[bucket].lock);
+        mutex_destroy(&hm->buckets[bucket].lock);
+    }
     for (size_t bucket = 0; bucket < new_size; bucket++) {
         kevue_dyna_init(&new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm->ma);
-        pthread_mutex_init(&new_buckets[bucket].lock, NULL);
+        mutex_init(&new_buckets[bucket].lock, NULL);
     }
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
         if (hm->buckets[bucket].len == 0) continue;

@@ -89,8 +89,8 @@ struct KevueClientParseResult {
 
 static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
 {
-    if (pr->key != NULL) kevue_buffer_destroy(pr->key);
-    if (pr->value != NULL) kevue_buffer_destroy(pr->value);
+    kevue_buffer_destroy(pr->key);
+    kevue_buffer_destroy(pr->value);
     pr->ma->free(pr, pr->ma->ctx);
 }
 
@@ -349,6 +349,11 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     memset(pr, 0, sizeof(*pr));
     pr->ma = ma;
     pr->key = kevue_buffer_create(BUF_SIZE, pr->ma);
+    if (pr->key == NULL) {
+        printf("ERROR: Out of memory\n");
+        kevue__client_parse_result_destroy(pr);
+        return NULL;
+    }
     kevue__trim_left(buf);
     if (kevue_buffer_at_eof(buf)) {
         printf("ERROR: Wrong arguments\n");
@@ -412,6 +417,11 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
     }
     pr->value = kevue_buffer_create(BUF_SIZE, pr->ma);
+    if (pr->value == NULL) {
+        printf("ERROR: Out of memory\n");
+        kevue__client_parse_result_destroy(pr);
+        return NULL;
+    }
     kevue_buffer_reset(pr->value);
     if (!kevue__parse_chunk(buf, pr->value)) {
         printf("ERROR: Wrong arguments\n");
@@ -488,7 +498,15 @@ KevueClient *kevue_client_create(const char *host, const char *port, KevueAlloca
         return NULL;
     }
     kc->rbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    if (kc->rbuf == NULL) {
+        kevue_client_destroy(kc);
+        return NULL;
+    }
     kc->wbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    if (kc->wbuf == NULL) {
+        kevue_client_destroy(kc);
+        return NULL;
+    }
     KevueResponse resp = { 0 };
     if (!kevue__client_hello(kc, &resp)) {
         print_err("%s", kevue_error_to_string(resp.err_code));
@@ -500,6 +518,7 @@ KevueClient *kevue_client_create(const char *host, const char *port, KevueAlloca
 
 void kevue_client_destroy(KevueClient *kc)
 {
+    if (kc == NULL) return;
     close(kc->fd);
     kevue_buffer_destroy(kc->rbuf);
     kevue_buffer_destroy(kc->wbuf);
@@ -587,6 +606,14 @@ int main(int argc, char **argv)
     int n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, kc->ma);
+    if (cmdline == NULL) {
+        print_err("Creating buffer for command line failed");
+        close(epfd);
+        close(tfd);
+        kc->ma->free(events, kc->ma->ctx);
+        kevue_client_destroy(kc);
+        exit(EXIT_FAILURE);
+    }
     int nready;
     bool unrecoverable_error_occured = false;
     while (true) {
@@ -630,6 +657,7 @@ int main(int argc, char **argv)
                 }
                 line = linenoiseEditFeed(&ls);
                 if (line != linenoiseEditMore) {
+                    // these errno are set by linenoise
                     if (errno == EAGAIN || errno == ENOENT) { // Ctrl+C  Ctrl+D hit
                         linenoiseHide(&ls);
                         fprintf(stdout, "Exit? [Y/n]: ");

@@ -537,9 +537,12 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
         return false;
     }
     c->rbuf = kevue_buffer_create(BUF_SIZE, ma);
+    if (c->rbuf == NULL) return false;
     c->wbuf = kevue_buffer_create(BUF_SIZE, ma);
-    c->hm = hm;
+    if (c->wbuf == NULL) return false;
     c->hmbuf = kevue_buffer_create(BUF_SIZE, ma);
+    if (c->hmbuf == NULL) return false;
+    c->hm = hm;
     return true;
 }
 

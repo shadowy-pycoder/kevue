@@ -26,10 +26,14 @@ Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
 {
     Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
     assert(buf != NULL);
+    if (buf == NULL) return NULL;
     memset(buf, 0, sizeof(Buffer));
     buf->ma = ma;
     buf->ptr = (uint8_t *)buf->ma->malloc(sizeof(*buf->ptr) * capacity, buf->ma->ctx);
-    assert(buf->ptr != NULL);
+    if (buf->ptr == NULL) {
+        buf->ma->free(buf, buf->ma->ctx);
+        return NULL;
+    }
     buf->capacity = capacity;
     return buf;
 }

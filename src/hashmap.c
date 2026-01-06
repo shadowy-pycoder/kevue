@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file hashmap.c
+ * @brief Implementation of HashMap API.
+ */
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -221,6 +225,8 @@ static void kevue__hm_resize(HashMap *hm, size_t new_size)
     if (new_buckets == NULL) {
         return;
     }
+    // this ensures that all bucket locks are released by getters and setters
+    // after that it is safe to destroy all locks
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
         mutex_lock(&hm->buckets[bucket].lock);
         mutex_unlock(&hm->buckets[bucket].lock);

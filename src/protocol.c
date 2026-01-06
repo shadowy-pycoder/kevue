@@ -198,6 +198,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
         if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
+        if (resp->val == NULL) return KEVUE_ERR_OPERATION;
         kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
     }

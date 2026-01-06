@@ -76,7 +76,9 @@ bool kevue_hm_put(HashMap *hm, const void *key, size_t key_len, const void *val,
  * @param key_len  Length of @p key in bytes.
  * @param buf      Buffer to receive the value.
  *
- * @return true if the key exists, false otherwise.
+ * @return true if the key is put successfuly, false otherwise.
+ *
+ * @note returns false if hashmap is full
  */
 bool kevue_hm_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -316,7 +316,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         c->closed = true;
     } else if (events & EPOLLIN) {
         if (c->total_len == 0) {
-            KevueErr err = kevue_read_message_length(c->sock->fd, c->rbuf, &c->total_len);
+            KevueErr err = kevue_message_read_length(c->sock->fd, c->rbuf, &c->total_len);
             if (err != KEVUE_ERR_OK) {
                 if (err == KEVUE_ERR_INCOMPLETE_READ) {
                     return;
@@ -335,9 +335,9 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             KevueRequest req = { 0 };
             req.total_len = c->total_len;
             KevueResponse resp = { 0 };
-            KevueErr err = kevue_deserialize_request(&req, c->rbuf);
+            KevueErr err = kevue_request_deserialize(&req, c->rbuf);
             if (err == KEVUE_ERR_OK) {
-                kevue_print_request(&req);
+                kevue_request_print(&req);
                 resp.err_code = KEVUE_ERR_OK;
                 switch (req.cmd) {
                 case HELLO:
@@ -376,15 +376,15 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
                 default:
                     UNREACHABLE("Possibly forgot to add new command to switch case");
                 }
-                kevue_print_response(&resp);
-                kevue_serialize_response(&resp, c->wbuf);
+                kevue_response_print(&resp);
+                kevue_response_serialize(&resp, c->wbuf);
                 kevue_buffer_move_unread_bytes(c->rbuf);
                 kevue_buffer_reset(c->hmbuf);
                 c->total_len = 0;
             } else {
                 print_err("[%d] %s", tid, kevue_error_to_string(err));
                 resp.err_code = err;
-                kevue_serialize_response(&resp, c->wbuf);
+                kevue_response_serialize(&resp, c->wbuf);
                 c->closed = true;
             }
             if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {

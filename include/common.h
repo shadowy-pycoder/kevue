@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ */
+/**
+ * @file common.h
+ * @brief Helper functions and macro.
  */
 #pragma once
 
@@ -73,7 +77,22 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+/**
+ *  Convert string `s` to upper case and return it.
+ */
 char *to_upper(char *s, size_t n);
+
+/**
+ * Wrapper for `inet_ntop` with dispatching for IPv4 and IPv6 addresses.
+ */
 const char *inet_ntop2(void *addr, char *buf, size_t size);
+
+/**
+ * Wrapper for `ntohs` with dispatching for IPv4 and IPv6 addresses and ports.
+ */
 uint16_t ntohs2(void *addr);
+
+/**
+ * Round up `x` to the nearest power of 2.
+ */
 size_t round_up_pow2(size_t x);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
 #include <common.h>
 #include <protocol.h>
 
-bool kevue_compare_command(const char *data, uint8_t len, KevueCommand cmd)
+bool kevue_command_compare(const char *data, uint8_t len, KevueCommand cmd)
 {
     const char *cmd_name = kevue_command_to_string(cmd);
     return strlen(cmd_name) == len && strncasecmp(data, cmd_name, len) == 0;
@@ -59,7 +59,7 @@ char *kevue_error_to_string(KevueErr e)
     UNREACHABLE("Unknown error");
 }
 
-KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
+KevueErr kevue_message_read_length(int sock, Buffer *buf, uint32_t *total_len)
 {
     while (buf->size < KEVUE_MESSAGE_HEADER_SIZE) {
         ssize_t nr = read(sock, buf->ptr + buf->size, KEVUE_MESSAGE_HEADER_SIZE - buf->size);
@@ -87,21 +87,21 @@ KevueErr kevue_read_message_length(int sock, Buffer *buf, uint32_t *total_len)
     return KEVUE_ERR_OK;
 }
 
-KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
+KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)
 {
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
     if (req->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
     buf->offset += sizeof(uint8_t);
-    if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, GET)) {
+    if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, GET)) {
         req->cmd = GET;
-    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, SET)) {
+    } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, SET)) {
         req->cmd = SET;
-    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, DEL)) {
+    } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, DEL)) {
         req->cmd = DEL;
-    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, HELLO)) {
+    } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, HELLO)) {
         req->cmd = HELLO;
-    } else if (kevue_compare_command((char *)buf->ptr + buf->offset, req->cmd_len, PING)) {
+    } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, PING)) {
         req->cmd = PING;
     } else {
         return KEVUE_ERR_UNKNOWN_COMMAND;
@@ -132,7 +132,7 @@ KevueErr kevue_deserialize_request(KevueRequest *req, Buffer *buf)
     return KEVUE_ERR_OK;
 }
 
-void kevue_print_request(KevueRequest *req)
+void kevue_request_print(KevueRequest *req)
 {
     fprintf(stdout, "Total Length: %d\n", req->total_len);
     fprintf(stdout, "Command Length: %d\n", req->cmd_len);
@@ -152,7 +152,7 @@ void kevue_print_request(KevueRequest *req)
     fflush(stdout);
 }
 
-void kevue_serialize_request(KevueRequest *req, Buffer *buf)
+void kevue_request_serialize(KevueRequest *req, Buffer *buf)
 {
     assert(req->cmd_len > 0);
     req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
@@ -180,7 +180,7 @@ void kevue_serialize_request(KevueRequest *req, Buffer *buf)
     }
 }
 
-KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
+KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
 {
     assert(buf->offset == KEVUE_MESSAGE_HEADER_SIZE);
     if (resp->total_len != buf->size) return KEVUE_ERR_LEN_INVALID;
@@ -204,7 +204,7 @@ KevueErr kevue_deserialize_response(KevueResponse *resp, Buffer *buf)
     return KEVUE_ERR_OK;
 }
 
-void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
+void kevue_response_serialize(KevueResponse *resp, Buffer *buf)
 {
     resp->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(resp->total_len) + sizeof(uint8_t) + sizeof(resp->val_len);
     if (resp->err_code != KEVUE_ERR_OK) resp->val_len = 0;
@@ -224,7 +224,7 @@ void kevue_serialize_response(KevueResponse *resp, Buffer *buf)
     }
 }
 
-void kevue_print_response(KevueResponse *resp)
+void kevue_response_print(KevueResponse *resp)
 {
     fprintf(stdout, "Total Length: %d\n", resp->total_len);
     fprintf(stdout, "Error Code: %d\n", resp->err_code);

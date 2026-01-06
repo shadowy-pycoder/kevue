@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -206,7 +206,7 @@ static bool kevue__handle_write(KevueClient *kc)
 
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp)
 {
-    kevue_serialize_request(req, kc->wbuf);
+    kevue_request_serialize(req, kc->wbuf);
     if (!kevue__handle_write(kc)) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
             resp->err_code = KEVUE_ERR_WRITE_TIMEOUT;
@@ -218,7 +218,7 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
     }
     uint32_t total_len;
     while (true) {
-        KevueErr err = kevue_read_message_length(kc->fd, kc->rbuf, &total_len);
+        KevueErr err = kevue_message_read_length(kc->fd, kc->rbuf, &total_len);
         if (err != KEVUE_ERR_OK) {
             if (err == KEVUE_ERR_INCOMPLETE_READ) {
                 resp->err_code = KEVUE_ERR_READ_TIMEOUT;
@@ -243,7 +243,7 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         return false;
     }
     resp->total_len = total_len;
-    KevueErr err = kevue_deserialize_response(resp, kc->rbuf);
+    KevueErr err = kevue_response_deserialize(resp, kc->rbuf);
     kevue_buffer_reset(kc->rbuf);
     if (err != KEVUE_ERR_OK) {
         resp->err_code = err;
@@ -257,7 +257,7 @@ static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
     KevueRequest req = { 0 };
     req.cmd_len = 5;
     req.cmd = HELLO;
-    if (!kevue__make_request(kc, &req, resp) || !kevue_compare_command((char *)resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
+    if (!kevue__make_request(kc, &req, resp) || !kevue_command_compare((char *)resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         kevue_buffer_destroy(resp->val);
         return false;
@@ -360,13 +360,13 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
+    if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
         pr->cmd = GET;
-    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
+    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
         pr->cmd = SET;
-    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
         pr->cmd = DEL;
-    } else if (kevue_compare_command((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
         pr->cmd = PING;
     } else {
         printf("ERROR: Wrong command\n");

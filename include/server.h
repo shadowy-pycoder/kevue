@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file server.h
+ * @brief kevue server API.
+ */
 #pragma once
 #include <pthread.h>
 #include <stdint.h>
@@ -25,6 +29,12 @@
 #define SND_BUF_SIZE    (1024 * 1024 * 2)
 #define RECV_BUF_SIZE   (1024 * 1024 * 2)
 
+/**
+ * @struct KevueServer
+ * @brief kevue server instance.
+ *
+ * Holds server configuration, worker threads, and shared state.
+ */
 typedef struct KevueServer {
     const char *host;
     const char *port;
@@ -35,6 +45,34 @@ typedef struct KevueServer {
     HashMap *hm;
 } KevueServer;
 
+/**
+ * @brief Creates a new kevue server instance.
+ *
+ * Initializes server state but does not start worker threads.
+ *
+ * @param host  Hostname or bind address.
+ * @param port  Port number as a string.
+ * @param ma    Allocator used for server resources.
+ *
+ * @return Pointer to a newly created server, or NULL on failure.
+ */
 KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
+
+/**
+ * @brief Starts the kevue server.
+ *
+ * Creates worker threads and begins accepting client connections.
+ *
+ * @param ks  Server instance.
+ */
 void kevue_server_start(KevueServer *ks);
+
+/**
+ * @brief Destroys a kevue server instance.
+ *
+ * Stops all worker threads, closes open file descriptors,
+ * and releases associated resources.
+ *
+ * @param ks  Server instance to destroy.
+ */
 void kevue_server_destroy(KevueServer *ks);

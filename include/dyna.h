@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ */
+/**
+ * @file dyna.h
+ * @brief Dynamic array API.
  */
 #pragma once
 
@@ -26,6 +30,9 @@
 //     KevueAllocator *ma;
 // } DynamicArray;
 
+/**
+ * Initialize a dynamic array.
+ */
 #define kevue_dyna_init(dyna, capacity, alloc)                                                \
     do {                                                                                      \
         assert((dyna) != NULL);                                                               \
@@ -36,6 +43,11 @@
         (dyna)->cap = (capacity);                                                             \
     } while (0)
 
+/**
+ * Deinitialize a dynamic array.
+ *
+ * @pre Dynamic array must be initialized.
+ */
 #define kevue_dyna_deinit(dyna)                         \
     do {                                                \
         assert((dyna) != NULL);                         \
@@ -44,7 +56,12 @@
         (dyna)->ptr = NULL;                             \
     } while (0)
 
-// stolen from https://github.com/tsoding/nob.h
+/**
+ * Append new @p item to dynamic array.
+ *
+ * @pre Dynamic array must be initialized.
+ * https://github.com/tsoding/nob.h
+ */
 #define kevue_dyna_append(dyna, item)                                                                            \
     do {                                                                                                         \
         size_t initial_cap = (dyna)->cap;                                                                        \
@@ -56,6 +73,13 @@
         (dyna)->ptr[(dyna)->len++] = (item);                                                                     \
     } while (0)
 
+/**
+ * Remove item with @p index from dynamic array.
+ *
+ * @pre Dynamic array must be initialized.
+ * @note Caller must ensure @p index is less than array length.
+ * @note The order of items is not preserved after deletion.
+ */
 #define kevue_dyna_remove(dyna, index)                             \
     do {                                                           \
         size_t index_to_remove = (index);                          \
@@ -73,6 +97,11 @@
 #define kevue_dyna_foreach(dyna, T, it) for (T *it = (dyna)->ptr; it < (dyna)->ptr + (dyna)->len; it++)
 #endif
 
+/**
+ * Increase dynamic array capacity up to @p n items.
+ *
+ * @pre Dynamic array must be initialized.
+ */
 #define kevue_dyna_grow(dyna, n)                                                                         \
     do {                                                                                                 \
         if ((dyna)->cap < (n)) {                                                                         \

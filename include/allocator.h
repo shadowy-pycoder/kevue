@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,10 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file allocator.h
+ * @brief Default allocator.
+ */
 #pragma once
 
 #include <stddef.h>
 
+/**
+ * @brief Memory allocators interface.
+ */
 typedef struct KevueAllocator {
     void *(*malloc)(size_t, void *ctx);
     void *(*realloc)(void *, size_t, void *ctx);
@@ -24,4 +31,10 @@ typedef struct KevueAllocator {
     void *ctx;
 } KevueAllocator;
 
+/**
+ * @brief Default allocator using the C standard library.
+ *
+ * Uses @c malloc, @c realloc, and @c free from <stdlib.h>.
+ * The context pointer is unused and set to NULL.
+ */
 extern KevueAllocator kevue_default_allocator;

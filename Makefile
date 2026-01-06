@@ -2,6 +2,7 @@ PROJNAME := kevue
 PROJDIR := $(realpath $(CURDIR))
 BUILD := $(PROJDIR)/build
 BIN := $(PROJDIR)/bin
+DOCS := $(PROJDIR)/docs
 TARGETS := server client
 BINARIES := $(addprefix $(BIN)/$(PROJNAME)-,$(TARGETS))
 SRC := $(PROJDIR)/src
@@ -65,7 +66,7 @@ ifeq ($(USE_JEMALLOC),1)
   LDLIBS  += -ljemalloc
 endif
 
-.PHONY: default all clean run debug release compile_commands
+.PHONY: default all clean run debug release compile_commands docs
 
 default: $(BINARIES)
 all: default
@@ -108,6 +109,10 @@ release:
 clean:
 	rm -rf $(BUILD)
 	rm -rf $(BIN)
+	rm -rf $(DOCS)
 
 compile_commands:
 	bear -- make --always-make
+
+docs:
+	doxygen

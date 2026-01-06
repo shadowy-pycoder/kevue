@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 shadowy-pycoder
+ * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file jemalloc_allocator.h
+ * @brief jemalloc allocator.
+ */
 #pragma once
 
 #include <allocator.h>
 
+/**
+ * define USE_JEMALLOC to use this allocator
+ */
 extern KevueAllocator kevue_jemalloc_allocator;

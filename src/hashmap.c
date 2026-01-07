@@ -63,6 +63,7 @@ typedef struct Bucket {
 struct HashMap {
     Bucket *buckets; // static array
     size_t bucket_count;
+    size_t initial_bucket_count;
     size_t slots_taken;
     KevueAllocator *ma;
     pthread_mutex_t resize_lock;
@@ -81,6 +82,7 @@ HashMap *kevue_hm_create(KevueAllocator *ma)
     }
     mutex_init(&hm->resize_lock, NULL);
     hm->bucket_count = bucket_count;
+    hm->initial_bucket_count = bucket_count;
     hm->slots_taken = 0;
     for (size_t bucket = 0; bucket < hm->bucket_count; bucket++) {
         kevue_dyna_init(&hm->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm->ma);
@@ -187,9 +189,9 @@ bool kevue_hm_del(HashMap *hm, const void *key, size_t key_len)
 {
     if (hm == NULL || hm->ma == NULL || key_len == 0) return false;
     mutex_lock(&hm->resize_lock);
-    if (hm->bucket_count > HASHMAP_BUCKET_INITIAL_COUNT) {
+    if (hm->bucket_count > hm->initial_bucket_count) {
         if ((double)hm->slots_taken / (double)hm->bucket_count < HASHMAP_MIN_LOAD) {
-            kevue__hm_resize(hm, max(HASHMAP_BUCKET_INITIAL_COUNT, hm->bucket_count / HASHMAP_RESIZE_FACTOR));
+            kevue__hm_resize(hm, max(hm->initial_bucket_count, hm->bucket_count / HASHMAP_RESIZE_FACTOR));
         }
     }
     uint64_t hash = rapidhash(key, key_len);

@@ -77,7 +77,6 @@ struct KevueConnection {
     Address addr;
     Buffer *rbuf;
     Buffer *wbuf;
-    uint32_t total_len;
     KevueAllocator *ma;
     HashMap *hm;
     Buffer *hmbuf;
@@ -98,6 +97,7 @@ static int kevue__create_server_sock(char *host, char *port, bool check);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
+static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf);
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing);
 static bool kevue__handle_read(KevueConnection *c);
 static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
@@ -301,6 +301,50 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
     return true;
 }
 
+// TODO: split this mess into several functions
+static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf)
+{
+    resp->err_code = KEVUE_ERR_OK;
+    switch (req->cmd) {
+    case HELLO:
+        resp->val_len = (uint16_t)strlen(kevue_command_to_string(HELLO));
+        kevue_buffer_write(hmbuf, kevue_command_to_string(HELLO), resp->val_len);
+        resp->val = hmbuf;
+        break;
+    case GET:
+        if (!kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
+            resp->err_code = KEVUE_ERR_NOT_FOUND;
+        } else {
+            resp->val_len = (uint16_t)hmbuf->size;
+            resp->val = hmbuf;
+        }
+        break;
+    case SET:
+        if (!kevue_hm_put(hm, req->key, req->key_len, req->val, req->val_len)) {
+            resp->err_code = KEVUE_ERR_OPERATION;
+        }
+        break;
+    case DEL:
+        if (!kevue_hm_del(hm, req->key, req->key_len)) {
+            resp->err_code = KEVUE_ERR_NOT_FOUND;
+        }
+        break;
+    case PING:
+        if (req->key_len > 0) {
+            resp->val_len = req->key_len;
+            kevue_buffer_write(hmbuf, req->key, req->key_len);
+        } else {
+            resp->val_len = 4;
+            kevue_buffer_write(hmbuf, "PONG", resp->val_len);
+        }
+        resp->val = hmbuf;
+        break;
+    default:
+        UNREACHABLE("Possibly forgot to add new command to switch case");
+    }
+    kevue_response_print(resp);
+}
+
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
 {
     pid_t tid = gettid();
@@ -315,85 +359,35 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         kevue__handle_read(c);
         c->closed = true;
     } else if (events & EPOLLIN) {
-        if (c->total_len == 0) {
-            KevueErr err = kevue_message_read_length(c->sock->fd, c->rbuf, &c->total_len);
-            if (err != KEVUE_ERR_OK) {
-                if (err == KEVUE_ERR_INCOMPLETE_READ) {
-                    return;
-                }
-                print_err("[%d] %s", tid, kevue_error_to_string(err));
-                c->closed = true;
-            }
-        }
-        if (c->closed || !kevue__handle_read_exactly(c, c->total_len)) {
+        if (!kevue__handle_read(c)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
                     print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
             }
             c->closed = true;
+        }
+        KevueRequest req = { 0 };
+        KevueResponse resp = { 0 };
+        KevueErr err = kevue_request_deserialize(&req, c->rbuf);
+        if (err == KEVUE_ERR_INCOMPLETE_READ) return;
+        if (err == KEVUE_ERR_OK) {
+            kevue_request_print(&req);
+            kevue__response_populate_from_hashmap(&req, &resp, c->hm, c->hmbuf);
+            kevue_response_serialize(&resp, c->wbuf);
+            kevue_buffer_move_unread_bytes(c->rbuf);
+            kevue_buffer_reset(c->hmbuf);
         } else {
-            KevueRequest req = { 0 };
-            req.total_len = c->total_len;
-            KevueResponse resp = { 0 };
-            KevueErr err = kevue_request_deserialize(&req, c->rbuf);
-            if (err == KEVUE_ERR_OK) {
-                kevue_request_print(&req);
-                resp.err_code = KEVUE_ERR_OK;
-                switch (req.cmd) {
-                case HELLO:
-                    resp.val_len = (uint16_t)strlen(kevue_command_to_string(HELLO));
-                    kevue_buffer_write(c->hmbuf, kevue_command_to_string(HELLO), resp.val_len);
-                    resp.val = c->hmbuf;
-                    break;
-                case GET:
-                    if (!kevue_hm_get(c->hm, req.key, req.key_len, c->hmbuf)) {
-                        resp.err_code = KEVUE_ERR_NOT_FOUND;
-                    } else {
-                        resp.val_len = (uint16_t)c->hmbuf->size;
-                        resp.val = c->hmbuf;
-                    }
-                    break;
-                case SET:
-                    if (!kevue_hm_put(c->hm, req.key, req.key_len, req.val, req.val_len)) {
-                        resp.err_code = KEVUE_ERR_OPERATION;
-                    }
-                    break;
-                case DEL:
-                    if (!kevue_hm_del(c->hm, req.key, req.key_len)) {
-                        resp.err_code = KEVUE_ERR_NOT_FOUND;
-                    }
-                    break;
-                case PING:
-                    if (req.key_len > 0) {
-                        resp.val_len = req.key_len;
-                        kevue_buffer_write(c->hmbuf, req.key, req.key_len);
-                    } else {
-                        resp.val_len = 4;
-                        kevue_buffer_write(c->hmbuf, "PONG", resp.val_len);
-                    }
-                    resp.val = c->hmbuf;
-                    break;
-                default:
-                    UNREACHABLE("Possibly forgot to add new command to switch case");
-                }
-                kevue_response_print(&resp);
-                kevue_response_serialize(&resp, c->wbuf);
-                kevue_buffer_move_unread_bytes(c->rbuf);
-                kevue_buffer_reset(c->hmbuf);
-                c->total_len = 0;
-            } else {
-                print_err("[%d] %s", tid, kevue_error_to_string(err));
-                resp.err_code = err;
-                kevue_response_serialize(&resp, c->wbuf);
-                c->closed = true;
+            print_err("[%d] %s", tid, kevue_error_to_string(err));
+            resp.err_code = err;
+            kevue_response_serialize(&resp, c->wbuf);
+            c->closed = true;
+        }
+        if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
+            if (shutdown(c->sock->fd, SHUT_WR) < 0) {
+                if (errno != ENOTCONN)
+                    print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
             }
-            if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
-                if (shutdown(c->sock->fd, SHUT_WR) < 0) {
-                    if (errno != ENOTCONN)
-                        print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
-                }
-                c->closed = true;
-            }
+            c->closed = true;
         }
     } else if (events & EPOLLOUT) {
         // TODO: handle EPOLLOUT
@@ -447,7 +441,7 @@ static bool kevue__handle_read(KevueConnection *c)
             return false;
         } else {
             c->rbuf->size += (size_t)nr;
-            print_debug("[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
+            print_debug("[%d] Read %zu bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;

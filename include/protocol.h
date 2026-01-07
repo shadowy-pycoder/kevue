@@ -98,21 +98,6 @@ typedef struct KevueResponse {
 } KevueResponse;
 
 /**
- * @brief Reads the total message length from the socket into the buffer.
- *
- * This function reads enough bytes from @p sock to determine the full
- * message length and appends them to @p buf. The decoded length is stored
- * in @p total_len.
- *
- * @param sock       Connected socket file descriptor.
- * @param buf        Buffer used to accumulate incoming data.
- * @param total_len  Output pointer receiving the total message length.
- *
- * @return KEVUE_ERR_OK on success, or an error code on failure.
- */
-KevueErr kevue_message_read_length(int sock, Buffer *buf, uint32_t *total_len);
-
-/**
  * @brief Deserializes a request from a buffer.
  *
  * Parses request fields from @p buf and populates @p req.
@@ -121,7 +106,10 @@ KevueErr kevue_message_read_length(int sock, Buffer *buf, uint32_t *total_len);
  * @param req  Request structure to populate.
  * @param buf  Buffer containing serialized request data.
  *
- * @return KEVUE_ERR_OK on success, or an error code on malformed input.
+ * @return KEVUE_ERR_OK on success, KEVUE_ERR_INCOMPLETE_READ in case of short buffer or an error code on malformed input.
+ *
+ * @note If KEVUE_ERR_INCOMPLETE_READ is returned, the caller should
+ *       read more data into @p buf and retry the call.
  */
 KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf);
 
@@ -153,6 +141,9 @@ void kevue_request_print(KevueRequest *req);
  * @param buf   Buffer containing serialized response data.
  *
  * @return KEVUE_ERR_OK on success, or an error code on malformed input.
+ *
+ * @note If KEVUE_ERR_INCOMPLETE_READ is returned, the caller should
+ *       read more data into @p buf and retry the call.
  */
 KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf);
 

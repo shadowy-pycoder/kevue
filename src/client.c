@@ -61,6 +61,7 @@ static void kevue__usage(void);
 static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout);
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp);
 static bool kevue__handle_read_exactly(KevueClient *kc, size_t n);
+static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
@@ -184,6 +185,22 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
     return true;
 }
 
+static bool kevue__handle_read(KevueClient *kc)
+{
+    while (true) {
+        ssize_t nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, kc->rbuf->capacity - kc->rbuf->size);
+        if (nr < 0) {
+            if (errno == EINTR) continue;
+            return false;
+        } else if (nr == 0) {
+            return false;
+        } else {
+            kc->rbuf->size += (size_t)nr;
+            return true;
+        }
+    }
+}
+
 static bool kevue__handle_write(KevueClient *kc)
 {
     while (kc->wbuf->offset < kc->wbuf->size) {
@@ -216,40 +233,28 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         shutdown(kc->fd, SHUT_WR);
         return false;
     }
-    uint32_t total_len;
     while (true) {
-        KevueErr err = kevue_message_read_length(kc->fd, kc->rbuf, &total_len);
-        if (err != KEVUE_ERR_OK) {
-            if (err == KEVUE_ERR_INCOMPLETE_READ) {
+        if (!kevue__handle_read(kc)) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 resp->err_code = KEVUE_ERR_READ_TIMEOUT;
             } else {
-                resp->err_code = err;
+                resp->err_code = KEVUE_ERR_READ_FAILED;
             }
             shutdown(kc->fd, SHUT_WR);
             kevue_buffer_reset(kc->rbuf);
             return false;
-        } else {
-            break;
         }
-    }
-    if (!kevue__handle_read_exactly(kc, total_len)) {
-        if (errno == EWOULDBLOCK || errno == EAGAIN) {
-            resp->err_code = KEVUE_ERR_READ_TIMEOUT;
-        } else {
-            resp->err_code = KEVUE_ERR_READ_FAILED;
+        KevueErr err = kevue_response_deserialize(resp, kc->rbuf);
+        if (err == KEVUE_ERR_INCOMPLETE_READ) {
+            continue;
         }
-        shutdown(kc->fd, SHUT_WR);
         kevue_buffer_reset(kc->rbuf);
-        return false;
+        if (err != KEVUE_ERR_OK) {
+            resp->err_code = err;
+            return false;
+        }
+        return true;
     }
-    resp->total_len = total_len;
-    KevueErr err = kevue_response_deserialize(resp, kc->rbuf);
-    kevue_buffer_reset(kc->rbuf);
-    if (err != KEVUE_ERR_OK) {
-        resp->err_code = err;
-        return false;
-    }
-    return true;
 }
 
 static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)

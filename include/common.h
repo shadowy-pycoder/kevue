@@ -78,21 +78,21 @@
 #endif
 
 /**
- *  Convert string `s` to upper case and return it.
+ *  Convert string @p s to upper case and return it.
  */
 char *to_upper(char *s, size_t n);
 
 /**
- * Wrapper for `inet_ntop` with dispatching for IPv4 and IPv6 addresses.
+ * Wrapper for @c inet_ntop with dispatching for IPv4 and IPv6 addresses.
  */
 const char *inet_ntop2(void *addr, char *buf, size_t size);
 
 /**
- * Wrapper for `ntohs` with dispatching for IPv4 and IPv6 addresses and ports.
+ * Wrapper for @c ntohs with dispatching for IPv4 and IPv6 addresses and ports.
  */
 uint16_t ntohs2(void *addr);
 
 /**
- * Round up `x` to the nearest power of 2.
+ * Round up @p x to the nearest power of 2.
  */
 size_t round_up_pow2(size_t x);

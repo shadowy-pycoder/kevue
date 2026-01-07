@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file server.c
+ * @brief kevue server implementation.
+ */
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>

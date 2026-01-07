@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file allocator.c
+ * @brief Default allocator implementation.
+ */
 #include <stddef.h>
 #include <stdlib.h>
 

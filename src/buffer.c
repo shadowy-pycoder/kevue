@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file buffer.c
+ * @brief Bytes buffer implementation.
+ */
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>

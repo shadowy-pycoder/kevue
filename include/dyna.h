@@ -31,7 +31,7 @@
 // } DynamicArray;
 
 /**
- * Initialize a dynamic array.
+ * @brief Initialize a dynamic array.
  */
 #define kevue_dyna_init(dyna, capacity, alloc)                                                \
     do {                                                                                      \
@@ -44,7 +44,7 @@
     } while (0)
 
 /**
- * Deinitialize a dynamic array.
+ * @brief Deinitialize a dynamic array.
  *
  * @pre Dynamic array must be initialized.
  */
@@ -57,10 +57,11 @@
     } while (0)
 
 /**
- * Append new @p item to dynamic array.
+ * @brief Append new @p item to dynamic array.
  *
  * @pre Dynamic array must be initialized.
- * https://github.com/tsoding/nob.h
+ *
+ * Credits to https://github.com/tsoding/nob.h
  */
 #define kevue_dyna_append(dyna, item)                                                                            \
     do {                                                                                                         \
@@ -74,7 +75,7 @@
     } while (0)
 
 /**
- * Remove item with @p index from dynamic array.
+ * @brief Remove item with @p index from dynamic array.
  *
  * @pre Dynamic array must be initialized.
  * @note Caller must ensure @p index is less than array length.
@@ -98,7 +99,7 @@
 #endif
 
 /**
- * Increase dynamic array capacity up to @p n items.
+ * @brief Increase dynamic array capacity up to @p n items.
  *
  * @pre Dynamic array must be initialized.
  */

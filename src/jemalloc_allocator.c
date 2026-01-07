@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/**
+ * @file jemalloc_allocator.c
+ * @brief jemmaloc allocator implementation.
+ */
 #include <stddef.h>
 
 static void *kevue_malloc(size_t size, void *ctx);

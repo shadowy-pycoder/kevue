@@ -13,8 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @file protocol.c
+ * @brief kevue protocol implementation.
+ */
 #include <assert.h>
-#include <errno.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -142,7 +145,7 @@ void kevue_request_serialize(KevueRequest *req, Buffer *buf)
         assert(req->val_len > 0);
         req->total_len += (uint32_t)sizeof(req->val_len) + req->val_len * (uint32_t)sizeof(*req->val);
     }
-    if (buf->capacity < req->total_len) kevue_buffer_grow(buf, req->total_len - buf->capacity);
+    kevue_buffer_grow(buf, req->total_len);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
     uint32_t tl = htonl(req->total_len);
     kevue_buffer_append(buf, &tl, sizeof(req->total_len));
@@ -170,8 +173,8 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
     uint32_t tl;
     memcpy(&tl, buf->ptr + buf->offset, sizeof(tl));
     resp->total_len = ntohl(tl);
-    buf->offset += sizeof(resp->total_len);
     if (resp->total_len > buf->size) return KEVUE_ERR_INCOMPLETE_READ;
+    buf->offset += sizeof(resp->total_len);
     resp->err_code = (KevueErr)buf->ptr[buf->offset];
     if (resp->err_code != KEVUE_ERR_OK) {
         resp->val_len = 0;
@@ -186,6 +189,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
     if (buf->offset + resp->val_len > resp->total_len) return KEVUE_ERR_LEN_INVALID;
     if (resp->val_len > 0) {
         if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
+        // NOTE: add fatal error for situations like oom
         if (resp->val == NULL) return KEVUE_ERR_OPERATION;
         kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
         buf->offset += resp->val_len;
@@ -200,7 +204,7 @@ void kevue_response_serialize(KevueResponse *resp, Buffer *buf)
     if (resp->val_len > 0) {
         resp->total_len += resp->val_len * sizeof(*resp->val->ptr);
     }
-    if (buf->capacity < resp->total_len) kevue_buffer_grow(buf, resp->total_len - buf->capacity);
+    kevue_buffer_grow(buf, resp->total_len);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
     uint32_t tl = htonl(resp->total_len);
     kevue_buffer_append(buf, &tl, sizeof(resp->total_len));

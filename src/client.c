@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/**
+ * @file client.c
+ * @brief kevue client implementation.
+ */
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -68,8 +71,8 @@ static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
 static void kevue__trim_left(Buffer *buf);
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf);
 static void kevue__client_parse_result_destroy(KevueClientParseResult *pr);
-static void completion(const char *buf, linenoiseCompletions *lc);
-static char *hints(const char *buf, int *color, int *bold);
+static void kevue__completion(const char *buf, linenoiseCompletions *lc);
+static char *kevue__hints(const char *buf, int *color, int *bold);
 
 struct KevueClient {
     int fd;
@@ -271,7 +274,7 @@ static bool kevue__client_hello(KevueClient *kc, KevueResponse *resp)
     return true;
 }
 
-static void completion(const char *buf, linenoiseCompletions *lc)
+static void kevue__completion(const char *buf, linenoiseCompletions *lc)
 {
     switch (buf[0]) {
     case 'g':
@@ -297,7 +300,7 @@ static void completion(const char *buf, linenoiseCompletions *lc)
     return;
 }
 
-static char *hints(const char *buf, int *color, int *bold)
+static char *kevue__hints(const char *buf, int *color, int *bold)
 {
     if (!strncasecmp(buf, "GET ", 4)) {
         *color = 90;
@@ -603,8 +606,8 @@ int main(int argc, char **argv)
     }
     KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
     memset(resp, 0, sizeof(*resp));
-    linenoiseSetCompletionCallback(completion);
-    linenoiseSetHintsCallback(hints);
+    linenoiseSetCompletionCallback(kevue__completion);
+    linenoiseSetHintsCallback(kevue__hints);
     linenoiseHistoryLoad("history.txt");
     linenoiseSetMultiLine(1);
     char prompt[PROMPT_LENGTH];

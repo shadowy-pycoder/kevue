@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/**
+ * @file common.c
+ * @brief Helper functions implementation.
+ */
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <netinet/in.h>

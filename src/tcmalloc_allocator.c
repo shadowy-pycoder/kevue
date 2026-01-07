@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/**
+ * @file tcmalloc_allocator.c
+ * @brief tcmmaloc allocator implementation.
+ */
 #include <stddef.h>
 
 static void *kevue_malloc(size_t size, void *ctx);

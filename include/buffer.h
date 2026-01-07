@@ -34,7 +34,7 @@ typedef struct Buffer {
 } Buffer;
 
 /**
- * Creates a new buffer with the specified initial capacity.
+ * @brief Creates a new buffer with the specified initial capacity.
  *
  * Memory is allocated using the provided allocator.
  *
@@ -46,14 +46,14 @@ typedef struct Buffer {
 Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma);
 
 /**
- * Destroys a buffer and releases all associated resources.
+ * @brief Destroys a buffer and releases all associated resources.
  *
  * @param buf  Buffer to destroy.
  */
 void kevue_buffer_destroy(Buffer *buf);
 
 /**
- * Appends data to the end of the buffer.
+ * @brief Appends data to the end of the buffer.
  *
  * The buffer grows automatically if necessary.
  *
@@ -66,7 +66,7 @@ void kevue_buffer_destroy(Buffer *buf);
 size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
 
 /**
- * Writes data to the start of the buffer.
+ * @brief Writes data to the start of the buffer.
  *
  * Advances the buffer size by @p n bytes.
  *
@@ -79,7 +79,7 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
 size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
 
 /**
- * Reads a single byte from the buffer.
+ * @brief Reads a single byte from the buffer.
  *
  * Advances the read position by one byte.
  *
@@ -90,14 +90,14 @@ size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
 int kevue_buffer_read_byte(Buffer *buf);
 
 /**
- * Advances the read position by one byte.
+ * @brief Advances the read position by one byte.
  *
  * @param buf  Source buffer.
  */
 void kevue_buffer_read_advance(Buffer *buf);
 
 /**
- * Peeks at the next byte in the buffer without advancing the read position.
+ * @brief Peeks at the next byte in the buffer without advancing the read position.
  *
  * @param buf  Source buffer.
  *
@@ -106,7 +106,7 @@ void kevue_buffer_read_advance(Buffer *buf);
 int kevue_buffer_peek_byte(Buffer *buf);
 
 /**
- * Reads bytes from the buffer until a delimiter is encountered.
+ * @brief Reads bytes from the buffer until a delimiter is encountered.
  *
  * Bytes are copied into @p out until the character @p until is found
  * or the buffer is exhausted. Caller should check the first unread byte from source buffer

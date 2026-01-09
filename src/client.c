@@ -212,10 +212,8 @@ bool kevue_client_hello(KevueClient *kc, KevueResponse *resp)
     req.cmd = HELLO;
     if (!kevue__make_request(kc, &req, resp) || !kevue_command_compare((char *)resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
-        kevue_buffer_destroy(resp->val);
         return false;
     }
-    kevue_buffer_destroy(resp->val);
     return true;
 }
 

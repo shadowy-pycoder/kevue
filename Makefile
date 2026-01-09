@@ -74,15 +74,11 @@ all: default
 
 OBJECTS = $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
 OBJECTS += $(patsubst $(LIB)/%.c, $(BUILD)/%.o, $(wildcard $(LIB)/*.c))
-OBJECTS = $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
-OBJECTS += $(patsubst $(LIB)/%.c, $(BUILD)/%.o, $(wildcard $(LIB)/*.c))
-COMMON_OBJECTS := $(filter-out $(foreach t,$(TARGETS),$(BUILD)/$(t).o),$(OBJECTS))
-EXAMPLES_OBJECTS = $(patsubst $(EXAMPLES)/%.c, $(BUILD)/%.o, $(wildcard $(EXAMPLES)/*.c))
 COMMON_OBJECTS := $(filter-out $(foreach t,$(TARGETS),$(BUILD)/$(t).o),$(OBJECTS))
 EXAMPLES_OBJECTS = $(patsubst $(EXAMPLES)/%.c, $(BUILD)/%.o, $(wildcard $(EXAMPLES)/*.c))
 HEADERS = $(wildcard $(INCLUDE)/*.h)
 HEADERS += $(wildcard $(LIB)/*.h)
-EXAMPLE_BINS := $(patsubst $(BUILD)/%.o,$(BIN)/$(PROJNAME)-%,$(EXAMPLES_OBJECTS))
+EXAMPLE_BINARIES:= $(patsubst $(BUILD)/%.o,$(BIN)/$(PROJNAME)-%,$(EXAMPLES_OBJECTS))
 
 
 $(BUILD):
@@ -100,7 +96,7 @@ $(BUILD)/%.o: $(LIB)/%.c $(HEADERS) | $(BUILD)
 $(BUILD)/%.o: $(EXAMPLES)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-.PRECIOUS: $(OBJECTS)
+.PRECIOUS: $(OBJECTS) $(EXAMPLES_OBJECTS)
 
 $(BIN)/$(PROJNAME)-server: LDLIBS += -pthread
 
@@ -110,7 +106,7 @@ $(BIN)/$(PROJNAME)-%: $(COMMON_OBJECTS) $(BUILD)/%.o | $(BIN)
 run: $(BIN)/$(PROJNAME)-server
 	./$(notdir $(BIN))/$(PROJNAME)-server
 
-examples: $(EXAMPLE_BINS)
+examples: $(EXAMPLE_BINARIES)
 
 debug:
 	$(MAKE) DEBUG=1

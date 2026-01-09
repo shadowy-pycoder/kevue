@@ -28,6 +28,7 @@
 
 #include <linenoise.h>
 
+#include <allocator.h>
 #include <client.h>
 #include <common.h>
 
@@ -263,7 +264,7 @@ int main(int argc, char **argv)
         host = HOST;
         port = PORT;
     }
-    KevueAllocator *ma = NULL; // kevue_default_allocator
+    KevueAllocator *ma = &kevue_default_allocator;
 #if defined(USE_TCMALLOC)
     ma = &kevue_tcmalloc_allocator;
 #elif defined(USE_JEMALLOC)

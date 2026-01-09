@@ -53,6 +53,24 @@ KevueClient *kevue_client_create(const char *host, const char *port, KevueAlloca
 void kevue_client_destroy(KevueClient *kc);
 
 /**
+ * @brief Performs the client–server handshake.
+ *
+ * Sends a HELLO command to the server and validates the response.
+ * This function is typically called immediately after establishing
+ * a connection.
+ *
+ * @param kc    Client instance.
+ * @param resp  Response structure to populate.
+ *
+ * @return true if the handshake succeeds, false on failure.
+ *
+ * @note On failure, @p resp->err_code is set to KEVUE_ERR_HANDSHAKE.
+ * @note This command is used to verify protocol compatibility
+ *       between client and server.
+ */
+bool kevue_client_hello(KevueClient *kc, KevueResponse *resp);
+
+/**
  * @brief Retrieves the value associated with a key.
  *
  * Sends a GET request for @p key and stores the server response in @p resp.

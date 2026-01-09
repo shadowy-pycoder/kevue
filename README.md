@@ -1,13 +1,13 @@
 # kevue - key-value in-memory database
 
-`kevue` is a multithreaded TCP server and client that maps its endpoints to hash table operations (get/put/delete).
+`kevue` is a multithreaded TCP server that maps its endpoints to hash table operations (get/put/delete).
 
 > [!WARNING]
 > This project is not in production ready state yet. Moreover, this is my second project in C so expect many bugs, memory leaks with undefined behaviour
 
 ## Installation
 
-Create `kevue-server` and `kevue-client` executables in the `./bin/` directory by running the following command:
+Create `kevue-server` executable in the `./bin/` directory by running the following command:
 
 ```shell
 make release
@@ -22,10 +22,16 @@ make run
 # or ./bin/kevue-server 0.0.0.0 12111
 ```
 
+Compile cli app from `./examples`:
+
+```shell
+make examples
+```
+
 Run the client:
 
 ```shell
-./bin/kevue-client 0.0.0.0 12111
+./bin/kevue-cli 0.0.0.0 12111
 ```
 
 ```shell

@@ -41,9 +41,9 @@
 #include <allocator.h>
 #include <buffer.h>
 #include <common.h>
-#include <hashmap.h>
 #include <protocol.h>
 #include <server.h>
+#include <threaded_hashmap.h> // TODO: guard by macro
 
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
@@ -107,7 +107,7 @@ static bool kevue__handle_read(KevueConnection *c);
 static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
 static bool kevue__handle_write(KevueConnection *c);
 static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
-static void kevue__singal_handler(int sig);
+static void kevue__signal_handler(int sig);
 static void kevue__usage(void);
 
 static int kevue__setnonblocking(int fd)
@@ -316,7 +316,7 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
         resp->val = hmbuf;
         break;
     case GET:
-        if (!kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
+        if (!hm->ops->kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
             resp->err_code = KEVUE_ERR_NOT_FOUND;
         } else {
             resp->val_len = (uint16_t)hmbuf->size;
@@ -324,12 +324,12 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
         }
         break;
     case SET:
-        if (!kevue_hm_put(hm, req->key, req->key_len, req->val, req->val_len)) {
+        if (!hm->ops->kevue_hm_put(hm, req->key, req->key_len, req->val, req->val_len)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         }
         break;
     case DEL:
-        if (!kevue_hm_del(hm, req->key, req->key_len)) {
+        if (!hm->ops->kevue_hm_del(hm, req->key, req->key_len)) {
             resp->err_code = KEVUE_ERR_NOT_FOUND;
         }
         break;
@@ -560,7 +560,7 @@ static void kevue__connection_destroy(KevueConnection *c)
     c->ma->free(c, c->ma->ctx);
 }
 
-static void kevue__singal_handler(int sig)
+static void kevue__signal_handler(int sig)
 {
     if (!shutting_down) {
         shutting_down = true;
@@ -680,14 +680,14 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
         pthread_t thread = { 0 };
         ks->threads[i] = thread;
     }
-    HashMap *hm = kevue_hm_create(ks->ma);
+    HashMap *hm = kevue_hm_threaded_create(ks->ma);
     if (hm == NULL) {
         ks->ma->free(ks, ks->ma->ctx);
         return NULL;
     }
     ks->hm = hm;
     struct sigaction new_action;
-    new_action.sa_handler = kevue__singal_handler;
+    new_action.sa_handler = kevue__signal_handler;
     sigemptyset(&new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGINT, &new_action, NULL);
@@ -723,7 +723,7 @@ void kevue_server_destroy(KevueServer *ks)
 {
     print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
     close(ks->efd);
-    kevue_hm_destroy(ks->hm);
+    ks->hm->ops->kevue_hm_destroy(ks->hm);
     ks->ma->free(ks, ks->ma->ctx);
 }
 

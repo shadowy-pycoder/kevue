@@ -10,7 +10,7 @@ INCLUDE := $(PROJDIR)/include
 LIB := $(PROJDIR)/lib
 CC := clang
 CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -std=c2x -march=native
-CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion
+CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion -Wswitch-enum
 SERVER_WORKERS ?= $(shell command -v nproc >/dev/null 2>&1 && nproc || echo 1)
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DSERVER_WORKERS=$(SERVER_WORKERS)
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)

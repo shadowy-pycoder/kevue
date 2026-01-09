@@ -741,6 +741,8 @@ int main(int argc, char **argv)
                 unrecoverable_error_occured = true;
             }
             break;
+        case HELLO:
+            UNREACHABLE("HELLO command shouldn't be handled in parser");
         default:
             UNREACHABLE("Possibly forgot to add new command to switch case");
         }

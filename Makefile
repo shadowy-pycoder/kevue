@@ -109,10 +109,10 @@ run: $(BIN)/$(PROJNAME)-server
 examples: $(EXAMPLE_BINARIES)
 
 debug:
-	$(MAKE) DEBUG=1
+	$(MAKE) DEBUG=1 default
 
 release:
-	$(MAKE) DEBUG=0 ASAN=0
+	$(MAKE) DEBUG=0 ASAN=0 default examples
 
 clean:
 	rm -rf $(BUILD)

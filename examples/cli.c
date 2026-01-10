@@ -18,7 +18,6 @@
  * @brief kevue client CLI example.
  */
 
-#include "protocol.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>

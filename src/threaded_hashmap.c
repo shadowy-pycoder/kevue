@@ -174,7 +174,10 @@ static bool kevue_hm_threaded_put(HashMap *hm, const void *key, size_t key_len, 
             if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
                 if (val_len > entry->val_len) {
                     ptrdiff_t eidx = entry_ptr - hm_internal->buckets[idx].ptr;
-                    hm_internal->buckets[idx].ptr[eidx] = hm_internal->ma->realloc(hm_internal->buckets[idx].ptr[eidx], sizeof(*entry) + key_len + val_len, hm_internal->ma->ctx);
+                    hm_internal->buckets[idx].ptr[eidx] = hm_internal->ma->realloc(
+                        hm_internal->buckets[idx].ptr[eidx],
+                        sizeof(*entry) + key_len + val_len,
+                        hm_internal->ma->ctx);
                     entry = hm_internal->buckets[idx].ptr[eidx];
                 }
                 entry->val_len = val_len;

@@ -171,7 +171,11 @@ static bool kevue__handle_write(KevueClient *kc)
 
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp)
 {
-    kevue_request_serialize(req, kc->wbuf);
+    KevueErr err = kevue_request_serialize(req, kc->wbuf);
+    if (err != KEVUE_ERR_OK) {
+        resp->err_code = err;
+        return false;
+    }
     if (!kevue__handle_write(kc)) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
             resp->err_code = KEVUE_ERR_WRITE_TIMEOUT;
@@ -192,7 +196,7 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
             kevue_buffer_reset(kc->rbuf);
             return false;
         }
-        KevueErr err = kevue_response_deserialize(resp, kc->rbuf);
+        err = kevue_response_deserialize(resp, kc->rbuf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) {
             continue;
         }

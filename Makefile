@@ -124,3 +124,50 @@ compile_commands:
 
 docs:
 	doxygen
+
+AFL_CC      ?= afl-clang-fast
+AFL_CFLAGS  := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+FUZZ_BUILD      := fuzz/build
+FUZZ_BIN        := fuzz/bin
+FUZZ_OUT_BASE   := fuzz/out
+FUZZ_SEEDS_BASE := fuzz/seeds
+FUZZ_DICT_BASE  := fuzz/dict
+FUZZ_INCLUDES   := -I$(INCLUDE) -I$(LIB)
+FUZZ_HARNESS := $(wildcard fuzz/harness/*.c)
+FUZZ_NAMES   := $(patsubst fuzz/harness/%.c,%,$(FUZZ_HARNESS))
+
+.PHONY: fuzz-dirs
+fuzz-dirs: $(FUZZ_BIN)
+	mkdir -p $(FUZZ_BUILD)
+	@for h in $(FUZZ_NAMES); do \
+	    mkdir -p $(FUZZ_OUT_BASE)/$$h; \
+	done
+
+$(FUZZ_BIN):
+	mkdir -p $(FUZZ_BIN)
+
+$(FUZZ_BUILD)/fuzz_%.o: fuzz/harness/%.c $(HEADERS) | $(FUZZ_BUILD)
+	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
+
+$(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(BUILD)/protocol.o $(BUILD)/buffer.o $(BUILD)/allocator.o | $(FUZZ_BIN)
+	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) $^ -o $@
+
+.PHONY: fuzz-request
+fuzz-request: $(FUZZ_BIN)/fuzz_request | fuzz-dirs
+	AFL_SKIP_CPUFREQ=1 AFL_DEBUG=1 afl-fuzz \
+		-i $(FUZZ_SEEDS_BASE)/request \
+		-o $(FUZZ_OUT_BASE)/request \
+		-x $(FUZZ_DICT_BASE)/request/protocol.dict -- $(FUZZ_BIN)/fuzz_request
+
+.PHONY: fuzz-response
+fuzz-response: $(FUZZ_BIN)/fuzz_response | fuzz-dirs
+	AFL_SKIP_CPUFREQ=1 AFL_DEBUG=1 afl-fuzz \
+		-i $(FUZZ_SEEDS_BASE)/response \
+		-o $(FUZZ_OUT_BASE)/response \
+		-x $(FUZZ_DICT_BASE)/response/protocol.dict -- $(FUZZ_BIN)/fuzz_response
+.PHONY: fuzz-clean
+
+fuzz-clean:
+	rm -rf $(FUZZ_OUT_BASE)/*
+	rm -rf $(FUZZ_BIN)/*
+	rm -rf $(FUZZ_BUILD)/*

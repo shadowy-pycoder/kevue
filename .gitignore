@@ -4,4 +4,6 @@ docs/
 compile_commands.json
 .cache
 *.txt
+fuzz/out/
+fuzz/build/
 

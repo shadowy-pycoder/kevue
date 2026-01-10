@@ -51,7 +51,8 @@
     X(GET)           \
     X(SET)           \
     X(DEL)           \
-    X(PING)
+    X(PING)          \
+    X(KEVUE_CMD_MAX)
 
 typedef enum KevueCommand {
 #define X(name) name,
@@ -72,7 +73,9 @@ typedef enum KevueCommand {
     X(KEVUE_ERR_WRITE_TIMEOUT, "Timed out writing message")  \
     X(KEVUE_ERR_EOF, "Peer closed connection")               \
     X(KEVUE_ERR_HANDSHAKE, "Handshake failed")               \
-    X(KEVUE_ERR_OPERATION, "Operation failed")
+    X(KEVUE_ERR_OPERATION, "Operation failed")               \
+    X(KEVUE_ERR_PAYLOAD_INVALID, "Payload is invalid")       \
+    X(KEVUE_ERR_MAX, "")
 
 typedef enum KevueErr {
 #define X(name, str) name,
@@ -114,15 +117,19 @@ typedef struct KevueResponse {
 KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf);
 
 /**
- * @brief Serializes a request into a buffer.
+ * @brief Serialize a request into a buffer.
  *
- * Encodes the contents of @p req and appends the serialized representation
- * to @p buf.
+ * This function serializes the given KevueRequest into the provided Buffer.
  *
- * @param req  Request to serialize.
- * @param buf  Destination buffer.
+ * @param req Pointer to the KevueRequest to serialize.
+ * @param buf Pointer to a pre-allocated Buffer to write the serialized data.
+ *
+ * @return KEVUE_ERR_OK on success, or an error code on malformed input.
+ *
+ * @note Always check the return value. On failure, the @p buf may be partially written
+ *       and should not be used as valid data.
  */
-void kevue_request_serialize(KevueRequest *req, Buffer *buf);
+KevueErr kevue_request_serialize(KevueRequest *req, Buffer *buf);
 
 /**
  * @brief Prints a human-readable representation of a request.
@@ -148,15 +155,19 @@ void kevue_request_print(KevueRequest *req);
 KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf);
 
 /**
- * @brief Serializes a response into a buffer.
+ * @brief Deserialize response into a buffer.
  *
- * Encodes the contents of @p resp and appends the serialized representation
- * to @p buf.
+ * This function serializes the given KevueResponse into the provided Buffer.
  *
- * @param resp  Response to serialize.
- * @param buf   Destination buffer.
+ * @param req Pointer to the KevueResponse to serialize.
+ * @param buf Pointer to a pre-allocated Buffer to write the serialized data.
+ *
+ * @return KEVUE_ERR_OK on success, or an error code on malformed input.
+ *
+ * @note Always check the return value. On failure, the @p buf may be partially written
+ *       and should not be used as valid data.
  */
-void kevue_response_serialize(KevueResponse *resp, Buffer *buf);
+KevueErr kevue_response_serialize(KevueResponse *resp, Buffer *buf);
 
 /**
  * @brief Prints a human-readable representation of a response.
@@ -191,10 +202,26 @@ char *kevue_command_to_string(KevueCommand cmd);
 bool kevue_command_compare(const char *data, uint8_t len, KevueCommand cmd);
 
 /**
+ * @brief Validate a Kevue command.
+ *
+ * @param cmd Command to check.
+ * @return true if the command is valid, false otherwise.
+ */
+bool kevue_command_valid(KevueCommand cmd);
+
+/**
  * @brief Converts an error code to its string representation.
  *
  * @param e  Error code.
  *
  * @return Pointer to a static string describing the error.
  */
-char *kevue_error_to_string(KevueErr e);
+char *kevue_error_code_to_string(KevueErr e);
+
+/**
+ * @brief Validate a KevueErr code.
+ *
+ * @param e Error code to check.
+ * @return true if the error code is valid, false otherwise.
+ */
+bool kevue_error_code_valid(KevueErr e);

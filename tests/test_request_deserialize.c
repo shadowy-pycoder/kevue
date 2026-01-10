@@ -1,4 +1,4 @@
-// clang -Iinclude -Ilib ./tests/fuzz.c -o ./bin/kevue-fuzz -DDEBUG
+// clang -Iinclude -Ilib ./tests/test_request_deserialize.c -o ./bin/kevue-test-request-deserialize -DDEBUG
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,7 +8,6 @@
 #include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/common.c"
-#include "../src/hashmap.c"
 #include "../src/protocol.c"
 
 uint8_t data[] = {
@@ -44,7 +43,7 @@ int main()
     memset(&req, 0, sizeof(req));
     kevue_buffer_write(buf, malformed_data, sizeof(malformed_data));
     err = kevue_request_deserialize(&req, buf);
-    printf("%s\n", kevue_error_to_string(err));
+    printf("%s\n", kevue_error_code_to_string(err));
     printf("\n");
     assert(err == KEVUE_ERR_LEN_INVALID);
 

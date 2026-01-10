@@ -51,6 +51,9 @@ typedef struct {
      * @param buf      Buffer to receive the value.
      *
      * @return true on success, false on failure.
+     *
+     * @note The existing contents of @p buf may be overwritten or partially
+     * replaced depending on the implementation.
      */
     bool (*kevue_hm_get)(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
     /**

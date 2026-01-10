@@ -343,6 +343,8 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
         }
         resp->val = hmbuf;
         break;
+    case KEVUE_CMD_MAX:
+        UNREACHABLE("Possibly a bug in request serialization");
     default:
         UNREACHABLE("Possibly forgot to add new command to switch case");
     }
@@ -381,7 +383,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             kevue_buffer_move_unread_bytes(c->rbuf);
             kevue_buffer_reset(c->hmbuf);
         } else {
-            print_err("[%d] %s", tid, kevue_error_to_string(err));
+            print_err("[%d] %s", tid, kevue_error_code_to_string(err));
             resp.err_code = err;
             kevue_response_serialize(&resp, c->wbuf);
             c->closed = true;

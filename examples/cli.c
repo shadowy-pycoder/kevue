@@ -18,6 +18,7 @@
  * @brief kevue client CLI example.
  */
 
+#include "protocol.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -280,7 +281,7 @@ int main(int argc, char **argv)
     }
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
-        print_err("%s", kevue_error_to_string(resp->err_code));
+        print_err("%s", kevue_error_code_to_string(resp->err_code));
         ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -381,7 +382,7 @@ int main(int argc, char **argv)
                 }
                 if (events[i].data.fd == tfd) {
                     if (!kevue_client_ping(kc, resp)) {
-                        print_err("%s", kevue_error_to_string(resp->err_code));
+                        print_err("%s", kevue_error_code_to_string(resp->err_code));
                         linenoiseHide(&ls);
                         goto client_close_fail;
                     }
@@ -438,7 +439,7 @@ int main(int argc, char **argv)
                 fputc('\n', stdout);
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_to_string(resp->err_code));
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
                 if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
             }
             break;
@@ -446,7 +447,7 @@ int main(int argc, char **argv)
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
                 printf("OK\n");
             } else {
-                print_err("%s", kevue_error_to_string(resp->err_code));
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
@@ -454,7 +455,7 @@ int main(int argc, char **argv)
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("OK\n");
             } else {
-                print_err("%s", kevue_error_to_string(resp->err_code));
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
                 if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
             }
             break;
@@ -464,12 +465,14 @@ int main(int argc, char **argv)
                 fputc('\n', stdout);
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_to_string(resp->err_code));
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
         case HELLO:
             UNREACHABLE("HELLO command shouldn't be handled in parser");
+        case KEVUE_CMD_MAX:
+            UNREACHABLE("KEVUE_CMD_MAX command shouldn't be handled in parser");
         default:
             UNREACHABLE("Possibly forgot to add new command to switch case");
         }

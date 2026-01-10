@@ -25,7 +25,8 @@ ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
   CPPFLAGS += -DDEBUG
 else
-  CFLAGS += -Os
+  CFLAGS += -O3 -flto
+  LDFLAGS += -flto
 endif
 
 ifeq ($(ASAN),1)
@@ -120,13 +121,13 @@ clean:
 	rm -rf $(DOCS)
 
 compile_commands:
-	bear -- make --always-make
+	bear -- make --always-make all examples fuzz-build
 
 docs:
 	doxygen
 
 AFL_CC      ?= afl-clang-fast
-AFL_CFLAGS  := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+AFL_CFLAGS  := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra
 FUZZ_BUILD      := fuzz/build
 FUZZ_BIN        := fuzz/bin
 FUZZ_OUT_BASE   := fuzz/out
@@ -149,8 +150,11 @@ $(FUZZ_BIN):
 $(FUZZ_BUILD)/fuzz_%.o: fuzz/harness/%.c $(HEADERS) | $(FUZZ_BUILD)
 	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
 
-$(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(BUILD)/protocol.o $(BUILD)/buffer.o $(BUILD)/allocator.o | $(FUZZ_BIN)
+$(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(BUILD)/protocol.o $(BUILD)/buffer.o $(BUILD)/allocator.o $(BUILD)/common.o | $(FUZZ_BIN)
 	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) $^ -o $@
+
+.PHONY: fuzz-build
+fuzz-build: fuzz-dirs $(FUZZ_BIN)/fuzz_request $(FUZZ_BIN)/fuzz_response
 
 .PHONY: fuzz-request
 fuzz-request: $(FUZZ_BIN)/fuzz_request | fuzz-dirs

@@ -18,7 +18,6 @@
  * @brief kevue server implementation.
  */
 #include <arpa/inet.h>
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -662,7 +661,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     close(server_sock);
     if (ma == NULL) ma = &kevue_default_allocator;
     KevueServer *ks = (KevueServer *)ma->malloc(sizeof(KevueServer), ma->ctx);
-    assert(ks != NULL);
+    if (ks == NULL) return NULL;
     memset(ks, 0, sizeof(KevueServer));
     ks->ma = ma;
     ks->host = host;

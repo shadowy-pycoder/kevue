@@ -17,7 +17,6 @@
  * @file buffer.c
  * @brief Bytes buffer implementation.
  */
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -29,7 +28,6 @@
 Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
 {
     Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
-    assert(buf != NULL);
     if (buf == NULL) return NULL;
     memset(buf, 0, sizeof(Buffer));
     buf->ma = ma;
@@ -59,7 +57,6 @@ void kevue_buffer_grow(Buffer *buf, size_t n)
 {
     if (buf->capacity >= n) return;
     buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
-    assert(buf->ptr != NULL);
     buf->capacity = n;
 }
 
@@ -71,7 +68,6 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
     }
     if (buf->capacity > initial_capacity) {
         buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
-        assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
@@ -86,7 +82,6 @@ size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n)
     }
     if (buf->capacity > initial_capacity) {
         buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
-        assert(buf->ptr != NULL);
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));
     buf->size = n;

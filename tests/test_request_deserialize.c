@@ -51,7 +51,7 @@ int main()
     memset(&req, 0, sizeof(req));
     for (size_t i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
         kevue_buffer_append(buf, &data[i], sizeof(data[0]));
-        KevueErr err = kevue_request_deserialize(&req, buf);
+        err = kevue_request_deserialize(&req, buf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) continue;
         if (err != KEVUE_ERR_OK) exit(EXIT_FAILURE);
         if (err == KEVUE_ERR_OK) {

@@ -17,7 +17,6 @@
  * @file protocol.c
  * @brief kevue protocol implementation.
  */
-#include <assert.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -51,8 +50,9 @@ char *kevue_command_to_string(KevueCommand c)
         return #name;
         COMMAND_LIST
 #undef X
+    default:
+        return "";
     }
-    UNREACHABLE("Unknown command");
 }
 
 bool kevue_error_code_valid(KevueErr e)
@@ -68,8 +68,9 @@ char *kevue_error_code_to_string(KevueErr e)
         return str;
         ERROR_CODE_LIST
 #undef X
+    default:
+        return "";
     }
-    UNREACHABLE("Unknown error");
 }
 
 KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)

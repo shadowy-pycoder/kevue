@@ -122,8 +122,8 @@ FUZZ_BIN        := $(PROJDIR)/fuzz/bin
 FUZZ_OUT_BASE   := $(PROJDIR)/fuzz/out
 FUZZ_SEEDS_BASE := $(PROJDIR)/fuzz/seeds
 FUZZ_DICT_BASE  := $(PROJDIR)/fuzz/dict
-FUZZ_HARNESS 	:= $(wildcard fuzz/harness/*.c)
-FUZZ_NAMES   	:= $(patsubst fuzz/harness/%.c,%,$(FUZZ_HARNESS))
+FUZZ_HARNESS 	:= $(wildcard $(PROJDIR)/fuzz/harness/*.c)
+FUZZ_NAMES   	:= $(patsubst $(PROJDIR)/fuzz/harness/%.c,%,$(FUZZ_HARNESS))
 FUZZ_OBJS_NAMES := protocol.o buffer.o allocator.o
 FUZZ_OBJECTS    := $(addprefix $(FUZZ_BUILD)/,$(FUZZ_OBJS_NAMES))
 

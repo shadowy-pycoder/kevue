@@ -54,10 +54,11 @@
 
 typedef struct HashMapThreaded HashMapThreaded;
 
-static void kevue_hm_threaded_destroy(HashMap *hm);
-static bool kevue_hm_threaded_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len);
-static bool kevue_hm_threaded_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
-static bool kevue_hm_threaded_del(HashMap *hm, const void *key, size_t key_len);
+static void kevue__hm_threaded_destroy(HashMap *hm);
+static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len);
+static bool kevue__hm_threaded_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
+static bool kevue__hm_threaded_del(HashMap *hm, const void *key, size_t key_len);
+static void kevue__hm_threaded_seed(HashMap *hm, uint64_t seed);
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_size);
 static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *hm_internal, size_t bucket_idx);
 
@@ -83,13 +84,15 @@ struct HashMapThreaded {
     KevueAllocator *ma;
     pthread_mutex_t bucket_locks[HASHMAP_BUCKET_LOCK_COUNT];
     pthread_mutex_t resize_lock;
+    uint64_t seed;
 };
 
 static const HashMapOps hm_ops = {
-    .kevue_hm_destroy = kevue_hm_threaded_destroy,
-    .kevue_hm_get = kevue_hm_threaded_get,
-    .kevue_hm_put = kevue_hm_threaded_put,
-    .kevue_hm_del = kevue_hm_threaded_del,
+    .kevue_hm_destroy = kevue__hm_threaded_destroy,
+    .kevue_hm_get = kevue__hm_threaded_get,
+    .kevue_hm_put = kevue__hm_threaded_put,
+    .kevue_hm_del = kevue__hm_threaded_del,
+    .kevue_hm_seed = kevue__hm_threaded_seed,
 };
 
 static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *hm_internal, size_t bucket_idx)
@@ -107,6 +110,7 @@ HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
         ma->free(hm, ma->ctx);
         return NULL;
     }
+    memset(hm_internal, 0, sizeof(*hm_internal));
     hm_internal->ma = ma;
     size_t bucket_count = round_up_pow2(HASHMAP_BUCKET_INITIAL_COUNT);
     hm_internal->buckets = hm_internal->ma->malloc(bucket_count * sizeof(Bucket), hm_internal->ma->ctx);
@@ -128,7 +132,7 @@ HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
     return hm;
 }
 
-static void kevue_hm_threaded_destroy(HashMap *hm)
+static void kevue__hm_threaded_destroy(HashMap *hm)
 {
     if (hm == NULL) return;
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
@@ -148,7 +152,7 @@ static void kevue_hm_threaded_destroy(HashMap *hm)
     ma->free(hm, ma->ctx);
 }
 
-static bool kevue_hm_threaded_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len)
+static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len)
 {
     if (hm == NULL || hm->internal == NULL || key_len == 0 || val_len == 0) return false;
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
@@ -162,7 +166,7 @@ static bool kevue_hm_threaded_put(HashMap *hm, const void *key, size_t key_len, 
             kevue__hm_threaded_resize(hm_internal, hm_internal->bucket_count * HASHMAP_RESIZE_FACTOR);
         }
     }
-    uint64_t hash = rapidhash(key, key_len);
+    uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
     size_t idx = hash % hm_internal->bucket_count;
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
@@ -206,12 +210,12 @@ static bool kevue_hm_threaded_put(HashMap *hm, const void *key, size_t key_len, 
     return true;
 }
 
-static bool kevue_hm_threaded_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf)
+static bool kevue__hm_threaded_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf)
 {
     if (hm == NULL || hm->internal == NULL || key_len == 0) return false;
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
     mutex_lock(&hm_internal->resize_lock);
-    uint64_t hash = rapidhash(key, key_len);
+    uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
     size_t idx = hash % hm_internal->bucket_count;
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
@@ -232,7 +236,7 @@ static bool kevue_hm_threaded_get(HashMap *hm, const void *key, size_t key_len, 
     return false;
 }
 
-static bool kevue_hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
+static bool kevue__hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
 {
     if (hm == NULL || hm->internal == NULL || key_len == 0) return false;
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
@@ -242,7 +246,7 @@ static bool kevue_hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
             kevue__hm_threaded_resize(hm_internal, max(hm_internal->initial_bucket_count, hm_internal->bucket_count / HASHMAP_RESIZE_FACTOR));
         }
     }
-    uint64_t hash = rapidhash(key, key_len);
+    uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
     size_t idx = hash % hm_internal->bucket_count;
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
@@ -266,6 +270,12 @@ static bool kevue_hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
     }
     mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     return false;
+}
+
+static void kevue__hm_threaded_seed(HashMap *hm, uint64_t seed)
+{
+    HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
+    hm_internal->seed = seed;
 }
 
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_size)

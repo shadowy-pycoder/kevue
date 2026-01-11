@@ -33,12 +33,12 @@ static inline void buffer_init(Buffer *buf, int capacity)
     buf->ptr = ma->malloc(capacity, ma->ctx);
     memset(buf->ptr, 0, capacity);
     buf->ma = ma;
-};
+}
 
 static inline void buffer_deinit(Buffer *buf)
 {
     buf->ma->free(buf->ptr, buf->ma->ctx);
-};
+}
 
 int main(void)
 {
@@ -61,4 +61,5 @@ int main(void)
         buffer_deinit(&in_buf);
         buffer_deinit(&out_buf);
     }
+    return 0;
 }

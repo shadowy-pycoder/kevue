@@ -662,7 +662,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     if (ma == NULL) ma = &kevue_default_allocator;
     KevueServer *ks = (KevueServer *)ma->malloc(sizeof(KevueServer), ma->ctx);
     if (ks == NULL) return NULL;
-    memset(ks, 0, sizeof(KevueServer));
+    memset(ks, 0, sizeof(*ks));
     ks->ma = ma;
     ks->host = host;
     ks->port = port;
@@ -675,6 +675,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     for (int i = 0; i < SERVER_WORKERS; i++) {
         ks->fds[i] = kevue__create_server_sock(host, port, false);
         if (ks->fds[i] < 0) {
+            close(ks->efd);
             ks->ma->free(ks, ks->ma->ctx);
             return NULL;
         }
@@ -683,10 +684,20 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     }
     HashMap *hm = kevue_hm_threaded_create(ks->ma);
     if (hm == NULL) {
+        close(ks->efd);
         ks->ma->free(ks, ks->ma->ctx);
         return NULL;
     }
     ks->hm = hm;
+#ifndef DETERMINISTIC
+    uint64_t seed;
+    if (!random_u64(&seed)) {
+        print_err("Generating random seed failed: %s", strerror(errno));
+        kevue_server_destroy(ks);
+        return NULL;
+    }
+    ks->hm->ops->kevue_hm_seed(ks->hm, seed);
+#endif
     struct sigaction new_action;
     new_action.sa_handler = kevue__signal_handler;
     sigemptyset(&new_action.sa_mask);
@@ -718,11 +729,11 @@ void kevue_server_start(KevueServer *ks)
     for (int i = 0; i < SERVER_WORKERS; i++) {
         pthread_join(ks->threads[i], NULL);
     }
+    print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
 }
 
 void kevue_server_destroy(KevueServer *ks)
 {
-    print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
     close(ks->efd);
     ks->hm->ops->kevue_hm_destroy(ks->hm);
     ks->ma->free(ks, ks->ma->ctx);

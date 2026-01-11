@@ -19,6 +19,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -96,3 +97,16 @@ uint16_t ntohs2(void *addr);
  * Round up @p x to the nearest power of 2.
  */
 size_t round_up_pow2(size_t x);
+
+/**
+ * @brief Generates a random 64-bit value.
+ *
+ * @param x  Receives the random value.
+ *
+ * @return true on success, false on failure.
+ *
+ * @note Uses a system entropy source.
+ * @note On Linux, failures originate from getrandom(2) and
+ *       set errno accordingly.
+ */
+bool random_u64(uint64_t *x);

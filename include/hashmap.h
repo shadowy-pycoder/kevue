@@ -21,6 +21,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <allocator.h>
 #include <buffer.h>
@@ -82,9 +83,23 @@ typedef struct {
      * @return true if the key was removed, false if it was not found.
      */
     bool (*kevue_hm_del)(HashMap *hm, const void *key, size_t key_len);
+    /**
+     * @brief Sets the hash seed used by the hashmap.
+     *
+     * @param hm    Hashmap instance.
+     * @param seed  Hash seed value.
+     *
+     * @note The caller is responsible for providing a suitably
+     *       unpredictable seed (e.g. from a system RNG) if
+     *       resistance to hash-flooding attacks is required.
+     *
+     * @note Must be called before inserting any entries.
+     * @note Changing the seed after use requires a full rehash.
+     */
+    void (*kevue_hm_seed)(HashMap *hm, uint64_t seed);
 } HashMapOps;
 
-typedef HashMap *(*kevue_hm_create)(KevueAllocator *);
+typedef HashMap *(*kevue_hm_create)(uint64_t seed, KevueAllocator *ma);
 
 struct HashMap {
     const HashMapOps *ops;
@@ -224,3 +239,19 @@ struct HashMap {
  */
 #define kevue_hmts_del(hmts, key, key_len) \
     (hmts)->hm->ops->kevue_hm_del((hmts)->hm, ((1 ? &(key) : (hmts)->ktype) ? map_value_ptr((key)) : NULL), (key_len))
+
+/**
+ * @def kevue_hmts_seed(hmts, seed)
+ * @brief Sets the hash seed used by a type-safe hashmap.
+ *
+ * @param hmts  Pointer to a HashMapTS instance.
+ * @param seed  Hash seed value.
+ *
+ * @note The caller is responsible for providing a suitably
+ *       unpredictable seed (e.g. from a system RNG) if
+ *       resistance to hash-flooding attacks is required.
+ *
+ * @note Must be called before inserting any entries.
+ * @note Changing the seed after use requires a full rehash.
+ */
+#define kevue_hmts_seed(hmts, seed) (hmts)->hm->ops->kevue_hm_seed((hmts)->hm, (seed)))

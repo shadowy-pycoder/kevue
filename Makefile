@@ -23,7 +23,7 @@ ASAN ?= 1
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
-  CPPFLAGS += -DDEBUG
+  CPPFLAGS += -DDEBUG -DDETERMINISTIC
 else
   CFLAGS += -O3 -flto
   LDFLAGS += -flto
@@ -81,7 +81,6 @@ HEADERS = $(wildcard $(INCLUDE)/*.h)
 HEADERS += $(wildcard $(LIB)/*.h)
 EXAMPLE_BINARIES:= $(patsubst $(BUILD)/%.o,$(BIN)/$(PROJNAME)-%,$(EXAMPLES_OBJECTS))
 
-
 $(BUILD):
 	mkdir -p $(BUILD)
 
@@ -97,7 +96,7 @@ $(BUILD)/%.o: $(LIB)/%.c $(HEADERS) | $(BUILD)
 $(BUILD)/%.o: $(EXAMPLES)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-.PRECIOUS: $(OBJECTS) $(EXAMPLES_OBJECTS)
+.PRECIOUS: $(OBJECTS) $(EXAMPLES_OBJECTS) $(FUZZ_OBJECTS)
 
 $(BIN)/$(PROJNAME)-server: LDLIBS += -pthread
 
@@ -131,6 +130,8 @@ FUZZ_DICT_BASE  := $(PROJDIR)/fuzz/dict
 FUZZ_INCLUDES   := -I$(INCLUDE) -I$(LIB)
 FUZZ_HARNESS 	:= $(wildcard fuzz/harness/*.c)
 FUZZ_NAMES   	:= $(patsubst fuzz/harness/%.c,%,$(FUZZ_HARNESS))
+FUZZ_OBJS_NAMES := protocol.o buffer.o allocator.o
+FUZZ_OBJECTS    := $(addprefix $(FUZZ_BUILD)/,$(FUZZ_OBJS_NAMES))
 
 .PHONY: fuzz-dirs
 fuzz-dirs: $(FUZZ_BIN)
@@ -139,13 +140,16 @@ fuzz-dirs: $(FUZZ_BIN)
 	    mkdir -p $(FUZZ_OUT_BASE)/$$h; \
 	done
 
-$(FUZZ_BIN):
-	mkdir -p $(FUZZ_BIN)
+$(FUZZ_BUILD)/%.o: $(SRC)/%.c $(HEADERS) | $(FUZZ_BUILD)
+	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
 
 $(FUZZ_BUILD)/fuzz_%.o: fuzz/harness/%.c $(HEADERS) | $(FUZZ_BUILD)
 	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
 
-$(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(BUILD)/protocol.o $(BUILD)/buffer.o $(BUILD)/allocator.o | $(FUZZ_BIN)
+$(FUZZ_BIN):
+	mkdir -p $(FUZZ_BIN)
+
+$(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(FUZZ_OBJECTS) | $(FUZZ_BIN)
 	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) $^ -o $@
 
 .PHONY: fuzz-build

@@ -19,10 +19,13 @@
  */
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <errno.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/random.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 char *to_upper(char *s, size_t n)
 {
@@ -90,4 +93,16 @@ size_t round_up_pow2(size_t x)
     x |= x >> 32;
 #endif
     return x + 1;
+}
+
+bool random_u64(uint64_t *x)
+{
+    ssize_t n;
+    do {
+        n = getrandom(x, sizeof(*x), 0);
+    } while (n < 0 && errno == EINTR);
+
+    if (n != sizeof(*x)) return false;
+
+    return true;
 }

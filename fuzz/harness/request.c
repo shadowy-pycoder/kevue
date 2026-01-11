@@ -14,35 +14,51 @@
  * limitations under the License.
  */
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <allocator.h>
 #include <buffer.h>
-#include <common.h>
 #include <protocol.h>
 
 __AFL_FUZZ_INIT();
 
-int main(void)
+#define CAPACITY 64
 
+static inline void buffer_init(Buffer *buf, int capacity)
+{
+    memset(buf, 0, sizeof(*buf));
+    KevueAllocator *ma = &kevue_default_allocator;
+    buf->ptr = ma->malloc(capacity, ma->ctx);
+    memset(buf->ptr, 0, capacity);
+    buf->ma = ma;
+};
+
+static inline void buffer_deinit(Buffer *buf)
+{
+    buf->ma->free(buf->ptr, buf->ma->ctx);
+};
+
+int main(void)
 {
 #ifdef __AFL_HAVE_MANUAL_CONTROL
     __AFL_INIT();
 #endif
-
     unsigned char *fuzz_buf = __AFL_FUZZ_TESTCASE_BUF;
 
-    Buffer *in_buf = kevue_buffer_create(1024, &kevue_default_allocator);
-    Buffer *out_buf = kevue_buffer_create(1024, &kevue_default_allocator);
     while (__AFL_LOOP(1000)) {
         size_t len = __AFL_FUZZ_TESTCASE_LEN;
+        Buffer in_buf = { 0 };
+        Buffer out_buf = { 0 };
         KevueRequest req = { 0 };
-        kevue_buffer_grow(in_buf, len);
-        kevue_buffer_write(in_buf, fuzz_buf, len);
-        KevueErr err = kevue_request_deserialize(&req, in_buf);
-        UNUSED(err);
-        kevue_request_serialize(&req, out_buf);
-        kevue_buffer_reset(in_buf);
-        kevue_buffer_reset(out_buf);
+        buffer_init(&in_buf, len);
+        buffer_init(&out_buf, CAPACITY);
+        memcpy(in_buf.ptr, fuzz_buf, len);
+        KevueErr err = kevue_request_deserialize(&req, &in_buf);
+        (void)err;
+        kevue_request_serialize(&req, &out_buf);
+        buffer_deinit(&in_buf);
+        buffer_deinit(&out_buf);
     }
 }

@@ -28,10 +28,17 @@ uint8_t malformed_data[] = {
     't', 'e', 's', 't' // key
 };
 
+uint8_t garbage[] = {
+    0x00, 0x04, 0x45, 0x00, 0x00, 0x54, 0x00, 0x22,
+    0x00, 0x00, 0x00, 0x10, 0x04, 0x50, 0x49, 0x00,
+    0x00, 0x02, 0x00, 0x40, 0x00, 0x73, 0x00, 0x03,
+    0x53, 0x45, 0x54, 0x00, 0x00
+};
+
 int main()
 {
     KevueRequest req = { 0 };
-    Buffer *buf = kevue_buffer_create(1024, &kevue_default_allocator);
+    Buffer *buf = kevue_buffer_create(64, &kevue_default_allocator);
     assert(buf != NULL);
     kevue_buffer_write(buf, data, sizeof(data));
     KevueErr err = kevue_request_deserialize(&req, buf);
@@ -46,6 +53,14 @@ int main()
     printf("%s\n", kevue_error_code_to_string(err));
     printf("\n");
     assert(err == KEVUE_ERR_LEN_INVALID);
+
+    kevue_buffer_reset(buf);
+    memset(&req, 0, sizeof(req));
+    kevue_buffer_write(buf, garbage, sizeof(garbage));
+    err = kevue_request_deserialize(&req, buf);
+    printf("%s\n", kevue_error_code_to_string(err));
+    printf("\n");
+    assert(err == KEVUE_ERR_MAGIC_BYTE_INVALID);
 
     kevue_buffer_reset(buf);
     memset(&req, 0, sizeof(req));

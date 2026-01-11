@@ -8,10 +8,9 @@
 static void *get(void *m)
 {
     Buffer *b = kevue_buffer_create(1, &kevue_default_allocator);
-    HashMap *hm = (HashMap *)m;
     for (;;) {
         kevue_buffer_reset(b);
-        hm->ops->kevue_hm_get(hm, ".", 1, b);
+        kevue_hm_threaded_get(m, ".", 1, b);
     }
 }
 
@@ -22,6 +21,6 @@ int main()
     for (long long i = 0;;) {
         char key[32] = {};
         int len = snprintf(key, sizeof(key), "%lld", i++);
-        if (!m->ops->kevue_hm_put(m, key, (size_t)len, ".", 1)) return 0;
+        if (!kevue_hm_threaded_put(m, key, (size_t)len, ".", 1)) return 0;
     }
 }

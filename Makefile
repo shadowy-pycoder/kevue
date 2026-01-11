@@ -114,20 +114,14 @@ debug:
 release:
 	$(MAKE) DEBUG=0 ASAN=0 default examples
 
-compile_commands:
-	bear -- make --always-make all examples fuzz-build
-
-docs:
-	doxygen
-
 AFL_CC          ?= afl-clang-fast
 AFL_CFLAGS      := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra
+AFL_INCLUDES   := -I$(INCLUDE) -I$(LIB)
 FUZZ_BUILD      := $(PROJDIR)/fuzz/build
 FUZZ_BIN        := $(PROJDIR)/fuzz/bin
 FUZZ_OUT_BASE   := $(PROJDIR)/fuzz/out
 FUZZ_SEEDS_BASE := $(PROJDIR)/fuzz/seeds
 FUZZ_DICT_BASE  := $(PROJDIR)/fuzz/dict
-FUZZ_INCLUDES   := -I$(INCLUDE) -I$(LIB)
 FUZZ_HARNESS 	:= $(wildcard fuzz/harness/*.c)
 FUZZ_NAMES   	:= $(patsubst fuzz/harness/%.c,%,$(FUZZ_HARNESS))
 FUZZ_OBJS_NAMES := protocol.o buffer.o allocator.o
@@ -141,16 +135,16 @@ fuzz-dirs: $(FUZZ_BIN)
 	done
 
 $(FUZZ_BUILD)/%.o: $(SRC)/%.c $(HEADERS) | $(FUZZ_BUILD)
-	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
+	$(AFL_CC) $(AFL_CFLAGS) $(AFL_INCLUDES) -c $< -o $@
 
-$(FUZZ_BUILD)/fuzz_%.o: fuzz/harness/%.c $(HEADERS) | $(FUZZ_BUILD)
-	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) -c $< -o $@
+$(FUZZ_BUILD)/fuzz_%.o: $(FUZZ_HARNESS) $(HEADERS) | $(FUZZ_BUILD)
+	$(AFL_CC) $(AFL_CFLAGS) $(AFL_INCLUDES) -c $< -o $@
 
 $(FUZZ_BIN):
 	mkdir -p $(FUZZ_BIN)
 
 $(FUZZ_BIN)/%: $(FUZZ_BUILD)/%.o $(FUZZ_OBJECTS) | $(FUZZ_BIN)
-	$(AFL_CC) $(AFL_CFLAGS) $(FUZZ_INCLUDES) $^ -o $@
+	$(AFL_CC) $(AFL_CFLAGS) $(AFL_INCLUDES) $^ -o $@
 
 .PHONY: fuzz-build
 fuzz-build: fuzz-dirs $(FUZZ_BIN)/fuzz_request $(FUZZ_BIN)/fuzz_response
@@ -170,7 +164,12 @@ fuzz-response: $(FUZZ_BIN)/fuzz_response | fuzz-dirs
 		-i $(FUZZ_SEEDS_BASE)/response \
 		-o $(FUZZ_OUT_BASE)/response \
 		-x $(FUZZ_DICT_BASE)/response/protocol.dict -- $(FUZZ_BIN)/fuzz_response
-.PHONY: fuzz-clean
+
+compile_commands:
+	bear -- make --always-make all examples fuzz-build
+
+docs:
+	doxygen
 
 clean:
 	rm -rf $(BUILD)

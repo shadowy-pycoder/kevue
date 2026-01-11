@@ -21,11 +21,14 @@
 #include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+
+#include <common.h>
 
 char *to_upper(char *s, size_t n)
 {

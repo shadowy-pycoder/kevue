@@ -347,7 +347,9 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
     default:
         UNREACHABLE("Possibly forgot to add new command to switch case");
     }
+#ifdef DEBUG
     kevue_response_print(resp);
+#endif
 }
 
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
@@ -376,7 +378,9 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         KevueErr err = kevue_request_deserialize(&req, c->rbuf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) return;
         if (err == KEVUE_ERR_OK) {
+#ifdef DEBUG
             kevue_request_print(&req);
+#endif
             kevue__response_populate_from_hashmap(&req, &resp, c->hm, c->hmbuf);
             kevue_response_serialize(&resp, c->wbuf);
             kevue_buffer_move_unread_bytes(c->rbuf);
@@ -689,7 +693,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
         return NULL;
     }
     ks->hm = hm;
-#ifndef DETERMINISTIC
+#ifndef __HASHMAP_DETERMINISTIC
     uint64_t seed;
     if (!random_u64(&seed)) {
         print_err("Generating random seed failed: %s", strerror(errno));

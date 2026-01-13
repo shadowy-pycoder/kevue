@@ -23,7 +23,7 @@ ASAN ?= 1
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
-  CPPFLAGS += -DDEBUG -DDETERMINISTIC
+  CPPFLAGS += -DDEBUG -D__HASHMAP_DETERMINISTIC
 else
   CFLAGS += -O3 -flto
   LDFLAGS += -flto

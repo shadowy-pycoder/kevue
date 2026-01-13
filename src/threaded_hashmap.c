@@ -34,22 +34,23 @@
 #define HASHMAP_BUCKET_INITIAL_COUNT       (SERVER_WORKERS * 8U) // rounded up to the power of two
 #define HASHMAP_BUCKET_MAX_COUNT           8388608U
 #define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 2U
-#define HASHMAP_BUCKET_LOCK_COUNT          1024U
 #define HASHMAP_MAX_LOAD                   1.0f
 #define HASHMAP_MIN_LOAD                   0.25f
 #define HASHMAP_RESIZE_FACTOR              2
 #define HASHMAP_SLOT_MAX_COUNT             (HASHMAP_BUCKET_MAX_COUNT * HASHMAP_BUCKET_ENTRY_INITIAL_COUNT) // 16777216
 
-#if SERVER_WORKERS == 1
-#define mutex_lock(l)    ((void)0)
-#define mutex_unlock(l)  ((void)0)
-#define mutex_init(l, f) ((void)0)
-#define mutex_destroy(l) ((void)0)
+#ifdef __HASHMAP_SINGLE_THREADED
+#define HASHMAP_BUCKET_LOCK_COUNT 0U
+#define mutex_lock(l)             ((void)0)
+#define mutex_unlock(l)           ((void)0)
+#define mutex_init(l, f)          ((void)0)
+#define mutex_destroy(l)          ((void)0)
 #else
-#define mutex_lock(l)    pthread_mutex_lock(l)
-#define mutex_unlock(l)  pthread_mutex_unlock(l)
-#define mutex_init(l, f) pthread_mutex_init(l, f)
-#define mutex_destroy(l) pthread_mutex_destroy(l)
+#define HASHMAP_BUCKET_LOCK_COUNT 1024U
+#define mutex_lock(l)             pthread_mutex_lock((l))
+#define mutex_unlock(l)           pthread_mutex_unlock((l))
+#define mutex_init(l, f)          pthread_mutex_init((l), (f))
+#define mutex_destroy(l)          pthread_mutex_destroy((l))
 #endif
 
 typedef struct HashMapThreaded HashMapThreaded;

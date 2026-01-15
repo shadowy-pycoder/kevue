@@ -13,4 +13,13 @@
 "\x0b"
 "\x0c"
 "\x0d"
+"\x03GET"
+"\x03SET"
+"\x03DEL"
+"\x05HELLO"
+"\x04PING"
+"\x05ITEMS"
+"\x04KEYS"
+"\x06VALUES"
+"\x05COUNT"
 

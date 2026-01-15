@@ -31,6 +31,10 @@
 #define READ_TIMEOUT  10
 #define WRITE_TIMEOUT 10
 
+#ifndef SERVER_WORKERS
+#define SERVER_WORKERS 10
+#endif
+
 // stolen from https://github.com/tsoding/nob.h
 #define UNREACHABLE(where)                                                                  \
     do {                                                                                    \

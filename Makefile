@@ -4,6 +4,7 @@ BUILD := $(PROJDIR)/build
 BIN := $(PROJDIR)/bin
 DOCS := $(PROJDIR)/docs
 EXAMPLES := $(PROJDIR)/examples
+TESTS := $(PROJDIR)/tests
 TARGETS := server
 BINARIES := $(addprefix $(BIN)/$(PROJNAME)-,$(TARGETS))
 SRC := $(PROJDIR)/src
@@ -68,7 +69,7 @@ ifeq ($(USE_JEMALLOC),1)
   LDLIBS  += -ljemalloc
 endif
 
-.PHONY: default all clean run debug release compile_commands docs examples
+.PHONY: default all clean run debug release compile_commands docs examples tests
 
 default: $(BINARIES)
 all: default
@@ -113,6 +114,12 @@ debug:
 
 release:
 	$(MAKE) DEBUG=0 ASAN=0 default examples
+
+tests: | $(BIN)
+	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
+	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_fill_server.c -o $(BIN)/kevue-test-fill-server -DDEBUG
+	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+
 
 AFL_CC          ?= afl-clang-fast
 AFL_CFLAGS      := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra
@@ -166,7 +173,7 @@ fuzz-response: $(FUZZ_BIN)/fuzz_response | fuzz-dirs
 		-x $(FUZZ_DICT_BASE)/response/protocol.dict -- $(FUZZ_BIN)/fuzz_response
 
 compile_commands:
-	bear -- make --always-make all examples fuzz-build
+	bear -- make --always-make all examples fuzz-build tests
 
 docs:
 	doxygen

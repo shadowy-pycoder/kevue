@@ -60,6 +60,10 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len,
 static bool kevue__hm_threaded_get(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
 static bool kevue__hm_threaded_del(HashMap *hm, const void *key, size_t key_len);
 static void kevue__hm_threaded_seed(HashMap *hm, uint64_t seed);
+static bool kevue__hm_threaded_items(HashMap *hm, Buffer *buf);
+static bool kevue__hm_threaded_keys(HashMap *hm, Buffer *buf);
+static bool kevue__hm_threaded_values(HashMap *hm, Buffer *buf);
+static size_t kevue__hm_threaded_len(HashMap *hm);
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_size);
 static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *hm_internal, size_t bucket_idx);
 
@@ -94,6 +98,10 @@ static const HashMapOps hm_ops = {
     .kevue_hm_put = kevue__hm_threaded_put,
     .kevue_hm_del = kevue__hm_threaded_del,
     .kevue_hm_seed = kevue__hm_threaded_seed,
+    .kevue_hm_len = kevue__hm_threaded_len,
+    .kevue_hm_items = kevue__hm_threaded_items,
+    .kevue_hm_keys = kevue__hm_threaded_keys,
+    .kevue_hm_values = kevue__hm_threaded_values,
 };
 
 static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *hm_internal, size_t bucket_idx)
@@ -279,6 +287,96 @@ static void kevue__hm_threaded_seed(HashMap *hm, uint64_t seed)
     hm_internal->seed = seed;
 }
 
+static uint64_t kevue__hm_threaded_len(HashMap *hm)
+{
+    if (hm == NULL || hm->internal == NULL) return 0;
+    HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
+    mutex_lock(&hm_internal->resize_lock);
+    uint64_t hm_len = (uint64_t)hm_internal->slots_taken;
+    mutex_unlock(&hm_internal->resize_lock);
+    return hm_len;
+}
+
+static bool kevue__hm_threaded_items(HashMap *hm, Buffer *buf)
+{
+    if (hm == NULL || hm->internal == NULL) return false;
+    HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
+    mutex_lock(&hm_internal->resize_lock);
+    for (size_t lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
+        mutex_lock(&hm_internal->bucket_locks[lock]);
+        mutex_unlock(&hm_internal->bucket_locks[lock]);
+    }
+    kevue_buffer_grow(buf, BUF_SIZE);
+    kevue_buffer_reset(buf);
+    for (size_t bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
+        if (hm_internal->buckets[bucket].len == 0) continue;
+        kevue_dyna_foreach(&hm_internal->buckets[bucket], entry_ptr)
+        {
+            Entry *entry = *entry_ptr;
+            uint64_t key_len = (uint64_t)entry->key_len;
+            uint64_t val_len = (uint64_t)entry->val_len;
+            kevue_buffer_append(buf, &key_len, sizeof(key_len));
+            kevue_buffer_append(buf, entry->data, key_len);
+            kevue_buffer_append(buf, &val_len, sizeof(val_len));
+            kevue_buffer_append(buf, entry->data + key_len, val_len);
+        }
+    }
+    mutex_unlock(&hm_internal->resize_lock);
+    return true;
+}
+
+static bool kevue__hm_threaded_keys(HashMap *hm, Buffer *buf)
+{
+    if (hm == NULL || hm->internal == NULL) return false;
+    HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
+    mutex_lock(&hm_internal->resize_lock);
+    for (size_t lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
+        mutex_lock(&hm_internal->bucket_locks[lock]);
+        mutex_unlock(&hm_internal->bucket_locks[lock]);
+    }
+    kevue_buffer_grow(buf, BUF_SIZE);
+    kevue_buffer_reset(buf);
+    for (size_t bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
+        if (hm_internal->buckets[bucket].len == 0) continue;
+        kevue_dyna_foreach(&hm_internal->buckets[bucket], entry_ptr)
+        {
+            Entry *entry = *entry_ptr;
+            uint64_t key_len = (uint64_t)entry->key_len;
+            kevue_buffer_append(buf, &key_len, sizeof(key_len));
+            kevue_buffer_append(buf, entry->data, key_len);
+        }
+    }
+    mutex_unlock(&hm_internal->resize_lock);
+    return true;
+}
+
+static bool kevue__hm_threaded_values(HashMap *hm, Buffer *buf)
+{
+
+    if (hm == NULL || hm->internal == NULL) return false;
+    HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
+    mutex_lock(&hm_internal->resize_lock);
+    for (size_t lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
+        mutex_lock(&hm_internal->bucket_locks[lock]);
+        mutex_unlock(&hm_internal->bucket_locks[lock]);
+    }
+    kevue_buffer_grow(buf, BUF_SIZE);
+    kevue_buffer_reset(buf);
+    for (size_t bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
+        if (hm_internal->buckets[bucket].len == 0) continue;
+        kevue_dyna_foreach(&hm_internal->buckets[bucket], entry_ptr)
+        {
+            Entry *entry = *entry_ptr;
+            uint64_t key_len = (uint64_t)entry->key_len;
+            uint64_t val_len = (uint64_t)entry->val_len;
+            kevue_buffer_append(buf, &val_len, sizeof(val_len));
+            kevue_buffer_append(buf, entry->data + key_len, val_len);
+        }
+    }
+    mutex_unlock(&hm_internal->resize_lock);
+    return true;
+}
+
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_size)
 {
     print_debug("HashMap %s %zu -> %zu", new_size > hm_internal->bucket_count ? "grows" : "shrinks", hm_internal->bucket_count, new_size);
@@ -287,9 +385,9 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_s
         return;
     }
     // this ensures that all bucket locks are released by getters and setters
-    for (size_t bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
-        mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, bucket));
-        mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, bucket));
+    for (size_t lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
+        mutex_lock(&hm_internal->bucket_locks[lock]);
+        mutex_unlock(&hm_internal->bucket_locks[lock]);
     }
     for (size_t bucket = 0; bucket < new_size; bucket++) {
         kevue_dyna_init(&new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm_internal->ma);

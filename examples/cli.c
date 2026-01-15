@@ -20,6 +20,9 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
@@ -108,6 +111,22 @@ static void kevue__completion(const char *buf, linenoiseCompletions *lc)
     case 'P':
         linenoiseAddCompletion(lc, "PING");
         break;
+    case 'c':
+    case 'C':
+        linenoiseAddCompletion(lc, "COUNT");
+        break;
+    case 'i':
+    case 'I':
+        linenoiseAddCompletion(lc, "ITEMS");
+        break;
+    case 'k':
+    case 'K':
+        linenoiseAddCompletion(lc, "KEYS");
+        break;
+    case 'v':
+    case 'V':
+        linenoiseAddCompletion(lc, "VALUES");
+        break;
     default:
         linenoiseAddCompletion(lc, "GET");
         break;
@@ -165,34 +184,79 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
-        pr->cmd = GET;
-    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
-        pr->cmd = SET;
-    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
-        pr->cmd = DEL;
-    } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
-        pr->cmd = PING;
-    } else {
+    switch ((uint8_t)pr->key->size) {
+    case 3:
+        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
+            pr->cmd = GET;
+        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
+            pr->cmd = SET;
+        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+            pr->cmd = DEL;
+        } else {
+            printf("ERROR: Wrong command\n");
+            kevue__client_parse_result_destroy(pr);
+            return NULL;
+        }
+        break;
+    case 4:
+        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+            pr->cmd = PING;
+        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, KEYS)) {
+            pr->cmd = KEYS;
+        } else {
+            printf("ERROR: Wrong command\n");
+            kevue__client_parse_result_destroy(pr);
+            return NULL;
+        }
+        break;
+    case 5:
+        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, COUNT)) {
+            pr->cmd = COUNT;
+        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, ITEMS)) {
+            pr->cmd = ITEMS;
+        } else {
+            printf("ERROR: Wrong command\n");
+            kevue__client_parse_result_destroy(pr);
+            return NULL;
+        }
+        break;
+    case 6:
+        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, VALUES)) {
+            pr->cmd = VALUES;
+        } else {
+            printf("ERROR: Wrong command\n");
+            kevue__client_parse_result_destroy(pr);
+            return NULL;
+        }
+        break;
+    default:
         printf("ERROR: Wrong command\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     size_t offset = buf->offset;
     kevue__trim_left(buf);
-    if (buf->offset == offset && pr->cmd != PING) {
+    if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    if (kevue_buffer_at_eof(buf) && pr->cmd != PING) {
+    if (kevue_buffer_at_eof(buf) && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     kevue_buffer_reset(pr->key);
+    // parse first argument
+    offset = buf->offset;
     if (!kevue__parse_chunk(buf, pr->key)) {
         printf("ERROR: Wrong arguments\n");
+        kevue__client_parse_result_destroy(pr);
+        return NULL;
+    }
+    // check for commands with 0 arguments
+    if (buf->offset != offset && (pr->cmd == COUNT || pr->cmd == ITEMS || pr->cmd == KEYS || pr->cmd == VALUES)) {
+        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -395,7 +459,7 @@ int main(int argc, char **argv)
                     // these errno are set by linenoise
                     if (errno == EAGAIN || errno == ENOENT) { // Ctrl+C  Ctrl+D hit
                         linenoiseHide(&ls);
-                        fprintf(stdout, "Exit? [Y/n]: ");
+                        fprintf(stdout, "Exit? (Y/n): ");
                         fflush(stdout);
                         int c = getchar();
                         if (c == 'Y' || c == 'y' || c == '\n') {
@@ -444,7 +508,7 @@ int main(int argc, char **argv)
             break;
         case SET:
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
-                printf("OK\n");
+                printf("(ok)\n");
             } else {
                 print_err("%s", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -452,7 +516,7 @@ int main(int argc, char **argv)
             break;
         case DEL:
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
-                printf("OK\n");
+                printf("(ok)\n");
             } else {
                 print_err("%s", kevue_error_code_to_string(resp->err_code));
                 if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
@@ -462,6 +526,95 @@ int main(int argc, char **argv)
             if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fputc('\n', stdout);
+                fflush(stdout);
+            } else {
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
+            }
+            break;
+        case COUNT:
+            if (kevue_client_count(kc, resp)) {
+                uint64_t count;
+                memcpy(&count, resp->val->ptr, sizeof(count));
+                fprintf(stdout, "%lu\n", count);
+                fflush(stdout);
+            } else {
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
+            }
+            break;
+        case ITEMS:
+            if (kevue_client_items(kc, resp)) {
+                if (resp->val_len == 0) {
+                    fprintf(stdout, "(empty)\n");
+                } else {
+                    uint64_t v;
+                    size_t size_v = sizeof(v);
+                    size_t count = 0;
+                    while (resp->val->offset + size_v < resp->val_len) {
+                        memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
+                        resp->val->offset += size_v;
+                        fprintf(stdout, "%zu) ", count);
+                        fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
+                        fputc('\n', stdout);
+                        resp->val->offset += v;
+                        memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
+                        resp->val->offset += size_v;
+                        fprintf(stdout, "%zu) ", count);
+                        fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
+                        fputc('\n', stdout);
+                        resp->val->offset += v;
+                        count++;
+                    }
+                }
+                fflush(stdout);
+            } else {
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
+            }
+            break;
+        case KEYS:
+            if (kevue_client_keys(kc, resp)) {
+                if (resp->val_len == 0) {
+                    fprintf(stdout, "(empty)\n");
+                } else {
+                    uint64_t v;
+                    size_t size_v = sizeof(v);
+                    size_t count = 0;
+                    while (resp->val->offset + size_v < resp->val_len) {
+                        memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
+                        resp->val->offset += size_v;
+                        fprintf(stdout, "%zu) ", count);
+                        fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
+                        fputc('\n', stdout);
+                        resp->val->offset += v;
+                        count++;
+                    }
+                }
+                fflush(stdout);
+            } else {
+                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                unrecoverable_error_occured = true;
+            }
+            break;
+        case VALUES:
+            if (kevue_client_values(kc, resp)) {
+                if (resp->val_len == 0) {
+                    fprintf(stdout, "(empty)\n");
+                } else {
+                    uint64_t v;
+                    size_t size_v = sizeof(v);
+                    size_t count = 0;
+                    while (resp->val->offset + size_v < resp->val_len) {
+                        memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
+                        resp->val->offset += size_v;
+                        fprintf(stdout, "%zu) ", count);
+                        fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
+                        fputc('\n', stdout);
+                        resp->val->offset += v;
+                        count++;
+                    }
+                }
                 fflush(stdout);
             } else {
                 print_err("%s", kevue_error_code_to_string(resp->err_code));

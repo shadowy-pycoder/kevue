@@ -308,11 +308,11 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
 static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf)
 {
     resp->err_code = KEVUE_ERR_OK;
-    switch (req->cmd) {
+    resp->cmd = req->cmd;
+    switch (resp->cmd) {
+        // TODO: enchance handshake mechanism, check if lcient performed handshale before accepting other request, check for huplicates hello
     case HELLO:
-        resp->val_len = (uint16_t)strlen(kevue_command_to_string(HELLO));
-        kevue_buffer_write(hmbuf, kevue_command_to_string(HELLO), resp->val_len);
-        resp->val = hmbuf;
+        resp->cmd_len = 5;
         break;
     case GET:
         if (!hm->ops->kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
@@ -321,16 +321,19 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = (uint16_t)hmbuf->size;
             resp->val = hmbuf;
         }
+        resp->cmd_len = 3;
         break;
     case SET:
         if (!hm->ops->kevue_hm_put(hm, req->key, req->key_len, req->val, req->val_len)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         }
+        resp->cmd_len = 3;
         break;
     case DEL:
         if (!hm->ops->kevue_hm_del(hm, req->key, req->key_len)) {
             resp->err_code = KEVUE_ERR_NOT_FOUND;
         }
+        resp->cmd_len = 3;
         break;
     case PING:
         if (req->key_len > 0) {
@@ -340,7 +343,42 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = 4;
             kevue_buffer_write(hmbuf, "PONG", resp->val_len);
         }
+        resp->cmd_len = 4;
         resp->val = hmbuf;
+        break;
+    case COUNT:
+        uint64_t hm_len = hm->ops->kevue_hm_len(hm);
+        resp->val_len = sizeof(hm_len);
+        kevue_buffer_write(hmbuf, &hm_len, resp->val_len);
+        resp->val = hmbuf;
+        resp->cmd_len = 5;
+        break;
+    case ITEMS:
+        if (!hm->ops->kevue_hm_items(hm, hmbuf)) {
+            resp->err_code = KEVUE_ERR_OPERATION;
+        } else {
+            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val = hmbuf;
+        }
+        resp->cmd_len = 5;
+        break;
+    case KEYS:
+        if (!hm->ops->kevue_hm_keys(hm, hmbuf)) {
+            resp->err_code = KEVUE_ERR_OPERATION;
+        } else {
+            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val = hmbuf;
+        }
+        resp->cmd_len = 4;
+        break;
+    case VALUES:
+        if (!hm->ops->kevue_hm_values(hm, hmbuf)) {
+            resp->err_code = KEVUE_ERR_OPERATION;
+        } else {
+            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val = hmbuf;
+        }
+        resp->cmd_len = 6;
         break;
     case KEVUE_CMD_MAX:
         UNREACHABLE("Possibly a bug in request serialization");

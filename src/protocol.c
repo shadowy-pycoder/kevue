@@ -17,7 +17,7 @@
  * @file protocol.c
  * @brief kevue protocol implementation.
  */
-#include <netinet/in.h>
+#include <endian.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -30,6 +30,14 @@
 #include <buffer.h>
 #include <common.h>
 #include <protocol.h>
+
+typedef struct KevueCommandPDispatchesult {
+    KevueCommand cmd;
+    KevueErr err;
+} KevueCommandDispatchResult;
+
+static KevueCommandDispatchResult kevue__command_dispatch(uint8_t cmd_len, Buffer *buf);
+static bool kevue__command_should_contain_request_payload(KevueCommand cmd);
 
 bool kevue_command_compare(const char *data, uint8_t len, KevueCommand cmd)
 {
@@ -55,6 +63,74 @@ char *kevue_command_to_string(KevueCommand c)
     }
 }
 
+static KevueCommandDispatchResult kevue__command_dispatch(uint8_t cmd_len, Buffer *buf)
+{
+    KevueCommandDispatchResult dr = { 0 };
+    dr.err = KEVUE_ERR_OK;
+    switch (cmd_len) {
+    case 3:
+        if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, GET)) {
+            dr.cmd = GET;
+        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, SET)) {
+            dr.cmd = SET;
+        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, DEL)) {
+            dr.cmd = DEL;
+        } else {
+            dr.err = KEVUE_ERR_UNKNOWN_COMMAND;
+        }
+        break;
+    case 4:
+        if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, PING)) {
+            dr.cmd = PING;
+        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, KEYS)) {
+            dr.cmd = KEYS;
+        } else {
+            dr.err = KEVUE_ERR_UNKNOWN_COMMAND;
+        }
+        break;
+    case 5:
+        if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, HELLO)) {
+            dr.cmd = HELLO;
+        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, COUNT)) {
+            dr.cmd = COUNT;
+        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, ITEMS)) {
+            dr.cmd = ITEMS;
+        } else {
+            dr.err = KEVUE_ERR_UNKNOWN_COMMAND;
+        }
+        break;
+    case 6:
+        if (kevue_command_compare((char *)buf->ptr + buf->offset, cmd_len, VALUES)) {
+            dr.cmd = VALUES;
+        } else {
+            dr.err = KEVUE_ERR_UNKNOWN_COMMAND;
+        }
+        break;
+    default:
+        dr.err = KEVUE_ERR_UNKNOWN_COMMAND;
+    }
+    return dr;
+}
+
+static bool kevue__command_should_contain_request_payload(KevueCommand cmd)
+{
+    switch (cmd) {
+    case GET:
+    case SET:
+    case DEL:
+        return true;
+    case HELLO:
+    case PING:
+    case COUNT:
+    case ITEMS:
+    case KEYS:
+    case VALUES:
+    case KEVUE_CMD_MAX:
+    default:
+        return false;
+    }
+}
+
 bool kevue_error_code_valid(KevueErr e)
 {
     return e >= 0 && e < KEVUE_ERR_MAX;
@@ -75,68 +151,57 @@ char *kevue_error_code_to_string(KevueErr e)
 
 KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)
 {
+    // magic byte
     if (buf->size < KEVUE_MESSAGE_HEADER_SIZE) return KEVUE_ERR_INCOMPLETE_READ;
     if (memcmp(buf->ptr, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE) != 0) {
         return KEVUE_ERR_MAGIC_BYTE_INVALID;
     }
     buf->offset = KEVUE_MAGIC_BYTE_SIZE;
+
+    // total length
     uint32_t tl;
     memcpy(&tl, buf->ptr + buf->offset, sizeof(tl));
-    req->total_len = ntohl(tl);
+    req->total_len = be32toh(tl);
     if (req->total_len > buf->size) return KEVUE_ERR_INCOMPLETE_READ;
     buf->offset += sizeof(req->total_len);
-    if (buf->offset + sizeof(uint8_t) > req->total_len || buf->offset + sizeof(uint8_t) > buf->size) return KEVUE_ERR_LEN_INVALID;
-    memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(uint8_t));
-    buf->offset += sizeof(uint8_t);
+
+    // cmd length
+    if (buf->offset + sizeof(req->cmd_len) > req->total_len || buf->offset + sizeof(req->cmd_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
+    memcpy(&req->cmd_len, buf->ptr + buf->offset, sizeof(req->cmd_len));
+    buf->offset += sizeof(req->cmd_len);
+
+    // parse command
     if (buf->offset + req->cmd_len > req->total_len || buf->offset + req->cmd_len > buf->size) return KEVUE_ERR_LEN_INVALID;
-    switch (req->cmd_len) {
-    case 3:
-        if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, GET)) {
-            req->cmd = GET;
-        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, SET)) {
-            req->cmd = SET;
-        } else if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, DEL)) {
-            req->cmd = DEL;
-        } else {
-            return KEVUE_ERR_UNKNOWN_COMMAND;
-        }
-        break;
-    case 4:
-        if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, PING)) {
-            req->cmd = PING;
-        } else {
-            return KEVUE_ERR_UNKNOWN_COMMAND;
-        }
-        break;
-    case 5:
-        if (kevue_command_compare((char *)buf->ptr + buf->offset, req->cmd_len, HELLO)) {
-            req->cmd = HELLO;
-        } else {
-            return KEVUE_ERR_UNKNOWN_COMMAND;
-        }
-        break;
-    default:
-        return KEVUE_ERR_UNKNOWN_COMMAND;
-    }
+    KevueCommandDispatchResult dr = kevue__command_dispatch(req->cmd_len, buf);
+    if (dr.err == KEVUE_ERR_UNKNOWN_COMMAND) return KEVUE_ERR_UNKNOWN_COMMAND;
+    req->cmd = dr.cmd;
     buf->offset += req->cmd_len;
+
+    // parse key length
     if (buf->offset + sizeof(req->key_len) > req->total_len || buf->offset + sizeof(req->key_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&req->key_len, buf->ptr + buf->offset, sizeof(req->key_len));
-    req->key_len = ntohs(req->key_len);
+    req->key_len = be16toh(req->key_len);
     buf->offset += sizeof(req->key_len);
     if (req->key_len == 0) {
-        if (req->cmd == PING || req->cmd == HELLO) return KEVUE_ERR_OK;
+        if (!kevue__command_should_contain_request_payload(req->cmd)) return KEVUE_ERR_OK;
         return KEVUE_ERR_LEN_INVALID;
     }
+
+    // parse key
     if (buf->offset + req->key_len > req->total_len || buf->offset + req->key_len > buf->size) return KEVUE_ERR_LEN_INVALID;
     req->key = buf->ptr + buf->offset;
     buf->offset += req->key_len;
+
     req->val_len = 0;
     req->val = NULL;
     if (req->cmd == SET) {
+        // parse value length
         if (buf->offset + sizeof(req->val_len) > req->total_len || buf->offset + sizeof(req->val_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
         memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(req->val_len));
-        req->val_len = ntohs(req->val_len);
+        req->val_len = be16toh(req->val_len);
         buf->offset += sizeof(req->val_len);
+
+        // parse value
         if (buf->offset + req->val_len > req->total_len || buf->offset + req->val_len > buf->size) return KEVUE_ERR_LEN_INVALID;
         req->val = buf->ptr + buf->offset;
         buf->offset += req->val_len;
@@ -147,10 +212,10 @@ KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)
 KevueErr kevue_request_serialize(KevueRequest *req, Buffer *buf)
 {
     if (req->cmd_len == 0) return KEVUE_ERR_LEN_INVALID;
-    req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
     if (!kevue_command_valid(req->cmd)) return KEVUE_ERR_UNKNOWN_COMMAND;
     if (req->cmd_len != strlen(kevue_command_to_string(req->cmd))) return KEVUE_ERR_LEN_INVALID;
-    if (req->cmd != HELLO && req->cmd != PING && req->key_len == 0) return KEVUE_ERR_PAYLOAD_INVALID;
+    if (req->key_len == 0 && kevue__command_should_contain_request_payload(req->cmd)) return KEVUE_ERR_PAYLOAD_INVALID;
+    req->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(req->total_len) + sizeof(req->cmd_len) + req->cmd_len * sizeof(char);
     req->total_len += (uint32_t)sizeof(req->key_len) + req->key_len * (uint32_t)sizeof(*req->key);
     if (req->cmd == SET) {
         if (req->val_len == 0) return KEVUE_ERR_LEN_INVALID;
@@ -158,18 +223,18 @@ KevueErr kevue_request_serialize(KevueRequest *req, Buffer *buf)
     }
     kevue_buffer_grow(buf, req->total_len);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
-    uint32_t tl = htonl(req->total_len);
+    uint32_t tl = htobe32(req->total_len);
     kevue_buffer_append(buf, &tl, sizeof(req->total_len));
     kevue_buffer_append(buf, &req->cmd_len, sizeof(req->cmd_len));
     kevue_buffer_append(buf, kevue_command_to_string(req->cmd), req->cmd_len);
-    uint16_t kl = htons(req->key_len);
+    uint16_t kl = htobe16(req->key_len);
     kevue_buffer_append(buf, &kl, sizeof(req->key_len));
     if (req->key_len > 0) {
         if (req->key == NULL) return KEVUE_ERR_PAYLOAD_INVALID;
         kevue_buffer_append(buf, req->key, req->key_len);
     }
     if (req->val_len > 0) {
-        uint16_t vl = htons(req->val_len);
+        uint16_t vl = htobe16(req->val_len);
         kevue_buffer_append(buf, &vl, sizeof(req->val_len));
         if (req->val == NULL) return KEVUE_ERR_PAYLOAD_INVALID;
         kevue_buffer_append(buf, req->val, req->val_len);
@@ -179,18 +244,19 @@ KevueErr kevue_request_serialize(KevueRequest *req, Buffer *buf)
 
 void kevue_request_print(KevueRequest *req)
 {
-    fprintf(stdout, "Total Length: %d\n", req->total_len);
-    fprintf(stdout, "Command Length: %d\n", req->cmd_len);
-    fprintf(stdout, "Command: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
-    fprintf(stdout, "Key Length: %d\n", req->key_len);
+    fputs("Request: \n", stdout);
+    fprintf(stdout, "\tTotal Length: %d\n", req->total_len);
+    fprintf(stdout, "\tCommand Length: %d\n", req->cmd_len);
+    fprintf(stdout, "\tCommand: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
+    fprintf(stdout, "\tKey Length: %d\n", req->key_len);
     if (req->key_len > 0) {
-        fputs("Key: ", stdout);
+        fputs("\tKey: ", stdout);
         fwrite(req->key, sizeof(*req->key), req->key_len, stdout);
         fputc('\n', stdout);
     }
     if (req->val_len > 0) {
-        fprintf(stdout, "Value Length: %d\n", req->val_len);
-        fputs("Value: ", stdout);
+        fprintf(stdout, "\tValue Length: %d\n", req->val_len);
+        fputs("\tValue: ", stdout);
         fwrite(req->val, sizeof(*req->val), req->val_len, stdout);
         fputc('\n', stdout);
     }
@@ -199,16 +265,33 @@ void kevue_request_print(KevueRequest *req)
 
 KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
 {
+    // magic byte
     if (buf->size < KEVUE_MESSAGE_HEADER_SIZE) return KEVUE_ERR_INCOMPLETE_READ;
     if (memcmp(buf->ptr, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE) != 0) {
         return KEVUE_ERR_MAGIC_BYTE_INVALID;
     }
     buf->offset = KEVUE_MAGIC_BYTE_SIZE;
-    uint32_t tl;
+
+    // total length
+    uint64_t tl;
     memcpy(&tl, buf->ptr + buf->offset, sizeof(tl));
-    resp->total_len = ntohl(tl);
+    resp->total_len = be64toh(tl);
     if (resp->total_len > buf->size) return KEVUE_ERR_INCOMPLETE_READ;
     buf->offset += sizeof(resp->total_len);
+
+    // cmd length
+    if (buf->offset + sizeof(resp->cmd_len) > resp->total_len || buf->offset + sizeof(resp->cmd_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
+    memcpy(&resp->cmd_len, buf->ptr + buf->offset, sizeof(resp->cmd_len));
+    buf->offset += sizeof(resp->cmd_len);
+
+    // parse command
+    if (buf->offset + resp->cmd_len > resp->total_len || buf->offset + resp->cmd_len > buf->size) return KEVUE_ERR_LEN_INVALID;
+    KevueCommandDispatchResult dr = kevue__command_dispatch(resp->cmd_len, buf);
+    if (dr.err == KEVUE_ERR_UNKNOWN_COMMAND) return KEVUE_ERR_UNKNOWN_COMMAND;
+    resp->cmd = dr.cmd;
+    buf->offset += resp->cmd_len;
+
+    // parse error code
     if (buf->offset + sizeof(uint8_t) > resp->total_len || buf->offset + sizeof(uint8_t) > buf->size) return KEVUE_ERR_LEN_INVALID;
     resp->err_code = (KevueErr)buf->ptr[buf->offset];
     if (!kevue_error_code_valid(resp->err_code)) return KEVUE_ERR_PAYLOAD_INVALID;
@@ -217,16 +300,47 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
         return resp->err_code;
     }
     buf->offset += sizeof(uint8_t);
+
+    // parse value length
     if (buf->offset + sizeof(resp->val_len) > resp->total_len || buf->offset + sizeof(resp->val_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
     memcpy(&resp->val_len, buf->ptr + buf->offset, sizeof(resp->val_len));
-    resp->val_len = ntohs(resp->val_len);
+    resp->val_len = be64toh(resp->val_len);
     buf->offset += sizeof(resp->val_len);
+
+    // parse value
     if (resp->val_len > 0) {
         if (buf->offset + resp->val_len > resp->total_len || buf->offset + resp->val_len > buf->size) return KEVUE_ERR_LEN_INVALID;
         if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
         // NOTE: add fatal error for situations like oom
         if (resp->val == NULL) return KEVUE_ERR_OPERATION;
-        kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
+        if (resp->cmd == COUNT) {
+            uint64_t v;
+            size_t v_size = sizeof(v);
+            if (buf->offset + v_size > resp->total_len || buf->offset + v_size > buf->size) return KEVUE_ERR_LEN_INVALID;
+            memcpy(&v, buf->ptr + buf->offset, v_size);
+            v = be64toh(v);
+            kevue_buffer_write(resp->val, &v, v_size);
+            kevue_buffer_append(resp->val, buf->ptr + buf->offset + v_size, resp->val_len - v_size);
+        } else if (resp->cmd == ITEMS || resp->cmd == KEYS || resp->cmd == VALUES) {
+            uint64_t v;
+            size_t v_size = sizeof(v);
+            kevue_buffer_reset(resp->val);
+            while (buf->offset < buf->size) { // TODO: check this condition for robustness
+                // parse len to host endianness
+                if (buf->offset + v_size > resp->total_len || buf->offset + v_size > buf->size) return KEVUE_ERR_LEN_INVALID;
+                memcpy(&v, buf->ptr + buf->offset, v_size);
+                v = be64toh(v);
+                kevue_buffer_append(resp->val, &v, v_size);
+                buf->offset += v_size;
+
+                // append value as is
+                if (buf->offset + v > resp->total_len || buf->offset + v > buf->size) return KEVUE_ERR_LEN_INVALID;
+                kevue_buffer_append(resp->val, buf->ptr + buf->offset, v);
+                buf->offset += v;
+            }
+        } else {
+            kevue_buffer_write(resp->val, buf->ptr + buf->offset, resp->val_len);
+        }
         buf->offset += resp->val_len;
     }
     return KEVUE_ERR_OK;
@@ -234,37 +348,71 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
 
 KevueErr kevue_response_serialize(KevueResponse *resp, Buffer *buf)
 {
-    resp->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(resp->total_len) + sizeof(uint8_t) + sizeof(resp->val_len);
+    if (resp->cmd_len == 0) return KEVUE_ERR_LEN_INVALID;
+    if (!kevue_command_valid(resp->cmd)) return KEVUE_ERR_UNKNOWN_COMMAND;
+    if (resp->cmd_len != strlen(kevue_command_to_string(resp->cmd))) return KEVUE_ERR_LEN_INVALID;
     if (!kevue_error_code_valid(resp->err_code)) return KEVUE_ERR_PAYLOAD_INVALID;
     if (resp->err_code != KEVUE_ERR_OK && resp->val_len > 0) return KEVUE_ERR_LEN_INVALID;
+    resp->total_len = KEVUE_MAGIC_BYTE_SIZE + sizeof(resp->total_len) + sizeof(resp->cmd_len) + resp->cmd_len * sizeof(char);
+    resp->total_len += sizeof(uint8_t) + sizeof(resp->val_len);
     if (resp->val_len > 0) {
         if (resp->val == NULL) return KEVUE_ERR_PAYLOAD_INVALID;
         resp->total_len += resp->val_len * sizeof(*resp->val->ptr);
     }
     kevue_buffer_grow(buf, resp->total_len);
     kevue_buffer_append(buf, KEVUE_MAGIC_BYTE, KEVUE_MAGIC_BYTE_SIZE);
-    uint32_t tl = htonl(resp->total_len);
+    uint64_t tl = htobe64(resp->total_len);
     kevue_buffer_append(buf, &tl, sizeof(resp->total_len));
+    kevue_buffer_append(buf, &resp->cmd_len, sizeof(resp->cmd_len));
+    kevue_buffer_append(buf, kevue_command_to_string(resp->cmd), resp->cmd_len);
     uint8_t ec = (uint8_t)resp->err_code;
     kevue_buffer_append(buf, &ec, sizeof(uint8_t));
-    uint16_t vl = htons(resp->val_len);
+    uint64_t vl = htobe64(resp->val_len);
     kevue_buffer_append(buf, &vl, sizeof(resp->val_len));
     if (resp->val_len > 0) {
-        kevue_buffer_append(buf, resp->val->ptr, resp->val_len);
+        if (resp->cmd == COUNT) {
+            uint64_t v;
+            size_t v_size = sizeof(v);
+            if (resp->val_len < v_size || resp->val->size < v_size) return KEVUE_ERR_LEN_INVALID;
+            memcpy(&v, resp->val->ptr, v_size);
+            v = htobe64(v);
+            kevue_buffer_append(buf, &v, v_size);
+            kevue_buffer_append(buf, resp->val->ptr + v_size, resp->val_len - v_size);
+        } else if (resp->cmd == ITEMS || resp->cmd == KEYS || resp->cmd == VALUES) {
+            uint64_t v, saved_v;
+            size_t v_size = sizeof(v);
+            resp->val->offset = 0;
+            while (resp->val->offset < resp->val_len) {
+                if (resp->val->offset + v_size > resp->total_len) return KEVUE_ERR_LEN_INVALID;
+                memcpy(&v, resp->val->ptr + resp->val->offset, v_size);
+                saved_v = v;
+                v = htobe64(v);
+                kevue_buffer_append(buf, &v, v_size);
+                resp->val->offset += v_size;
+
+                if (resp->val->offset + saved_v > resp->total_len) return KEVUE_ERR_LEN_INVALID;
+                kevue_buffer_append(buf, resp->val->ptr + resp->val->offset, saved_v);
+                resp->val->offset += saved_v;
+            }
+        } else {
+            kevue_buffer_append(buf, resp->val->ptr, resp->val_len);
+        }
     }
     return KEVUE_ERR_OK;
 }
 
 void kevue_response_print(KevueResponse *resp)
 {
-    fprintf(stdout, "Total Length: %d\n", resp->total_len);
-    fprintf(stdout, "Error Code: %d\n", resp->err_code);
-    fprintf(stdout, "Error Description: %s\n", kevue_error_code_to_string(resp->err_code));
+    fputs("Response: \n", stdout);
+    fprintf(stdout, "\tTotal Length: %lu\n", resp->total_len);
+    fprintf(stdout, "\tCommand Length: %d\n", resp->cmd_len);
+    fprintf(stdout, "\tCommand: %.*s\n", resp->cmd_len, kevue_command_to_string(resp->cmd));
+    fprintf(stdout, "\tError Code: %d\n", resp->err_code);
+    fprintf(stdout, "\tError Description: %s\n", kevue_error_code_to_string(resp->err_code));
     if (resp->val_len > 0) {
-        fprintf(stdout, "Value Length: %d\n", resp->val_len);
-        fputs("Value: ", stdout);
-        fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
-        fputc('\n', stdout);
+        fprintf(stdout, "\tValue Length: %lu\n", resp->val_len);
+        fputs("\tValue: ", stdout);
+        kevue_buffer_print_hex(resp->val);
     }
     fflush(stdout);
 }

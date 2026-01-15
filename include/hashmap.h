@@ -97,6 +97,67 @@ typedef struct {
      * @note Changing the seed after use requires a full rehash.
      */
     void (*kevue_hm_seed)(HashMap *hm, uint64_t seed);
+    /**
+     * @brief Retrieves the number of entries stored in the hashmap.
+     *
+     * Returns the current count of key–value pairs present in @p hm.
+     *
+     * @param hm  Hashmap instance.
+     *
+     * @return Number of entries currently stored in the hashmap.
+     *
+     * @note The returned value reflects the logical size of the hashmap,
+     * not its internal capacity.
+     * @note This operation is O(1).
+     */
+    uint64_t (*kevue_hm_len)(HashMap *hm);
+    /**
+     * Retrieves all stored items.
+     *
+     * Serializes all key–value pairs in the hashmap into @p buf.
+     *
+     * @param hm   Hashmap instance.
+     * @param buf  Buffer to receive serialized items.
+     *
+     * @return true on success, false on failure.
+     *
+     * @note The existing contents of @p buf may be overwritten or partially
+     * replaced depending on the implementation.
+     * @note This operation is O(n) in the number of entries.
+     */
+    bool (*kevue_hm_items)(HashMap *hm, Buffer *buf);
+
+    /**
+     * Retrieves all keys.
+     *
+     * Serializes all keys in the hashmap into @p buf.
+     *
+     * @param hm   Hashmap instance.
+     * @param buf  Buffer to receive serialized keys.
+     *
+     * @return true on success, false on failure.
+     *
+     * @note The existing contents of @p buf may be overwritten or partially
+     * replaced depending on the implementation.
+     * @note This operation is O(n) in the number of entries.
+     */
+    bool (*kevue_hm_keys)(HashMap *hm, Buffer *buf);
+
+    /**
+     * Retrieves all values.
+     *
+     * Serializes all values in the hashmap into @p buf.
+     *
+     * @param hm   Hashmap instance.
+     * @param buf  Buffer to receive serialized values.
+     *
+     * @return true on success, false on failure.
+     *
+     * @note The existing contents of @p buf may be overwritten or partially
+     * replaced depending on the implementation.
+     * @note This operation is O(n) in the number of entries.
+     */
+    bool (*kevue_hm_values)(HashMap *hm, Buffer *buf);
 } HashMapOps;
 
 typedef HashMap *(*kevue_hm_create)(uint64_t seed, KevueAllocator *ma);
@@ -254,4 +315,61 @@ struct HashMap {
  * @note Must be called before inserting any entries.
  * @note Changing the seed after use requires a full rehash.
  */
-#define kevue_hmts_seed(hmts, seed) (hmts)->hm->ops->kevue_hm_seed((hmts)->hm, (seed)))
+#define kevue_hmts_seed(hmts, seed) (hmts)->hm->ops->kevue_hm_seed((hmts)->hm, (seed))
+
+/**
+ * @def kevue_hmts_len
+ * @brief Returns the number of entries in a type-safe hashmap.
+ *
+ * Returns the current count of key–value pairs present in @p hmts.
+ *
+ * @param hmts  Pointer to a HashMapTS instance.
+ *
+ * @return Number of entries currently stored in the hashmap.
+ */
+#define kevue_hmts_len(hmts) (hmts)->hm->ops->kevue_hm_len((hmts)->hm)
+
+/**
+ * @def kevue_hmts_items
+ * @brief Retrieves all stored items from a type-safe hashmap.
+ *
+ * Serializes all key–value pairs from the underlying hashmap
+ * into the provided buffer.
+ *
+ * @param hmts  Pointer to a HashMapTS instance.
+ * @param buf   Buffer to receive serialized items.
+ *
+ * @return true on success, false on failure.
+ */
+#define kevue_hmts_items(hmts, buf) \
+    (hmts)->hm->ops->kevue_hm_items((hmts)->hm, (buf))
+
+/**
+ * @def kevue_hmts_keys
+ * @brief Retrieves all keys from a type-safe hashmap.
+ *
+ * Serializes all keys from the underlying hashmap
+ * into the provided buffer.
+ *
+ * @param hmts  Pointer to a HashMapTS instance.
+ * @param buf   Buffer to receive serialized keys.
+ *
+ * @return true on success, false on failure.
+ */
+#define kevue_hmts_keys(hmts, buf) \
+    (hmts)->hm->ops->kevue_hm_keys((hmts)->hm, (buf))
+
+/**
+ * @def kevue_hmts_values
+ * @brief Retrieves all values from a type-safe hashmap.
+ *
+ * Serializes all values from the underlying hashmap
+ * into the provided buffer.
+ *
+ * @param hmts  Pointer to a HashMapTS instance.
+ * @param buf   Buffer to receive serialized values.
+ *
+ * @return true on success, false on failure.
+ */
+#define kevue_hmts_values(hmts, buf) \
+    (hmts)->hm->ops->kevue_hm_values((hmts)->hm, (buf))

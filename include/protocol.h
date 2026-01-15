@@ -28,9 +28,11 @@
  *
  * Protocol structure (Response):<br>
  *  Magic byte 0x22 (sum of ascii codes of "kevue" word modulo 255)<br>
- *  Total length including magic byte and this field -> uint32<br>
+ *  Total length including magic byte and this field -> uint64<br>
+ *  Length of the command (GET/SET/DEL) - 1 byte<br>
+ *  Command (GET/SET/DEL) case insensitive<br>
  *  Error byte uint8<br>
- *  Length of the reply uint16 (0 if no value)<br>
+ *  Length of the reply uint64 (0 if no value)<br>
  *  Reply: actual value (case sensitive)<br>
  */
 #pragma once
@@ -52,6 +54,10 @@
     X(SET)           \
     X(DEL)           \
     X(PING)          \
+    X(COUNT)         \
+    X(ITEMS)         \
+    X(KEYS)          \
+    X(VALUES)        \
     X(KEVUE_CMD_MAX)
 
 typedef enum KevueCommand {
@@ -94,9 +100,11 @@ typedef struct KevueRequest {
 } KevueRequest;
 
 typedef struct KevueResponse {
-    uint32_t total_len;
+    uint64_t total_len;
+    uint8_t cmd_len;
+    KevueCommand cmd;
     KevueErr err_code;
-    uint16_t val_len;
+    uint64_t val_len;
     Buffer *val;
 } KevueResponse;
 

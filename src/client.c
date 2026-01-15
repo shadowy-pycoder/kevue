@@ -132,20 +132,29 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
     }
     return true;
 }
-
 static bool kevue__handle_read(KevueClient *kc)
 {
     while (true) {
-        ssize_t nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, kc->rbuf->capacity - kc->rbuf->size);
-        if (nr < 0) {
-            if (errno == EINTR) continue;
-            return false;
-        } else if (nr == 0) {
-            return false;
-        } else {
+        if (kc->rbuf->size >= kc->rbuf->capacity)
+            kevue_buffer_grow(kc->rbuf, kc->rbuf->capacity * 2);
+        ssize_t nr = read(
+            kc->fd,
+            kc->rbuf->ptr + kc->rbuf->size,
+            kc->rbuf->capacity - kc->rbuf->size);
+
+        if (nr > 0) {
             kc->rbuf->size += (size_t)nr;
             return true;
         }
+
+        if (nr == 0) {
+            return false;
+        }
+
+        if (errno == EINTR)
+            continue;
+
+        return false;
     }
 }
 
@@ -214,7 +223,7 @@ bool kevue_client_hello(KevueClient *kc, KevueResponse *resp)
     KevueRequest req = { 0 };
     req.cmd_len = 5;
     req.cmd = HELLO;
-    if (!kevue__make_request(kc, &req, resp) || !kevue_command_compare((char *)resp->val->ptr, (uint8_t)resp->val_len, HELLO)) {
+    if (!kevue__make_request(kc, &req, resp) || resp->cmd != HELLO) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         return false;
     }
@@ -266,6 +275,38 @@ bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const 
 bool kevue_client_ping(KevueClient *kc, KevueResponse *resp)
 {
     return kevue_client_ping_with_message(kc, resp, "", 0);
+}
+
+bool kevue_client_count(KevueClient *kc, KevueResponse *resp)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 5;
+    req.cmd = COUNT;
+    return kevue__make_request(kc, &req, resp);
+}
+
+bool kevue_client_items(KevueClient *kc, KevueResponse *resp)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 5;
+    req.cmd = ITEMS;
+    return kevue__make_request(kc, &req, resp);
+}
+
+bool kevue_client_keys(KevueClient *kc, KevueResponse *resp)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 4;
+    req.cmd = KEYS;
+    return kevue__make_request(kc, &req, resp);
+}
+
+bool kevue_client_values(KevueClient *kc, KevueResponse *resp)
+{
+    KevueRequest req = { 0 };
+    req.cmd_len = 6;
+    req.cmd = VALUES;
+    return kevue__make_request(kc, &req, resp);
 }
 
 KevueClient *kevue_client_create(const char *host, const char *port, KevueAllocator *ma)

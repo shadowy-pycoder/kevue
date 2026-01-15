@@ -152,3 +152,66 @@ bool kevue_client_ping(KevueClient *kc, KevueResponse *resp);
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
 bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len);
+
+/**
+ * @brief Retrieves the number of entries.
+ *
+ * Sends a COUNT command to the server and stores the response
+ * in @p resp.
+ *
+ * @param kc    Client instance.
+ * @param resp  Response structure to populate.
+ *
+ * @return true on successful request execution, false on failure.
+ *
+ * @note In case of false result, caller may want to check @p resp error code for failure reason.
+ */
+bool kevue_client_count(KevueClient *kc, KevueResponse *resp);
+
+/**
+ * @brief Retrieves all stored items.
+ *
+ * Sends an ITEMS command to the server and stores the response
+ * in @p resp.
+ *
+ * @param kc    Client instance.
+ * @param resp  Response structure to populate.
+ *
+ * @return true on successful request execution, false on failure.
+ *
+ * @note The response payload contains a serialized list of key–value pairs.
+ * @note In case of false result, caller may want to check @p resp error code for failure reason.
+ */
+bool kevue_client_items(KevueClient *kc, KevueResponse *resp);
+
+/**
+ * @brief Retrieves all keys.
+ *
+ * Sends a KEYS command to the server and stores the response
+ * in @p resp.
+ *
+ * @param kc    Client instance.
+ * @param resp  Response structure to populate.
+ *
+ * @return true on successful request execution, false on failure.
+ *
+ * @note The response payload contains a serialized list of keys.
+ * @note In case of false result, caller may want to check @p resp error code for failure reason.
+ */
+bool kevue_client_keys(KevueClient *kc, KevueResponse *resp);
+
+/**
+ * @brief Retrieves all values.
+ *
+ * Sends a VALUES command to the server and stores the response
+ * in @p resp.
+ *
+ * @param kc    Client instance.
+ * @param resp  Response structure to populate.
+ *
+ * @return true on successful request execution, false on failure.
+ *
+ * @note The response payload contains a serialized list of values.
+ * @note In case of false result, caller may want to check @p resp error code for failure reason.
+ */
+bool kevue_client_values(KevueClient *kc, KevueResponse *resp);

@@ -29,10 +29,6 @@
 #define SND_BUF_SIZE    (1024 * 1024 * 2)
 #define RECV_BUF_SIZE   (1024 * 1024 * 2)
 
-#ifndef SERVER_WORKERS
-#define SERVER_WORKERS 10
-#endif
-
 #if SERVER_WORKERS == 1
 #define __HASHMAP_SINGLE_THREADED
 #endif

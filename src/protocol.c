@@ -245,17 +245,17 @@ KevueErr kevue_request_serialize(KevueRequest *req, Buffer *buf)
 void kevue_request_print(KevueRequest *req)
 {
     fputs("Request: \n", stdout);
-    fprintf(stdout, "\tTotal Length: %d\n", req->total_len);
-    fprintf(stdout, "\tCommand Length: %d\n", req->cmd_len);
-    fprintf(stdout, "\tCommand: %.*s\n", req->cmd_len, kevue_command_to_string(req->cmd));
-    fprintf(stdout, "\tKey Length: %d\n", req->key_len);
+    fprintf(stdout, "\tTotal Length: %u\n", req->total_len);
+    fprintf(stdout, "\tCommand Length: %u\n", req->cmd_len);
+    fprintf(stdout, "\tCommand: %s\n", kevue_command_to_string(req->cmd));
+    fprintf(stdout, "\tKey Length: %u\n", req->key_len);
     if (req->key_len > 0) {
         fputs("\tKey: ", stdout);
         fwrite(req->key, sizeof(*req->key), req->key_len, stdout);
         fputc('\n', stdout);
     }
     if (req->val_len > 0) {
-        fprintf(stdout, "\tValue Length: %d\n", req->val_len);
+        fprintf(stdout, "\tValue Length: %u\n", req->val_len);
         fputs("\tValue: ", stdout);
         fwrite(req->val, sizeof(*req->val), req->val_len, stdout);
         fputc('\n', stdout);
@@ -405,9 +405,9 @@ void kevue_response_print(KevueResponse *resp)
 {
     fputs("Response: \n", stdout);
     fprintf(stdout, "\tTotal Length: %lu\n", resp->total_len);
-    fprintf(stdout, "\tCommand Length: %d\n", resp->cmd_len);
-    fprintf(stdout, "\tCommand: %.*s\n", resp->cmd_len, kevue_command_to_string(resp->cmd));
-    fprintf(stdout, "\tError Code: %d\n", resp->err_code);
+    fprintf(stdout, "\tCommand Length: %u\n", resp->cmd_len);
+    fprintf(stdout, "\tCommand: %s\n", kevue_command_to_string(resp->cmd));
+    fprintf(stdout, "\tError Code: %u\n", resp->err_code);
     fprintf(stdout, "\tError Description: %s\n", kevue_error_code_to_string(resp->err_code));
     if (resp->val_len > 0) {
         fprintf(stdout, "\tValue Length: %lu\n", resp->val_len);

@@ -169,18 +169,18 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     pr->ma = ma;
     pr->key = kevue_buffer_create(BUF_SIZE, pr->ma);
     if (pr->key == NULL) {
-        printf("ERROR: Out of memory\n");
+        fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     kevue__trim_left(buf);
     if (kevue_buffer_at_eof(buf)) {
-        printf("ERROR: Wrong arguments\n");
+        fprintf(stdout, "(error): Wrong arguments\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     if (!kevue__parse_chunk(buf, pr->key)) {
-        printf("ERROR: Wrong arguments\n");
+        fprintf(stdout, "(error): Wrong arguments\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -193,7 +193,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
             pr->cmd = DEL;
         } else {
-            printf("ERROR: Wrong command\n");
+            fprintf(stdout, "(error): Wrong command\n");
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
@@ -204,7 +204,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, KEYS)) {
             pr->cmd = KEYS;
         } else {
-            printf("ERROR: Wrong command\n");
+            fprintf(stdout, "(error): Wrong command\n");
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
@@ -215,7 +215,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, ITEMS)) {
             pr->cmd = ITEMS;
         } else {
-            printf("ERROR: Wrong command\n");
+            fprintf(stdout, "(error): Wrong command\n");
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
@@ -224,25 +224,25 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, VALUES)) {
             pr->cmd = VALUES;
         } else {
-            printf("ERROR: Wrong command\n");
+            fprintf(stdout, "(error): Wrong command\n");
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
         break;
     default:
-        printf("ERROR: Wrong command\n");
+        fprintf(stdout, "(error): Wrong command\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     size_t offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
-        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf) && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
-        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -250,51 +250,51 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     // parse first argument
     offset = buf->offset;
     if (!kevue__parse_chunk(buf, pr->key)) {
-        printf("ERROR: Wrong arguments\n");
+        fprintf(stdout, "(error): Wrong arguments\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     // check for commands with 0 arguments
     if (buf->offset != offset && (pr->cmd == COUNT || pr->cmd == ITEMS || pr->cmd == KEYS || pr->cmd == VALUES)) {
-        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && pr->cmd == SET) {
-        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf)) {
         if (pr->cmd == SET) {
-            printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
     } else {
         if (pr->cmd != SET) {
-            printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
     }
     pr->value = kevue_buffer_create(BUF_SIZE, pr->ma);
     if (pr->value == NULL) {
-        printf("ERROR: Out of memory\n");
+        fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     kevue_buffer_reset(pr->value);
     if (!kevue__parse_chunk(buf, pr->value)) {
-        printf("ERROR: Wrong arguments\n");
+        fprintf(stdout, "(error): Wrong arguments\n");
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     kevue__trim_left(buf);
     if (!kevue_buffer_at_eof(buf)) {
-        printf("ERROR: Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -423,7 +423,7 @@ int main(int argc, char **argv)
         ev.data.fd = ls.ifd;
         ev.events = EPOLLIN;
         if (epoll_ctl(epfd, EPOLL_CTL_ADD, ls.ifd, &ev) < 0) {
-            print_err("Adding ifd socket to epoll failed: %s", strerror(errno));
+            fprintf(stdout, "(error): Adding ifd socket to epoll failed: %s\n", strerror(errno));
             linenoiseHide(&ls);
             goto client_close_fail;
         }
@@ -433,7 +433,7 @@ int main(int argc, char **argv)
             nready = epoll_wait(epfd, events, MAX_EVENTS, -1);
             if (nready < 0) {
                 if (errno == EINTR) continue;
-                print_err("Waiting for epoll failed: %s", strerror(errno));
+                fprintf(stdout, "(error): Waiting for epoll failed: %s\n", strerror(errno));
                 linenoiseHide(&ls);
                 goto client_close_fail;
             }
@@ -445,7 +445,7 @@ int main(int argc, char **argv)
                 }
                 if (events[i].data.fd == tfd) {
                     if (!kevue_client_ping(kc, resp)) {
-                        print_err("%s", kevue_error_code_to_string(resp->err_code));
+                        fprintf(stdout, "(error): Server closed connection\n");
                         linenoiseHide(&ls);
                         goto client_close_fail;
                     }
@@ -474,7 +474,7 @@ int main(int argc, char **argv)
             }
         }
         if (epoll_ctl(epfd, EPOLL_CTL_DEL, ls.ifd, NULL) < 0) {
-            print_err("Deleting ifd socket from epoll failed: %s", strerror(errno));
+            fprintf(stdout, "(error): Deleting ifd socket from epoll failed: %s\n", strerror(errno));
             linenoiseHide(&ls);
             goto client_close_fail;
         }
@@ -503,29 +503,29 @@ int main(int argc, char **argv)
                 fflush(stdout);
             } else {
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
-                    printf("(not found)\n");
+                    fprintf(stdout, "(not found)\n");
                 } else {
-                    print_err("%s", kevue_error_code_to_string(resp->err_code));
+                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                     unrecoverable_error_occured = true;
                 }
             }
             break;
         case SET:
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
-                printf("(ok)\n");
+                fprintf(stdout, "(ok)\n");
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
         case DEL:
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
-                printf("(ok)\n");
+                fprintf(stdout, "(ok)\n");
             } else {
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
-                    printf("(not found)\n");
+                    fprintf(stdout, "(not found)\n");
                 } else {
-                    print_err("%s", kevue_error_code_to_string(resp->err_code));
+                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                     unrecoverable_error_occured = true;
                 }
             }
@@ -536,7 +536,7 @@ int main(int argc, char **argv)
                 fwrite("\n", 1, 1, stdout);
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
@@ -547,7 +547,7 @@ int main(int argc, char **argv)
                 fprintf(stdout, "%lu\n", count);
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
@@ -580,7 +580,7 @@ int main(int argc, char **argv)
                 }
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
@@ -606,7 +606,7 @@ int main(int argc, char **argv)
                 }
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;
@@ -632,7 +632,7 @@ int main(int argc, char **argv)
                 }
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
             }
             break;

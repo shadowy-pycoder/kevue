@@ -309,8 +309,9 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
 {
     resp->err_code = KEVUE_ERR_OK;
     resp->cmd = req->cmd;
+    uint64_t hm_len = 0;
     switch (resp->cmd) {
-        // TODO: enchance handshake mechanism, check if lcient performed handshale before accepting other request, check for huplicates hello
+        // TODO: enhance handshake mechanism, check if client performed handshake before accepting other request, check for duplicate hello
     case HELLO:
         resp->cmd_len = 5;
         break;
@@ -347,7 +348,7 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
         resp->val = hmbuf;
         break;
     case COUNT:
-        uint64_t hm_len = hm->ops->kevue_hm_len(hm);
+        hm_len = hm->ops->kevue_hm_len(hm);
         resp->val_len = sizeof(hm_len);
         kevue_buffer_write(hmbuf, &hm_len, resp->val_len);
         resp->val = hmbuf;
@@ -475,6 +476,7 @@ static bool kevue__handle_read(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
+        if (c->rbuf->size >= c->rbuf->capacity) kevue_buffer_grow(c->rbuf, c->rbuf->capacity * 2);
         ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, c->rbuf->capacity - c->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)

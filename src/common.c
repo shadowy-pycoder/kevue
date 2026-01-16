@@ -27,6 +27,7 @@
 #include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include <common.h>
 
@@ -108,4 +109,11 @@ bool random_u64(uint64_t *x)
     if (n != sizeof(*x)) return false;
 
     return true;
+}
+
+uint64_t nsec_now(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }

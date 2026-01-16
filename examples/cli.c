@@ -499,11 +499,15 @@ int main(int argc, char **argv)
         case GET:
             if (kevue_client_get(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
-                fputc('\n', stdout);
+                fwrite("\n", 1, 1, stdout);
                 fflush(stdout);
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
-                if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
+                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
+                    printf("(not found)\n");
+                } else {
+                    print_err("%s", kevue_error_code_to_string(resp->err_code));
+                    unrecoverable_error_occured = true;
+                }
             }
             break;
         case SET:
@@ -518,14 +522,18 @@ int main(int argc, char **argv)
             if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 printf("(ok)\n");
             } else {
-                print_err("%s", kevue_error_code_to_string(resp->err_code));
-                if (resp->err_code != KEVUE_ERR_NOT_FOUND) unrecoverable_error_occured = true;
+                if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
+                    printf("(not found)\n");
+                } else {
+                    print_err("%s", kevue_error_code_to_string(resp->err_code));
+                    unrecoverable_error_occured = true;
+                }
             }
             break;
         case PING:
             if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
-                fputc('\n', stdout);
+                fwrite("\n", 1, 1, stdout);
                 fflush(stdout);
             } else {
                 print_err("%s", kevue_error_code_to_string(resp->err_code));
@@ -554,15 +562,18 @@ int main(int argc, char **argv)
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        fprintf(stdout, "%zu) ", count);
+                        char c[64];
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
-                        fputc('\n', stdout);
+                        fwrite("\n", 1, 1, stdout);
                         resp->val->offset += v;
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        fprintf(stdout, "%zu) ", count);
+                        clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
-                        fputc('\n', stdout);
+                        fwrite("\n", 1, 1, stdout);
                         resp->val->offset += v;
                         count++;
                     }
@@ -584,9 +595,11 @@ int main(int argc, char **argv)
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        fprintf(stdout, "%zu) ", count);
+                        char c[64];
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
-                        fputc('\n', stdout);
+                        fwrite("\n", 1, 1, stdout);
                         resp->val->offset += v;
                         count++;
                     }
@@ -608,9 +621,11 @@ int main(int argc, char **argv)
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        fprintf(stdout, "%zu) ", count);
+                        char c[64];
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
-                        fputc('\n', stdout);
+                        fwrite("\n", 1, 1, stdout);
                         resp->val->offset += v;
                         count++;
                     }

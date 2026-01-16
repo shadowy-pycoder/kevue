@@ -21,7 +21,7 @@
 #include "../src/common.c"
 #include "../src/protocol.c"
 
-#define NUM_ENTRIES (1024 * 1024UL)
+#define NUM_ENTRIES (1024 * 1024 * 10UL)
 
 int main(void)
 {
@@ -34,6 +34,7 @@ int main(void)
     KevueClient *kc = kevue_client_create(HOST, PORT, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
     KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    uint64_t start = nsec_now();
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
         if (i % 100000 == 0) printf("Added (%zu/%zu) key-value pairs\n", i, NUM_ENTRIES);
         char key[64] = {};
@@ -44,6 +45,19 @@ int main(void)
             printf("%s\n", kevue_error_code_to_string(resp->err_code));
             break;
         }
+    }
+    uint64_t finish = nsec_now();
+    uint64_t elapsed_ns = finish - start;
+    double elapsed_sec = (double)elapsed_ns * 1e-9;
+    double req_sec = NUM_ENTRIES / elapsed_sec;
+    printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+    start = nsec_now();
+    kevue_client_items(kc, resp);
+    finish = nsec_now();
+    if (resp->err_code == KEVUE_ERR_OK) {
+        printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+    } else {
+        printf("Fething items failed: %s\n", kevue_error_code_to_string(resp->err_code));
     }
     ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);

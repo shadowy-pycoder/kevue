@@ -110,3 +110,14 @@ size_t round_up_pow2(size_t x);
  *       set errno accordingly.
  */
 bool random_u64(uint64_t *x);
+
+/**
+ * @brief Returns the current monotonic time in nanoseconds.
+ *
+ * @return Current time in nanoseconds.
+ *
+ * @note Uses a monotonic clock source not subject to wall-clock changes.
+ * @note On Linux, this is backed by clock_gettime(CLOCK_MONOTONIC_RAW).
+ * @note Suitable for interval measurement and benchmarking.
+ */
+uint64_t nsec_now(void);

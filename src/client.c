@@ -39,20 +39,20 @@ static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 
 struct KevueClient {
-    int fd;
+    int                fd;
     struct sockaddr_in server_addr;
-    Buffer *rbuf;
-    Buffer *wbuf;
-    int read_timeout;
-    int write_timeout;
-    KevueAllocator *ma;
+    Buffer            *rbuf;
+    Buffer            *wbuf;
+    int                read_timeout;
+    int                write_timeout;
+    KevueAllocator    *ma;
 };
 
 static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout)
 {
-    int client_sock;
+    int             client_sock;
     struct addrinfo hints, *servinfo, *p;
-    int rv;
+    int             rv;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;

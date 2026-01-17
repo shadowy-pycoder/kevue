@@ -24,9 +24,9 @@
 #include <string.h>
 
 // typedef struct DynamicArray {
-//     T *ptr;
-//     size_t len;
-//     size_t cap;
+//     T              *ptr;
+//     size_t          len;
+//     size_t          cap;
 //     KevueAllocator *ma;
 // } DynamicArray;
 

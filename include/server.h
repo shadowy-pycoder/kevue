@@ -40,13 +40,13 @@
  * Holds server configuration, worker threads, and shared state.
  */
 typedef struct KevueServer {
-    const char *host;
-    const char *port;
-    int fds[SERVER_WORKERS];
-    pthread_t threads[SERVER_WORKERS];
-    int efd;
+    const char     *host;
+    const char     *port;
+    int             fds[SERVER_WORKERS];
+    pthread_t       threads[SERVER_WORKERS];
+    int             efd;
     KevueAllocator *ma;
-    HashMap *hm;
+    HashMap        *hm;
 } KevueServer;
 
 /**

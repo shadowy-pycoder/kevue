@@ -90,22 +90,22 @@ typedef enum KevueErr {
 } KevueErr;
 
 typedef struct KevueRequest {
-    uint32_t total_len;
-    uint8_t cmd_len;
-    KevueCommand cmd;
-    uint16_t key_len;
+    uint32_t       total_len;
+    uint8_t        cmd_len;
+    KevueCommand   cmd;
+    uint16_t       key_len;
     const uint8_t *key;
-    uint16_t val_len;
+    uint16_t       val_len;
     const uint8_t *val;
 } KevueRequest;
 
 typedef struct KevueResponse {
-    uint64_t total_len;
-    uint8_t cmd_len;
+    uint64_t     total_len;
+    uint8_t      cmd_len;
     KevueCommand cmd;
-    KevueErr err_code;
-    uint64_t val_len;
-    Buffer *val;
+    KevueErr     err_code;
+    uint64_t     val_len;
+    Buffer      *val;
 } KevueResponse;
 
 /**

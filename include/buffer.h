@@ -26,10 +26,10 @@
 #include <allocator.h>
 
 typedef struct Buffer {
-    uint8_t *ptr;
-    size_t size;
-    size_t offset;
-    size_t capacity;
+    uint8_t        *ptr;
+    size_t          size;
+    size_t          offset;
+    size_t          capacity;
     KevueAllocator *ma;
 } Buffer;
 

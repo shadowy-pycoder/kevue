@@ -164,7 +164,7 @@ typedef HashMap *(*kevue_hm_create)(uint64_t seed, KevueAllocator *ma);
 
 struct HashMap {
     const HashMapOps *ops;
-    void *internal;
+    void             *internal;
 };
 
 /**
@@ -188,8 +188,8 @@ struct HashMap {
 #define HashMapTS(KT, VT) \
     union {               \
         HashMap *hm;      \
-        KT *ktype;        \
-        VT *vtype;        \
+        KT      *ktype;   \
+        VT      *vtype;   \
     }
 
 /**

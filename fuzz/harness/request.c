@@ -48,9 +48,9 @@ int main(void)
     unsigned char *fuzz_buf = __AFL_FUZZ_TESTCASE_BUF;
 
     while (__AFL_LOOP(1000)) {
-        size_t len = __AFL_FUZZ_TESTCASE_LEN;
-        Buffer in_buf = { 0 };
-        Buffer out_buf = { 0 };
+        size_t       len = __AFL_FUZZ_TESTCASE_LEN;
+        Buffer       in_buf = { 0 };
+        Buffer       out_buf = { 0 };
         KevueRequest req = { 0 };
         buffer_init(&in_buf, len);
         buffer_init(&out_buf, CAPACITY);

@@ -42,9 +42,9 @@ char *to_upper(char *s, size_t n)
 const char *inet_ntop2(void *addr, char *buf, size_t size)
 {
     struct sockaddr_storage *sas = addr;
-    struct sockaddr_in *sa4;
-    struct sockaddr_in6 *sa6;
-    void *src;
+    struct sockaddr_in      *sa4;
+    struct sockaddr_in6     *sa6;
+    void                    *src;
 
     switch (sas->ss_family) {
     case AF_INET:
@@ -64,9 +64,9 @@ const char *inet_ntop2(void *addr, char *buf, size_t size)
 uint16_t ntohs2(void *addr)
 {
     struct sockaddr_storage *sas = addr;
-    struct sockaddr_in *sa4;
-    struct sockaddr_in6 *sa6;
-    uint16_t port = 0;
+    struct sockaddr_in      *sa4;
+    struct sockaddr_in6     *sa6;
+    uint16_t                 port = 0;
     switch (sas->ss_family) {
     case AF_INET:
         sa4 = addr;

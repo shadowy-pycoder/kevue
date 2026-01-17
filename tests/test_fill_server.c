@@ -45,30 +45,40 @@ int main(void)
     KevueClient *kc = kevue_client_create(HOST, PORT, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
     KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    if (!kevue_client_hello(kc, resp)) {
+        printf("%s\n", kevue_error_code_to_string(resp->err_code));
+        ma->free(resp, ma->ctx);
+        kevue_client_destroy(kc);
+        exit(EXIT_FAILURE);
+    }
     uint64_t start = nsec_now();
+    bool     op_failed = false;
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
         if (i % 100000 == 0) printf("Added (%zu/%zu) key-value pairs\n", i, NUM_ENTRIES);
         char key[64] = {};
         char val[64] = {};
-        int key_len = snprintf(key, sizeof(key), "Hello%zu", i);
-        int val_len = snprintf(val, sizeof(val), "World%zu", i);
+        int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
+        int  val_len = snprintf(val, sizeof(val), "World%zu", i);
         if (!kevue_client_set(kc, resp, key, (uint16_t)key_len, val, (uint16_t)val_len)) {
             printf("%s\n", kevue_error_code_to_string(resp->err_code));
+            op_failed = true;
             break;
         }
     }
-    uint64_t finish = nsec_now();
-    uint64_t elapsed_ns = finish - start;
-    double elapsed_sec = (double)elapsed_ns * 1e-9;
-    double req_sec = NUM_ENTRIES / elapsed_sec;
-    printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
-    start = nsec_now();
-    kevue_client_items(kc, resp);
-    finish = nsec_now();
-    if (resp->err_code == KEVUE_ERR_OK) {
-        printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
-    } else {
-        printf("Fething items failed: %s\n", kevue_error_code_to_string(resp->err_code));
+    if (!op_failed) {
+        uint64_t finish = nsec_now();
+        uint64_t elapsed_ns = finish - start;
+        double   elapsed_sec = (double)elapsed_ns * 1e-9;
+        double   req_sec = NUM_ENTRIES / elapsed_sec;
+        printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+        start = nsec_now();
+        kevue_client_items(kc, resp);
+        finish = nsec_now();
+        if (resp->err_code == KEVUE_ERR_OK) {
+            printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+        } else {
+            printf("Fething items failed: %s\n", kevue_error_code_to_string(resp->err_code));
+        }
     }
     kevue_buffer_destroy(resp->val);
     ma->free(resp, ma->ctx);

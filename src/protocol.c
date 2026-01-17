@@ -33,7 +33,7 @@
 
 typedef struct KevueCommandPDispatchesult {
     KevueCommand cmd;
-    KevueErr err;
+    KevueErr     err;
 } KevueCommandDispatchResult;
 
 static KevueCommandDispatchResult kevue__command_dispatch(uint8_t cmd_len, Buffer *buf);
@@ -315,7 +315,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
         if (resp->val == NULL) return KEVUE_ERR_OPERATION;
         if (resp->cmd == COUNT) {
             uint64_t v;
-            size_t v_size = sizeof(v);
+            size_t   v_size = sizeof(v);
             if (buf->offset + v_size > resp->total_len || buf->offset + v_size > buf->size) return KEVUE_ERR_LEN_INVALID;
             memcpy(&v, buf->ptr + buf->offset, v_size);
             v = be64toh(v);
@@ -323,7 +323,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
             kevue_buffer_append(resp->val, buf->ptr + buf->offset + v_size, resp->val_len - v_size);
         } else if (resp->cmd == ITEMS || resp->cmd == KEYS || resp->cmd == VALUES) {
             uint64_t v;
-            size_t v_size = sizeof(v);
+            size_t   v_size = sizeof(v);
             kevue_buffer_reset(resp->val);
             while (buf->offset < buf->size) { // TODO: check this condition for robustness
                 // parse len to host endianness
@@ -372,7 +372,7 @@ KevueErr kevue_response_serialize(KevueResponse *resp, Buffer *buf)
     if (resp->val_len > 0) {
         if (resp->cmd == COUNT) {
             uint64_t v;
-            size_t v_size = sizeof(v);
+            size_t   v_size = sizeof(v);
             if (resp->val_len < v_size || resp->val->size < v_size) return KEVUE_ERR_LEN_INVALID;
             memcpy(&v, resp->val->ptr, v_size);
             v = htobe64(v);
@@ -380,7 +380,7 @@ KevueErr kevue_response_serialize(KevueResponse *resp, Buffer *buf)
             kevue_buffer_append(buf, resp->val->ptr + v_size, resp->val_len - v_size);
         } else if (resp->cmd == ITEMS || resp->cmd == KEYS || resp->cmd == VALUES) {
             uint64_t v, saved_v;
-            size_t v_size = sizeof(v);
+            size_t   v_size = sizeof(v);
             resp->val->offset = 0;
             while (resp->val->offset < resp->val_len) {
                 if (resp->val->offset + v_size > resp->total_len) return KEVUE_ERR_LEN_INVALID;

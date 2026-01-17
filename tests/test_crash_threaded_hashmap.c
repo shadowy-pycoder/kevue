@@ -36,7 +36,7 @@ int main()
     pthread_create(&(pthread_t) {}, NULL, get, m);
     for (long long i = 0;;) {
         char key[32] = {};
-        int len = snprintf(key, sizeof(key), "%lld", i++);
+        int  len = snprintf(key, sizeof(key), "%lld", i++);
         if (!kevue__hm_threaded_put(m, key, (size_t)len, ".", 1)) return 0;
     }
 }

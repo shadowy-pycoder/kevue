@@ -60,36 +60,37 @@
 bool shutting_down = false;
 
 typedef struct sockaddr_storage SockAddr;
-typedef struct Address Address;
-typedef struct Socket Socket;
-typedef struct KevueConnection KevueConnection;
+typedef struct Address          Address;
+typedef struct Socket           Socket;
+typedef struct KevueConnection  KevueConnection;
 
 struct Address {
-    int port;
+    int  port;
     char addr_str[INET6_ADDRSTRLEN];
 };
 
 struct Socket {
-    int fd;
+    int              fd;
     KevueConnection *c;
 };
 
 struct KevueConnection {
-    Socket *sock;
-    bool closed;
-    Address addr;
-    Buffer *rbuf;
-    Buffer *wbuf;
+    Socket         *sock;
+    bool            closed;
+    Address         addr;
+    Buffer         *rbuf;
+    Buffer         *wbuf;
     KevueAllocator *ma;
-    HashMap *hm;
-    Buffer *hmbuf;
+    HashMap        *hm;
+    Buffer         *hmbuf;
+    bool            handshake_done;
 };
 
 typedef struct EpollServerArgs {
-    int *ssock;
-    int *esock;
+    int            *ssock;
+    int            *esock;
     KevueAllocator *ma;
-    HashMap *hm;
+    HashMap        *hm;
 } EpollServerArgs;
 
 static int kevue__setnonblocking(int fd);
@@ -100,7 +101,7 @@ static int kevue__create_server_sock(char *host, char *port, bool check);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
-static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf);
+static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf);
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing);
 static bool kevue__handle_read(KevueConnection *c);
 static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
@@ -122,10 +123,10 @@ static void *kevue__handle_server_epoll(void *args)
     pid_t tid = gettid();
 
     EpollServerArgs *esargs = (EpollServerArgs *)args;
-    int server_sock = *esargs->ssock;
-    int esock = *esargs->esock;
-    KevueAllocator *ma = esargs->ma;
-    HashMap *hm = esargs->hm;
+    int              server_sock = *esargs->ssock;
+    int              esock = *esargs->esock;
+    KevueAllocator  *ma = esargs->ma;
+    HashMap         *hm = esargs->hm;
     ma->free(esargs, ma->ctx);
     int epfd = epoll_create1(0);
     if (epfd < 0) {
@@ -192,7 +193,7 @@ static void *kevue__handle_server_epoll(void *args)
         ma->free(ec, ma->ctx);
         goto server_close;
     }
-    int nready;
+    int  nready;
     bool closing = false;
     while (true) {
         // NOTE: memory leak when EPOLL_TIMEOUT occurs with pending connections
@@ -225,8 +226,8 @@ static void *kevue__handle_server_epoll(void *args)
                 }
                 while (true) {
                     struct sockaddr_storage client_addr;
-                    socklen_t addr_len = sizeof(client_addr);
-                    int client_sock = accept(sock->fd, (struct sockaddr *)&client_addr, &addr_len);
+                    socklen_t               addr_len = sizeof(client_addr);
+                    int                     client_sock = accept(sock->fd, (struct sockaddr *)&client_addr, &addr_len);
                     if (client_sock < 0) {
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
                             break;
@@ -305,15 +306,25 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
 }
 
 // TODO: split this mess into several functions
-static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf)
+static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf)
 {
     resp->err_code = KEVUE_ERR_OK;
     resp->cmd = req->cmd;
+    resp->cmd_len = req->cmd_len;
     uint64_t hm_len = 0;
+    if (!c->handshake_done && resp->cmd != HELLO) {
+        resp->err_code = KEVUE_ERR_HANDSHAKE;
+        c->closed = true;
+        return;
+    }
     switch (resp->cmd) {
-        // TODO: enhance handshake mechanism, check if client performed handshake before accepting other request, check for duplicate hello
     case HELLO:
-        resp->cmd_len = 5;
+        if (c->handshake_done) {
+            resp->err_code = KEVUE_ERR_HANDSHAKE;
+            c->closed = true;
+            return;
+        }
+        c->handshake_done = true;
         break;
     case GET:
         if (!hm->ops->kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
@@ -322,19 +333,16 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = (uint16_t)hmbuf->size;
             resp->val = hmbuf;
         }
-        resp->cmd_len = 3;
         break;
     case SET:
         if (!hm->ops->kevue_hm_put(hm, req->key, req->key_len, req->val, req->val_len)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         }
-        resp->cmd_len = 3;
         break;
     case DEL:
         if (!hm->ops->kevue_hm_del(hm, req->key, req->key_len)) {
             resp->err_code = KEVUE_ERR_NOT_FOUND;
         }
-        resp->cmd_len = 3;
         break;
     case PING:
         if (req->key_len > 0) {
@@ -344,7 +352,6 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = 4;
             kevue_buffer_write(hmbuf, "PONG", resp->val_len);
         }
-        resp->cmd_len = 4;
         resp->val = hmbuf;
         break;
     case COUNT:
@@ -370,7 +377,6 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = (uint64_t)hmbuf->size;
             resp->val = hmbuf;
         }
-        resp->cmd_len = 4;
         break;
     case VALUES:
         if (!hm->ops->kevue_hm_values(hm, hmbuf)) {
@@ -379,7 +385,6 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
             resp->val_len = (uint64_t)hmbuf->size;
             resp->val = hmbuf;
         }
-        resp->cmd_len = 6;
         break;
     case KEVUE_CMD_MAX:
         UNREACHABLE("Possibly a bug in request serialization");
@@ -393,7 +398,7 @@ static void kevue__response_populate_from_hashmap(KevueRequest *req, KevueRespon
 
 static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
 {
-    pid_t tid = gettid();
+    pid_t            tid = gettid();
     KevueConnection *c = sock->c;
     if ((events & EPOLLHUP) || (events & EPOLLERR)) {
         c->closed = true;
@@ -412,15 +417,15 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             }
             c->closed = true;
         }
-        KevueRequest req = { 0 };
+        KevueRequest  req = { 0 };
         KevueResponse resp = { 0 };
-        KevueErr err = kevue_request_deserialize(&req, c->rbuf);
+        KevueErr      err = kevue_request_deserialize(&req, c->rbuf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) return;
         if (err == KEVUE_ERR_OK) {
 #ifdef DEBUG
             kevue_request_print(&req);
 #endif
-            kevue__response_populate_from_hashmap(&req, &resp, c->hm, c->hmbuf);
+            kevue__response_populate_from_hashmap(c, &req, &resp, c->hm, c->hmbuf);
             kevue_response_serialize(&resp, c->wbuf);
             kevue_buffer_move_unread_bytes(c->rbuf);
             kevue_buffer_reset(c->hmbuf);
@@ -586,6 +591,7 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
     c->hmbuf = kevue_buffer_create(BUF_SIZE, ma);
     if (c->hmbuf == NULL) return false;
     c->hm = hm;
+    c->handshake_done = false;
     return true;
 }
 
@@ -617,9 +623,9 @@ static void kevue__signal_handler(int sig)
 
 static int kevue__create_server_sock(char *host, char *port, bool check)
 {
-    int server_sock;
     struct addrinfo hints, *servinfo, *p;
-    int rv;
+    int             server_sock;
+    int             rv;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;

@@ -18,6 +18,7 @@
  * @brief kevue client CLI example.
  */
 
+#include "buffer.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
@@ -50,9 +51,9 @@
 #endif
 
 typedef struct KevueClientParseResult {
-    KevueCommand cmd;
-    Buffer *key;
-    Buffer *value;
+    KevueCommand    cmd;
+    Buffer         *key;
+    Buffer         *value;
     KevueAllocator *ma;
 } KevueClientParseResult;
 
@@ -162,7 +163,7 @@ static char *kevue__hints(const char *buf, int *color, int *bold)
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
     // TODO: improve command dispatching
-    KevueAllocator *ma = buf->ma;
+    KevueAllocator         *ma = buf->ma;
     KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
@@ -401,7 +402,7 @@ int main(int argc, char **argv)
     linenoiseHistoryLoad("history.txt");
     linenoiseSetMultiLine(1);
     char prompt[PROMPT_LENGTH];
-    int n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
+    int  n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, ma);
     if (cmdline == NULL) {
@@ -413,12 +414,12 @@ int main(int argc, char **argv)
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    int nready;
+    int  nready;
     bool unrecoverable_error_occured = false;
     while (true) {
         if (unrecoverable_error_occured) goto client_close_fail;
         struct linenoiseState ls;
-        char buf[BUF_SIZE];
+        char                  buf[BUF_SIZE];
         linenoiseEditStart(&ls, -1, -1, buf, sizeof(buf), prompt);
         ev.data.fd = ls.ifd;
         ev.events = EPOLLIN;
@@ -450,7 +451,7 @@ int main(int argc, char **argv)
                         goto client_close_fail;
                     }
                     uint64_t exp;
-                    ssize_t res = read(tfd, &exp, sizeof(exp));
+                    ssize_t  res = read(tfd, &exp, sizeof(exp));
                     UNUSED(res);
                     continue;
                 }
@@ -495,12 +496,12 @@ int main(int argc, char **argv)
             kevue_buffer_reset(cmdline);
             continue;
         }
+        linenoiseHide(&ls);
         switch (pr->cmd) {
         case GET:
             if (kevue_client_get(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
-                fflush(stdout);
             } else {
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
                     fprintf(stdout, "(not found)\n");
@@ -534,7 +535,6 @@ int main(int argc, char **argv)
             if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
-                fflush(stdout);
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -545,7 +545,6 @@ int main(int argc, char **argv)
                 uint64_t count;
                 memcpy(&count, resp->val->ptr, sizeof(count));
                 fprintf(stdout, "%lu\n", count);
-                fflush(stdout);
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -557,13 +556,13 @@ int main(int argc, char **argv)
                     fprintf(stdout, "(empty)\n");
                 } else {
                     uint64_t v;
-                    size_t size_v = sizeof(v);
-                    size_t count = 0;
+                    size_t   size_v = sizeof(v);
+                    size_t   count = 0;
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
                         char c[64];
-                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);
@@ -578,7 +577,6 @@ int main(int argc, char **argv)
                         count++;
                     }
                 }
-                fflush(stdout);
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -590,13 +588,13 @@ int main(int argc, char **argv)
                     fprintf(stdout, "(empty)\n");
                 } else {
                     uint64_t v;
-                    size_t size_v = sizeof(v);
-                    size_t count = 0;
+                    size_t   size_v = sizeof(v);
+                    size_t   count = 0;
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
                         char c[64];
-                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);
@@ -604,7 +602,6 @@ int main(int argc, char **argv)
                         count++;
                     }
                 }
-                fflush(stdout);
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -616,13 +613,13 @@ int main(int argc, char **argv)
                     fprintf(stdout, "(empty)\n");
                 } else {
                     uint64_t v;
-                    size_t size_v = sizeof(v);
-                    size_t count = 0;
+                    size_t   size_v = sizeof(v);
+                    size_t   count = 0;
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
                         char c[64];
-                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);
@@ -630,7 +627,6 @@ int main(int argc, char **argv)
                         count++;
                     }
                 }
-                fflush(stdout);
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
                 unrecoverable_error_occured = true;
@@ -643,6 +639,7 @@ int main(int argc, char **argv)
         default:
             UNREACHABLE("Possibly forgot to add new command to switch case");
         }
+        fflush(stdout);
         kevue_buffer_reset(cmdline);
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); /* Add to the history. */

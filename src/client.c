@@ -59,17 +59,17 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
     hints.ai_socktype = SOCK_STREAM;
 
     if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
-        print_err("getaddrinfo failed: %s", gai_strerror(rv));
+        print_err(generate_timestamp(), "getaddrinfo failed: %s", gai_strerror(rv));
         return -1;
     }
     for (p = servinfo; p != NULL; p = p->ai_next) {
         if ((client_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
-            print_err("Creating socket failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Creating socket failed: %s", strerror(errno));
             continue;
         }
         int enable = 1;
         if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
-            print_err("Setting TCP_NODELAY option for client failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Setting TCP_NODELAY option for client failed: %s", strerror(errno));
             close(client_sock);
             freeaddrinfo(servinfo);
             return -1;
@@ -79,7 +79,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             tv.tv_sec = read_timeout;
             tv.tv_usec = 0;
             if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
-                print_err("Setting SO_RCVTIMEO option for client failed: %s", strerror(errno));
+                print_err(generate_timestamp(), "Setting SO_RCVTIMEO option for client failed: %s", strerror(errno));
                 close(client_sock);
                 freeaddrinfo(servinfo);
                 return -1;
@@ -90,21 +90,21 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             tv.tv_sec = write_timeout;
             tv.tv_usec = 0;
             if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
-                print_err("Setting SO_SNDTIMEO option for client failed: %s", strerror(errno));
+                print_err(generate_timestamp(), "Setting SO_SNDTIMEO option for client failed: %s", strerror(errno));
                 close(client_sock);
                 freeaddrinfo(servinfo);
                 return -1;
             }
         }
         if (connect(client_sock, p->ai_addr, p->ai_addrlen) < 0) {
-            print_err("Connecting to %s:%s failed: %s", host, port, strerror(errno));
+            print_err(generate_timestamp(), "Connecting to %s:%s failed: %s", host, port, strerror(errno));
             close(client_sock);
             continue;
         }
         break;
     }
     if (p == NULL) {
-        print_err("Connect failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Connect failed: %s", strerror(errno));
         close(client_sock);
         freeaddrinfo(servinfo);
         return -1;

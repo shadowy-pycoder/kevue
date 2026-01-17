@@ -379,7 +379,7 @@ static bool kevue__hm_threaded_values(HashMap *hm, Buffer *buf)
 
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_size)
 {
-    print_debug("HashMap %s %zu -> %zu", new_size > hm_internal->bucket_count ? "grows" : "shrinks", hm_internal->bucket_count, new_size);
+    print_debug(generate_timestamp(), "HashMap %s %zu -> %zu", new_size > hm_internal->bucket_count ? "grows" : "shrinks", hm_internal->bucket_count, new_size);
     Bucket *new_buckets = hm_internal->ma->malloc(new_size * sizeof(Bucket), hm_internal->ma->ctx);
     if (new_buckets == NULL) {
         return;

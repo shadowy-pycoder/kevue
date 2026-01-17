@@ -50,17 +50,17 @@
 
 #define UNUSED(v) ((void)v)
 
-#define print_err(fmt, ...) \
-    fprintf(stderr, "ERROR: %s: " fmt "\n", __func__, ##__VA_ARGS__)
+#define print_err(ts, fmt, ...) \
+    fprintf(stderr, "[%s] ERROR: %s: " fmt "\n", ts, __func__, ##__VA_ARGS__)
 
 #ifdef DEBUG
-#define print_debug(fmt, ...) \
-    fprintf(stdout, "DEBUG: %s:%d:%s: " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define print_debug(ts, fmt, ...) \
+    fprintf(stdout, "[%s] DEBUG: %s:%d:%s: " fmt "\n", ts, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #else
-#define print_debug(fmt, ...) ((void)0)
+#define print_debug(ts, fmt, ...) ((void)0)
 #endif
 
-#define print_info(fmt, ...) fprintf(stdout, "INFO: " fmt "\n", ##__VA_ARGS__)
+#define print_info(ts, fmt, ...) fprintf(stdout, "[%s] INFO: " fmt "\n", ts, ##__VA_ARGS__)
 
 #if defined(__GNUC__) || defined(__clang__)
 #define max(a, b) ({        \
@@ -121,3 +121,10 @@ bool random_u64(uint64_t *x);
  * @note Suitable for interval measurement and benchmarking.
  */
 uint64_t nsec_now(void);
+
+/**
+ * @brief Generates a formatted timestamp string.
+ *
+ * @note Format is "YYYY-MM-DD HH:MM:SS.nnnnnnnnnZ"
+ */
+const char *generate_timestamp(void);

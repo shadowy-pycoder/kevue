@@ -130,7 +130,7 @@ static void *kevue__handle_server_epoll(void *args)
     ma->free(esargs, ma->ctx);
     int epfd = epoll_create1(0);
     if (epfd < 0) {
-        print_err("[%d] Creating epoll file descriptor failed %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Creating epoll file descriptor failed %s", tid, strerror(errno));
         close(server_sock);
         goto server_close;
     }
@@ -153,7 +153,7 @@ static void *kevue__handle_server_epoll(void *args)
     sc->sock->c = sc;
     sc->hm = hm;
     if (kevue__epoll_add(epfd, sc->sock, EPOLLIN | EPOLLET) < 0) {
-        print_err("[%d] Adding server socket to epoll failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Adding server socket to epoll failed: %s", tid, strerror(errno));
         close(epfd);
         close(server_sock);
         ma->free(events, ma->ctx);
@@ -183,7 +183,7 @@ static void *kevue__handle_server_epoll(void *args)
     ec->sock->c = ec;
     ec->hm = hm;
     if (kevue__epoll_add(epfd, ec->sock, EPOLLIN | EPOLLET) < 0) {
-        print_err("[%d] Adding event socket to epoll failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Adding event socket to epoll failed: %s", tid, strerror(errno));
         close(epfd);
         close(server_sock);
         ma->free(events, ma->ctx);
@@ -200,7 +200,7 @@ static void *kevue__handle_server_epoll(void *args)
         nready = epoll_wait(epfd, events, MAX_EVENTS, EPOLL_TIMEOUT);
         if (nready < 0) {
             if (errno == EINTR) continue;
-            print_err("[%d] Waiting for epoll failed: %s", tid, strerror(errno));
+            print_err(generate_timestamp(), "[%d] Waiting for epoll failed: %s", tid, strerror(errno));
             close(epfd);
             close(server_sock);
             ma->free(events, ma->ctx);
@@ -221,7 +221,7 @@ static void *kevue__handle_server_epoll(void *args)
             Socket *sock = (Socket *)events[i].data.ptr;
             if (sock->fd == server_sock && !closing) {
                 if (!(events[i].events & EPOLLIN)) {
-                    print_info("[%d] Server is not ready to accept connections %d", tid, events[i].events);
+                    print_info(generate_timestamp(), "[%d] Server is not ready to accept connections %d", tid, events[i].events);
                     continue;
                 }
                 while (true) {
@@ -232,7 +232,7 @@ static void *kevue__handle_server_epoll(void *args)
                         if (errno == EAGAIN || errno == EWOULDBLOCK) {
                             break;
                         }
-                        print_err("[%d] Accept connection failed: %s", tid, strerror(errno));
+                        print_err(generate_timestamp(), "[%d] Accept connection failed: %s", tid, strerror(errno));
                         break;
                     }
                     if (!kevue__setup_connection(epfd, client_sock, client_addr, ma, hm)) {
@@ -242,10 +242,10 @@ static void *kevue__handle_server_epoll(void *args)
             } else if (sock->fd == esock) {
                 closing = true;
                 if (kevue__epoll_del(epfd, sc->sock) < 0) {
-                    print_err("[%d] Removing server socket from epoll failed: %s", tid, strerror(errno));
+                    print_err(generate_timestamp(), "[%d] Removing server socket from epoll failed: %s", tid, strerror(errno));
                 }
                 if (kevue__epoll_del(epfd, ec->sock) < 0) {
-                    print_err("[%d] Removing client socket from epoll failed: %s", tid, strerror(errno));
+                    print_err(generate_timestamp(), "[%d] Removing client socket from epoll failed: %s", tid, strerror(errno));
                 }
                 close(server_sock);
                 ma->free(sc->sock, ma->ctx);
@@ -259,7 +259,7 @@ static void *kevue__handle_server_epoll(void *args)
         }
     }
 server_close:
-    print_debug("[%d] server closed", tid);
+    print_debug(generate_timestamp(), "[%d] server closed", tid);
     pthread_exit(NULL);
     return NULL;
 }
@@ -268,40 +268,40 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
 {
     pid_t tid = gettid();
     if (kevue__setnonblocking(sock) < 0) {
-        print_err("[%d] Set nonblockong failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Set nonblockong failed: %s", tid, strerror(errno));
         close(sock);
         return false;
     }
     int enable = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const char *)&enable, sizeof(enable)) < 0) {
-        print_err("[%d] Setting SOL_SOCKET option for client failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Setting SOL_SOCKET option for client failed: %s", tid, strerror(errno));
         close(sock);
         return false;
     }
     if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
-        print_err("[%d] Setting TCP_NODELAY option for client failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Setting TCP_NODELAY option for client failed: %s", tid, strerror(errno));
         close(sock);
         return false;
     }
     KevueConnection *c = (KevueConnection *)ma->malloc(sizeof(KevueConnection), ma->ctx);
     if (c == NULL) {
-        print_err("[%d] Allocating memory for client failed", tid);
+        print_err(generate_timestamp(), "[%d] Allocating memory for client failed", tid);
         close(sock);
         return false;
     }
     if (!kevue__connection_new(c, sock, addr, ma, hm)) {
-        print_err("[%d] Client creation failed", tid);
+        print_err(generate_timestamp(), "[%d] Client creation failed", tid);
         close(sock);
         ma->free(c, ma->ctx);
         return false;
     }
     if (kevue__epoll_add(epfd, c->sock, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET) < 0) {
-        print_err("[%d] Adding client socket to epoll failed: %s", tid, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Adding client socket to epoll failed: %s", tid, strerror(errno));
         close(sock);
         kevue__connection_destroy(c);
         return false;
     }
-    print_info("[%d] New connection %s:%d", tid, c->addr.addr_str, c->addr.port);
+    print_info(generate_timestamp(), "[%d] New connection %s:%d", tid, c->addr.addr_str, c->addr.port);
     return true;
 }
 
@@ -359,7 +359,6 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
         resp->val_len = sizeof(hm_len);
         kevue_buffer_write(hmbuf, &hm_len, resp->val_len);
         resp->val = hmbuf;
-        resp->cmd_len = 5;
         break;
     case ITEMS:
         if (!hm->ops->kevue_hm_items(hm, hmbuf)) {
@@ -368,7 +367,6 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
             resp->val_len = (uint64_t)hmbuf->size;
             resp->val = hmbuf;
         }
-        resp->cmd_len = 5;
         break;
     case KEYS:
         if (!hm->ops->kevue_hm_keys(hm, hmbuf)) {
@@ -391,7 +389,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
     default:
         UNREACHABLE("Possibly forgot to add new command to switch case");
     }
-#ifdef DEBUG
+#ifdef TRACE
     kevue_response_print(resp);
 #endif
 }
@@ -405,7 +403,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
     } else if (closing || (events & EPOLLRDHUP)) {
         if (shutdown(c->sock->fd, SHUT_WR) < 0) {
             if (errno != ENOTCONN)
-                print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
+                print_err(generate_timestamp(), "[%d] Shutting down failed: %s", tid, strerror(errno));
         }
         kevue__handle_read(c);
         c->closed = true;
@@ -413,7 +411,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         if (!kevue__handle_read(c)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
-                    print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
+                    print_err(generate_timestamp(), "[%d] Shutting down failed: %s", tid, strerror(errno));
             }
             c->closed = true;
         }
@@ -422,7 +420,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         KevueErr      err = kevue_request_deserialize(&req, c->rbuf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) return;
         if (err == KEVUE_ERR_OK) {
-#ifdef DEBUG
+#ifdef TRACE
             kevue_request_print(&req);
 #endif
             kevue__response_populate_from_hashmap(c, &req, &resp, c->hm, c->hmbuf);
@@ -430,7 +428,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
             kevue_buffer_move_unread_bytes(c->rbuf);
             kevue_buffer_reset(c->hmbuf);
         } else {
-            print_err("[%d] %s", tid, kevue_error_code_to_string(err));
+            print_err(generate_timestamp(), "[%d] %s", tid, kevue_error_code_to_string(err));
             resp.err_code = err;
             kevue_response_serialize(&resp, c->wbuf);
             c->closed = true;
@@ -438,7 +436,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         if ((c->wbuf->size > 0 && !kevue__handle_write(c)) || c->closed) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
-                    print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
+                    print_err(generate_timestamp(), "[%d] Shutting down failed: %s", tid, strerror(errno));
             }
             c->closed = true;
         }
@@ -447,7 +445,7 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
         if (!kevue__handle_write(c)) {
             if (shutdown(c->sock->fd, SHUT_WR) < 0) {
                 if (errno != ENOTCONN)
-                    print_err("[%d] Shutting down failed: %s", tid, strerror(errno));
+                    print_err(generate_timestamp(), "[%d] Shutting down failed: %s", tid, strerror(errno));
             }
             c->closed = true;
         }
@@ -464,14 +462,14 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) break;
             if (errno == EINTR) continue;
-            print_err("[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+            print_err(generate_timestamp(), "[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nr == 0) {
-            print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
+            print_debug(generate_timestamp(), "[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
             c->rbuf->size += (size_t)nr;
-            print_debug("[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
+            print_debug(generate_timestamp(), "[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -488,14 +486,14 @@ static bool kevue__handle_read(KevueConnection *c)
                 break;
             if (errno == EINTR)
                 continue;
-            print_err("[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+            print_err(generate_timestamp(), "[%d] Reading message from %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nr == 0) {
-            print_debug("[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
+            print_debug(generate_timestamp(), "[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
             c->rbuf->size += (size_t)nr;
-            print_debug("[%d] Read %zu bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
+            print_debug(generate_timestamp(), "[%d] Read %zu bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
     return true;
@@ -509,13 +507,13 @@ static bool kevue__handle_write(KevueConnection *c)
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) break;
             if (errno == EINTR) continue;
-            print_err("[%d] Writing message -> %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+            print_err(generate_timestamp(), "[%d] Writing message -> %s:%d failed: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
             return false;
         } else if (nw == 0) {
             break;
         } else {
             c->wbuf->offset += (size_t)nw;
-            print_debug("[%d] Written %ld bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
+            print_debug(generate_timestamp(), "[%d] Written %ld bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
             if (c->wbuf->offset >= c->wbuf->size) {
                 kevue_buffer_reset(c->wbuf);
                 break;
@@ -536,11 +534,11 @@ static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event
         }
         pid_t tid = gettid();
         if (kevue__epoll_del(epfd, c->sock) < 0) {
-            print_err("[%d] Removing client socket from epoll failed: %s", tid, strerror(errno));
+            print_err(generate_timestamp(), "[%d] Removing client socket from epoll failed: %s", tid, strerror(errno));
         }
         if (shutdown(c->sock->fd, SHUT_RDWR) < 0) {
             if (errno != ENOTCONN)
-                print_err("[%d] Shutting down failed for %s:%d: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+                print_err(generate_timestamp(), "[%d] Shutting down failed for %s:%d: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
         }
         kevue__connection_destroy(c);
     }
@@ -566,13 +564,13 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
     c->ma = ma;
     c->sock = (Socket *)c->ma->malloc(sizeof(Socket), c->ma->ctx);
     if (c->sock == NULL) {
-        print_err("[%d] Allocating memory for socket failed", tid);
+        print_err(generate_timestamp(), "[%d] Allocating memory for socket failed", tid);
         return false;
     }
     c->sock->c = c;
     c->sock->fd = sock;
     if (c->sock->fd < 0) {
-        print_err("[%d] Creating socket failed", tid);
+        print_err(generate_timestamp(), "[%d] Creating socket failed", tid);
         c->ma->free(c->sock, c->ma->ctx);
         return false;
     }
@@ -580,7 +578,7 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
     inet_ntop2(&addr, c->addr.addr_str, (socklen_t)sizeof(c->addr.addr_str));
     c->addr.port = ntohs2(&addr);
     if (c->addr.port == 0) {
-        print_err("[%d] Extracting port failed", tid);
+        print_err(generate_timestamp(), "[%d] Extracting port failed", tid);
         c->ma->free(c->sock, c->ma->ctx);
         return false;
     }
@@ -598,11 +596,11 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
 static void kevue__connection_destroy(KevueConnection *c)
 {
     pid_t tid = gettid();
-    print_info("[%d] Closing connection %s:%d", tid, c->addr.addr_str, c->addr.port);
+    print_info(generate_timestamp(), "[%d] Closing connection %s:%d", tid, c->addr.addr_str, c->addr.port);
     if (close(c->sock->fd) < 0) {
-        print_err("[%d] Closing socket failed for %s:%d: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
+        print_err(generate_timestamp(), "[%d] Closing socket failed for %s:%d: %s", tid, c->addr.addr_str, c->addr.port, strerror(errno));
     } else {
-        print_info("[%d] Connection to %s:%d closed", tid, c->addr.addr_str, c->addr.port);
+        print_info(generate_timestamp(), "[%d] Connection to %s:%d closed", tid, c->addr.addr_str, c->addr.port);
     }
     c->ma->free(c->sock, c->ma->ctx);
     kevue_buffer_destroy(c->rbuf);
@@ -631,30 +629,30 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
-        print_err("getaddrinfo failed: %s", gai_strerror(rv));
+        print_err(generate_timestamp(), "getaddrinfo failed: %s", gai_strerror(rv));
         return -1;
     }
     for (p = servinfo; p != NULL; p = p->ai_next) {
         if ((server_sock = socket(p->ai_family, p->ai_socktype | SOCK_NONBLOCK, p->ai_protocol)) < 0) {
-            print_err("Creating socket failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Creating socket failed: %s", strerror(errno));
             continue;
         }
         int enable = 1;
         if (setsockopt(server_sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, (const char *)&enable, sizeof(enable)) < 0) {
-            print_err("Setting TCP_DEFER_ACCEPT option failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Setting TCP_DEFER_ACCEPT option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
         if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable, sizeof(enable)) < 0) {
-            print_err("Setting SO_REUSEADDR option failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Setting SO_REUSEADDR option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
         if (!check) {
             if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
-                print_err("Setting SO_REUSEPORT option failed: %s", strerror(errno));
+                print_err(generate_timestamp(), "Setting SO_REUSEPORT option failed: %s", strerror(errno));
                 close(server_sock);
                 freeaddrinfo(servinfo);
                 return -1;
@@ -663,37 +661,37 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
         int send_buffer_size = SND_BUF_SIZE;
         int recv_buffer_size = RECV_BUF_SIZE;
         if (setsockopt(server_sock, SOL_SOCKET, SO_SNDBUF, &send_buffer_size, sizeof(send_buffer_size)) < 0) {
-            print_err("Setting SO_SNDBUF option failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Setting SO_SNDBUF option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
         if (setsockopt(server_sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
-            print_err("Setting SO_RCVBUF option failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Setting SO_RCVBUF option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
         if (bind(server_sock, p->ai_addr, p->ai_addrlen) < 0) {
-            print_err("Binding to address failed: %s", strerror(errno));
+            print_err(generate_timestamp(), "Binding to address failed: %s", strerror(errno));
             close(server_sock);
             continue;
         }
         break;
     }
     if (p == NULL) {
-        print_err("Failed creating socket");
+        print_err(generate_timestamp(), "Failed creating socket");
         close(server_sock);
         freeaddrinfo(servinfo);
         return -1;
     }
     freeaddrinfo(servinfo);
     if (listen(server_sock, MAX_CONNECTIONS) < 0) {
-        print_err("Listening on address failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Listening on address failed: %s", strerror(errno));
         close(server_sock);
         return -1;
     }
-    if (!check) print_info("kevue server listening on %s:%s", host, port);
+    if (!check) print_info(generate_timestamp(), "kevue server listening on %s:%s", host, port);
     return server_sock;
 }
 
@@ -718,7 +716,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     ks->port = port;
     ks->efd = eventfd(0, EFD_NONBLOCK);
     if (ks->efd < 0) {
-        print_err("Creating eventfd failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Creating eventfd failed: %s", strerror(errno));
         ks->ma->free(ks, ks->ma->ctx);
         return NULL;
     }
@@ -742,7 +740,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
 #ifndef __HASHMAP_DETERMINISTIC
     uint64_t seed;
     if (!random_u64(&seed)) {
-        print_err("Generating random seed failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Generating random seed failed: %s", strerror(errno));
         kevue_server_destroy(ks);
         return NULL;
     }
@@ -755,6 +753,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
     sigaction(SIGINT, &new_action, NULL);
     sigaction(SIGTERM, &new_action, NULL);
     sigaction(SIGHUP, &new_action, NULL);
+    signal(SIGPIPE, SIG_IGN);
     return ks;
 }
 
@@ -770,16 +769,16 @@ void kevue_server_start(KevueServer *ks)
     }
     while (!shutting_down)
         pause();
-    print_info("Shutting down %d servers on %s:%s... Please wait", SERVER_WORKERS, ks->host, ks->port);
+    print_info(generate_timestamp(), "Shutting down %d servers on %s:%s... Please wait", SERVER_WORKERS, ks->host, ks->port);
     uint64_t one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
-        print_err("Writing to eventfd failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Writing to eventfd failed: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < SERVER_WORKERS; i++) {
         pthread_join(ks->threads[i], NULL);
     }
-    print_info("%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
+    print_info(generate_timestamp(), "%d servers on %s:%s gracefully shut down", SERVER_WORKERS, ks->host, ks->port);
 }
 
 void kevue_server_destroy(KevueServer *ks)

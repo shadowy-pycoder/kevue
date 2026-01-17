@@ -27,6 +27,7 @@
 #include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <threads.h>
 #include <time.h>
 
 #include <common.h>
@@ -116,4 +117,20 @@ uint64_t nsec_now(void)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+const char *generate_timestamp(void)
+{
+    static thread_local char buf[32];
+
+    struct timespec ts;
+    struct tm       tm;
+
+    clock_gettime(CLOCK_REALTIME, &ts);
+    gmtime_r(&ts.tv_sec, &tm);
+
+    size_t n = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    snprintf(buf + n, sizeof(buf) - n, ".%09ldZ", ts.tv_nsec);
+
+    return buf;
 }

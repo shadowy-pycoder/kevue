@@ -18,7 +18,6 @@
  * @brief kevue client CLI example.
  */
 
-#include "buffer.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
@@ -337,7 +336,7 @@ int main(int argc, char **argv)
 #endif
     KevueClient *kc = kevue_client_create(host, port, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
-    print_info("Connected to %s:%s", host, port);
+    print_info(generate_timestamp(), "Connected to %s:%s", host, port);
     KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
@@ -345,7 +344,7 @@ int main(int argc, char **argv)
     }
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
-        print_err("%s", kevue_error_code_to_string(resp->err_code));
+        print_err(generate_timestamp(), "%s", kevue_error_code_to_string(resp->err_code));
         ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -358,7 +357,7 @@ int main(int argc, char **argv)
     }
     int epfd = epoll_create1(0);
     if (epfd < 0) {
-        print_err("Creating epoll file descriptor failed %s", strerror(errno));
+        print_err(generate_timestamp(), "Creating epoll file descriptor failed %s", strerror(errno));
         ma->free(events, ma->ctx);
         ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
@@ -366,7 +365,7 @@ int main(int argc, char **argv)
     }
     int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if (tfd < 0) {
-        print_err("Creating timer socket failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Creating timer socket failed: %s", strerror(errno));
         close(epfd);
         ma->free(events, ma->ctx);
         ma->free(resp, ma->ctx);
@@ -377,7 +376,7 @@ int main(int argc, char **argv)
     timer.it_value.tv_sec = PING_INTERVAL_SECONDS;
     timer.it_interval.tv_sec = PING_INTERVAL_SECONDS;
     if (timerfd_settime(tfd, 0, &timer, NULL) < 0) {
-        print_err("Setting timer failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Setting timer failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
         ma->free(events, ma->ctx);
@@ -389,7 +388,7 @@ int main(int argc, char **argv)
     ev.data.fd = tfd;
     ev.events = EPOLLIN;
     if (epoll_ctl(epfd, EPOLL_CTL_ADD, tfd, &ev) < 0) {
-        print_err("Adding timer socket to epoll failed: %s", strerror(errno));
+        print_err(generate_timestamp(), "Adding timer socket to epoll failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
         ma->free(events, ma->ctx);
@@ -406,7 +405,7 @@ int main(int argc, char **argv)
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, ma);
     if (cmdline == NULL) {
-        print_err("Creating buffer for command line failed");
+        print_err(generate_timestamp(), "Creating buffer for command line failed");
         close(epfd);
         close(tfd);
         ma->free(events, ma->ctx);

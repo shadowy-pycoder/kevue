@@ -115,10 +115,28 @@ debug:
 release:
 	$(MAKE) DEBUG=0 ASAN=0 default examples
 
-tests: | $(BIN)
+$(BIN)/kevue-test-fill-server: | $(BIN)
+	$(CC) -g3 -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_fill_server.c -o $(BIN)/kevue-test-fill-server -DDEBUG -lprofiler -DUSE_TCMALLOC -ltcmalloc
+
+tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
-	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_fill_server.c -o $(BIN)/kevue-test-fill-server -DDEBUG
 	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+
+.PHONY: cpuprof
+cpuprof: $(BIN)/kevue-test-fill-server | $(BIN)
+	CPUPROFILE=cpu.prof $(BIN)/kevue-test-fill-server
+	# pprof --web ./cpu.prof
+
+
+.PHONY: memprof
+memprof: $(BIN)/kevue-test-fill-server | $(BIN)
+	HEAPPROFILE=mem.prof $(BIN)/kevue-test-fill-server
+	# pprof --web ./bin/kevue-test-fill-server ./mem.prof.0001.heap
+
+.PHONY: leakcheck
+leakcheck: $(BIN)/kevue-test-fill-server | $(BIN)
+	HEAPCHECK=normal $(BIN)/kevue-test-fill-server
+	# pprof --inuse_objects --lines --edgefraction=1e-10 --nodefraction=1e-10 --pdf ./bin/kevue-test-fill-server "/tmp/kevue-test-fill-server.<pid>._main_-end.heap" > leak.pdf
 
 
 AFL_CC          ?= afl-clang-fast
@@ -185,3 +203,5 @@ clean:
 	rm -rf $(FUZZ_OUT_BASE)/*
 	rm -rf $(FUZZ_BIN)/*
 	rm -rf $(FUZZ_BUILD)/*
+	rm -f *.prof
+	rm -f *.heap

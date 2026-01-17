@@ -6,4 +6,5 @@ compile_commands.json
 *.txt
 fuzz/out/
 fuzz/build/
-
+*.prof
+*.heap

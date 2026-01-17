@@ -14,22 +14,33 @@
  * limitations under the License.
  */
 
-// clang -g3 -Iinclude -Ilib ./tests/test_fill_server.c -o ./bin/kevue-test-fill-server -DDEBUG
-#include "../src/allocator.c"
+// clang -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_fill_server.c -o ./bin/kevue-test-fill-server -DDEBUG
 #include "../src/buffer.c"
 #include "../src/client.c"
 #include "../src/common.c"
 #include "../src/protocol.c"
 
+#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#error "You can define only one memory allocator at a time"
+#endif
+#ifdef USE_TCMALLOC
+#include "../src/tcmalloc_allocator.c"
+#endif
+#ifdef USE_JEMALLOC
+#include "../src/jemalloc_allocator.c"
+#endif
+
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
 int main(void)
 {
-    KevueAllocator *ma = &kevue_default_allocator;
+    KevueAllocator *ma;
 #if defined(USE_TCMALLOC)
     ma = &kevue_tcmalloc_allocator;
 #elif defined(USE_JEMALLOC)
     ma = &kevue_jemalloc_allocator;
+#else
+    ma = &kevue_default_allocator;
 #endif
     KevueClient *kc = kevue_client_create(HOST, PORT, ma);
     if (kc == NULL) exit(EXIT_FAILURE);
@@ -59,6 +70,7 @@ int main(void)
     } else {
         printf("Fething items failed: %s\n", kevue_error_code_to_string(resp->err_code));
     }
+    kevue_buffer_destroy(resp->val);
     ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
 }

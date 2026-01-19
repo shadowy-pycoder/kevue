@@ -134,17 +134,11 @@ static void *kevue__handle_server_epoll(void *args)
         close(server_sock);
         goto server_close;
     }
-    struct epoll_event *events = (struct epoll_event *)ma->malloc(sizeof(struct epoll_event) * MAX_EVENTS, ma->ctx);
-    if (events == NULL) {
-        close(epfd);
-        close(server_sock);
-        goto server_close;
-    }
-    KevueConnection *sc = (KevueConnection *)ma->malloc(sizeof(KevueConnection), ma->ctx);
+    struct epoll_event events[MAX_EVENTS] = { 0 };
+    KevueConnection   *sc = (KevueConnection *)ma->malloc(sizeof(KevueConnection), ma->ctx);
     if (sc == NULL) {
         close(epfd);
         close(server_sock);
-        ma->free(events, ma->ctx);
         goto server_close;
     }
     sc->ma = ma;
@@ -156,7 +150,6 @@ static void *kevue__handle_server_epoll(void *args)
         print_err(generate_timestamp(), "[%d] Adding server socket to epoll failed: %s", tid, strerror(errno));
         close(epfd);
         close(server_sock);
-        ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
         goto server_close;
@@ -165,7 +158,6 @@ static void *kevue__handle_server_epoll(void *args)
     if (ec == NULL) {
         close(epfd);
         close(server_sock);
-        ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
         goto server_close;
@@ -174,7 +166,6 @@ static void *kevue__handle_server_epoll(void *args)
     if (ec->sock == NULL) {
         close(epfd);
         close(server_sock);
-        ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
         goto server_close;
@@ -186,7 +177,6 @@ static void *kevue__handle_server_epoll(void *args)
         print_err(generate_timestamp(), "[%d] Adding event socket to epoll failed: %s", tid, strerror(errno));
         close(epfd);
         close(server_sock);
-        ma->free(events, ma->ctx);
         ma->free(sc->sock, ma->ctx);
         ma->free(sc, ma->ctx);
         ma->free(ec->sock, ma->ctx);
@@ -203,7 +193,6 @@ static void *kevue__handle_server_epoll(void *args)
             print_err(generate_timestamp(), "[%d] Waiting for epoll failed: %s", tid, strerror(errno));
             close(epfd);
             close(server_sock);
-            ma->free(events, ma->ctx);
             ma->free(sc->sock, ma->ctx);
             ma->free(sc, ma->ctx);
             ma->free(ec->sock, ma->ctx);
@@ -212,7 +201,6 @@ static void *kevue__handle_server_epoll(void *args)
         }
         if (closing && nready == 0) {
             close(epfd);
-            ma->free(events, ma->ctx);
             goto server_close;
         }
         for (int i = 0; i < nready; i++) {

@@ -52,9 +52,11 @@ ERROR: main: Not found
 
 In both cases `host` and `port` can be omitted, default values will be used.
 
-Server supports several commands: `GET`, `SET`, `DELETE`, `PING` (to test connection), `HELLO` (to establish connection).
+Server supports several commands: `GET`, `SET`, `DELETE`, `COUNT`, `ITEMS`, `KEYS`, `VALUES`, `PING` (to test connection), `HELLO` (to establish connection).
 
 ## Benchmarks
+
+### Server
 
 ```shell
 # make release -B
@@ -113,6 +115,63 @@ Counting 10485760 entries...
 Counting 10485760 entries takes: 0.000208824s
 Deleting 10485760 items...
 Deleting 10485760 items takes: 127.858687401s (82010.54 req/sec)
+```
+
+### HashMap
+
+```shell
+# clang -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
+./bin/kevue-bench-hashmap
+Inserting 10485760 items...
+Inserting 10485760 items takes: 4.928154238s (2127725.61 req/sec)
+Getting 10485760 items...
+Getting 10485760 items takes: 3.767107064s (2783504.64 req/sec)
+Fetching 10485760 items...
+Fetching 10485760 items takes: 0.977504761s
+Fetching 10485760 keys...
+Fetching 10485760 keys takes: 0.378654754s
+Fetching 10485760 values...
+Fetching 10485760 values takes: 0.424961659s
+Counting 10485760 entries...
+Counting 10485760 entries takes: 0.000000254s
+Deleting 10485760 items...
+Deleting 10485760 items takes: 4.072044448s (2575060.30 req/sec)
+
+# clang -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__
+HASHMAP_SINGLE_THREADED
+./bin/kevue-bench-hashmap
+Inserting 10485760 items...
+Inserting 10485760 items takes: 4.839803558s (2166567.27 op/sec)
+Getting 10485760 items...
+Getting 10485760 items takes: 3.783049543s (2771774.43 op/sec)
+Fetching 10485760 items...
+Fetching 10485760 items takes: 0.811433994s
+Fetching 10485760 keys...
+Fetching 10485760 keys takes: 0.365259108s
+Fetching 10485760 values...
+Fetching 10485760 values takes: 0.383771605s
+Counting 10485760 entries...
+Counting 10485760 entries takes: 0.000000041s
+Deleting 10485760 items...
+Deleting 10485760 items takes: 4.088524518s (2564680.72 op/sec)
+
+# clang -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_JEMALLOC -ltcmalloc -D__
+HASHMAP_SINGLE_THREADED
+./bin/kevue-bench-hashmap
+Inserting 10485760 items...
+Inserting 10485760 items takes: 4.842165646s (2165510.39 op/sec)
+Getting 10485760 items...
+Getting 10485760 items takes: 3.757114363s (2790907.86 op/sec)
+Fetching 10485760 items...
+Fetching 10485760 items takes: 0.823646134s
+Fetching 10485760 keys...
+Fetching 10485760 keys takes: 0.377158592s
+Fetching 10485760 values...
+Fetching 10485760 values takes: 0.455466494s
+Counting 10485760 entries...
+Counting 10485760 entries takes: 0.000000040s
+Deleting 10485760 items...
+Deleting 10485760 items takes: 4.007769836s (2616357.83 op/sec)
 ```
 
 ## TODO

@@ -126,9 +126,16 @@ tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 $(BIN)/kevue-bench-server: | $(BIN)
 	$(CC) -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o $(BIN)/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
 
-.PHONY: bench
-bench: $(BIN)/kevue-bench-server  | $(BIN)
+.PHONY: bench-server
+bench-server: $(BIN)/kevue-bench-server  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-server
+
+$(BIN)/kevue-bench-hashmap: | $(BIN)
+	$(CC) -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
+
+.PHONY: bench-hashmap
+bench-hashmap: $(BIN)/kevue-bench-hashmap  | $(BIN)
+	./$(notdir $(BIN))/kevue-bench-hashmap
 
 .PHONY: cpuprof
 cpuprof: $(BIN)/kevue-test-fill-server | $(BIN)

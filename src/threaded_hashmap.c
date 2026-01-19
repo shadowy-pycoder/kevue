@@ -40,7 +40,7 @@
 #define HASHMAP_SLOT_MAX_COUNT             (HASHMAP_BUCKET_MAX_COUNT * HASHMAP_BUCKET_ENTRY_INITIAL_COUNT) // 16777216
 
 #ifdef __HASHMAP_SINGLE_THREADED
-#define HASHMAP_BUCKET_LOCK_COUNT 0U
+#define HASHMAP_BUCKET_LOCK_COUNT 1U
 #define mutex_lock(l)             ((void)0)
 #define mutex_unlock(l)           ((void)0)
 #define mutex_init(l, f)          ((void)0)

@@ -237,12 +237,12 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     size_t offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
-        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf) && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
-        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -256,26 +256,26 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     }
     // check for commands with 0 arguments
     if (buf->offset != offset && (pr->cmd == COUNT || pr->cmd == ITEMS || pr->cmd == KEYS || pr->cmd == VALUES)) {
-        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && pr->cmd == SET) {
-        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf)) {
         if (pr->cmd == SET) {
-            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
     } else {
         if (pr->cmd != SET) {
-            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+            fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
             kevue__client_parse_result_destroy(pr);
             return NULL;
         }
@@ -294,7 +294,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     }
     kevue__trim_left(buf);
     if (!kevue_buffer_at_eof(buf)) {
-        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string(pr->cmd));
+        fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
@@ -344,7 +344,7 @@ int main(int argc, char **argv)
     }
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
-        print_err(generate_timestamp(), "%s", kevue_error_code_to_string(resp->err_code));
+        print_err(generate_timestamp(), "%s", kevue_error_code_to_string[resp->err_code]);
         ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -505,7 +505,7 @@ int main(int argc, char **argv)
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
                     fprintf(stdout, "(not found)\n");
                 } else {
-                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                     unrecoverable_error_occured = true;
                 }
             }
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
             if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
                 fprintf(stdout, "(ok)\n");
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;
@@ -525,7 +525,7 @@ int main(int argc, char **argv)
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
                     fprintf(stdout, "(not found)\n");
                 } else {
-                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                    fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                     unrecoverable_error_occured = true;
                 }
             }
@@ -535,7 +535,7 @@ int main(int argc, char **argv)
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;
@@ -545,7 +545,7 @@ int main(int argc, char **argv)
                 memcpy(&count, resp->val->ptr, sizeof(count));
                 fprintf(stdout, "%lu\n", count);
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;
@@ -577,7 +577,7 @@ int main(int argc, char **argv)
                     }
                 }
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;
@@ -602,7 +602,7 @@ int main(int argc, char **argv)
                     }
                 }
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;
@@ -627,7 +627,7 @@ int main(int argc, char **argv)
                     }
                 }
             } else {
-                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string(resp->err_code));
+                fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
                 unrecoverable_error_occured = true;
             }
             break;

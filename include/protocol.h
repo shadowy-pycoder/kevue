@@ -66,6 +66,16 @@ typedef enum KevueCommand {
 #undef X
 } KevueCommand;
 
+// Compile-time length of the command
+//
+// Caller must check if command is valid before getting length
+extern const uint8_t kevue_command_length[];
+
+// Compile-time string value of the command
+//
+// Caller must check if command is valid before getting string representation
+extern const char *kevue_command_to_string[];
+
 #define ERROR_CODE_LIST                                      \
     X(KEVUE_ERR_OK, "OK")                                    \
     X(KEVUE_ERR_INCOMPLETE_READ, "Reading was not complete") \
@@ -88,6 +98,11 @@ typedef enum KevueErr {
     ERROR_CODE_LIST
 #undef X
 } KevueErr;
+
+// Compile-time string value of the error code
+//
+// Caller must check if error code is valid before getting string representation
+extern const char *kevue_error_code_to_string[];
 
 typedef struct KevueRequest {
     uint32_t       total_len;
@@ -187,15 +202,6 @@ KevueErr kevue_response_serialize(KevueResponse *resp, Buffer *buf);
 void kevue_response_print(KevueResponse *resp);
 
 /**
- * @brief Converts a command enum value to its string representation.
- *
- * @param cmd  Command value.
- *
- * @return Pointer to a static string representing the command.
- */
-char *kevue_command_to_string(KevueCommand cmd);
-
-/**
  * @brief Compares raw command data with a command enum.
  *
  * Checks whether the byte sequence in @p data matches the textual
@@ -216,15 +222,6 @@ bool kevue_command_compare(const char *data, uint8_t len, KevueCommand cmd);
  * @return true if the command is valid, false otherwise.
  */
 bool kevue_command_valid(KevueCommand cmd);
-
-/**
- * @brief Converts an error code to its string representation.
- *
- * @param e  Error code.
- *
- * @return Pointer to a static string describing the error.
- */
-char *kevue_error_code_to_string(KevueErr e);
 
 /**
  * @brief Validate a KevueErr code.

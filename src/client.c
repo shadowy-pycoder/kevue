@@ -221,8 +221,9 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
 bool kevue_client_hello(KevueClient *kc, KevueResponse *resp)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 5;
-    req.cmd = HELLO;
+    KevueCommand cmd = HELLO;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     if (!kevue__make_request(kc, &req, resp) || resp->cmd != HELLO) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         return false;
@@ -233,8 +234,9 @@ bool kevue_client_hello(KevueClient *kc, KevueResponse *resp)
 bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 3;
-    req.cmd = GET;
+    KevueCommand cmd = GET;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     req.key_len = key_len;
     req.key = key;
     return kevue__make_request(kc, &req, resp);
@@ -243,8 +245,9 @@ bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uin
 bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len, const void *val, uint16_t val_len)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 3;
-    req.cmd = SET;
+    KevueCommand cmd = SET;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     req.key_len = key_len;
     req.key = key;
     req.val_len = val_len;
@@ -255,8 +258,9 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uin
 bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 3;
-    req.cmd = DEL;
+    KevueCommand cmd = DEL;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     req.key_len = key_len;
     req.key = key;
     return kevue__make_request(kc, &req, resp);
@@ -265,8 +269,9 @@ bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uin
 bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 4;
-    req.cmd = PING;
+    KevueCommand cmd = PING;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     req.key_len = message_len;
     req.key = message;
     return kevue__make_request(kc, &req, resp);
@@ -280,32 +285,36 @@ bool kevue_client_ping(KevueClient *kc, KevueResponse *resp)
 bool kevue_client_count(KevueClient *kc, KevueResponse *resp)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 5;
-    req.cmd = COUNT;
+    KevueCommand cmd = COUNT;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     return kevue__make_request(kc, &req, resp);
 }
 
 bool kevue_client_items(KevueClient *kc, KevueResponse *resp)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 5;
-    req.cmd = ITEMS;
+    KevueCommand cmd = ITEMS;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     return kevue__make_request(kc, &req, resp);
 }
 
 bool kevue_client_keys(KevueClient *kc, KevueResponse *resp)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 4;
-    req.cmd = KEYS;
+    KevueCommand cmd = KEYS;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     return kevue__make_request(kc, &req, resp);
 }
 
 bool kevue_client_values(KevueClient *kc, KevueResponse *resp)
 {
     KevueRequest req = { 0 };
-    req.cmd_len = 6;
-    req.cmd = VALUES;
+    KevueCommand cmd = VALUES;
+    req.cmd_len = kevue_command_length[cmd];
+    req.cmd = cmd;
     return kevue__make_request(kc, &req, resp);
 }
 

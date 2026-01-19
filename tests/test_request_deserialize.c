@@ -66,7 +66,7 @@ int main()
     memset(&req, 0, sizeof(req));
     kevue_buffer_write(buf, malformed_data, sizeof(malformed_data));
     err = kevue_request_deserialize(&req, buf);
-    printf("%s\n", kevue_error_code_to_string(err));
+    printf("%s\n", kevue_error_code_to_string[err]);
     printf("\n");
     assert(err == KEVUE_ERR_LEN_INVALID);
 
@@ -74,7 +74,7 @@ int main()
     memset(&req, 0, sizeof(req));
     kevue_buffer_write(buf, garbage, sizeof(garbage));
     err = kevue_request_deserialize(&req, buf);
-    printf("%s\n", kevue_error_code_to_string(err));
+    printf("%s\n", kevue_error_code_to_string[err]);
     printf("\n");
     assert(err == KEVUE_ERR_MAGIC_BYTE_INVALID);
 

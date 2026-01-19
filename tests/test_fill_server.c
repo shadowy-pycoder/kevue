@@ -46,7 +46,7 @@ int main(void)
     if (kc == NULL) exit(EXIT_FAILURE);
     KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
-        printf("%s\n", kevue_error_code_to_string(resp->err_code));
+        printf("%s\n", kevue_error_code_to_string[resp->err_code]);
         ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -60,7 +60,7 @@ int main(void)
         int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
         int  val_len = snprintf(val, sizeof(val), "World%zu", i);
         if (!kevue_client_set(kc, resp, key, (uint16_t)key_len, val, (uint16_t)val_len)) {
-            printf("%s\n", kevue_error_code_to_string(resp->err_code));
+            printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
         }
@@ -77,7 +77,7 @@ int main(void)
         if (resp->err_code == KEVUE_ERR_OK) {
             printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
         } else {
-            printf("Fething items failed: %s\n", kevue_error_code_to_string(resp->err_code));
+            printf("Fething items failed: %s\n", kevue_error_code_to_string[resp->err_code]);
         }
     }
     kevue_buffer_destroy(resp->val);

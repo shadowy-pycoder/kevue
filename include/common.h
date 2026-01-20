@@ -78,6 +78,8 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+#define is_pow2(x) ((x) && (((x) & ((x) - 1)) == 0))
+
 /**
  *  Convert string @p s to upper case and return it.
  */

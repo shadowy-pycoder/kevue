@@ -53,6 +53,11 @@
 #define mutex_destroy(l)          pthread_mutex_destroy((l))
 #endif
 
+static_assert(is_pow2(HASHMAP_BUCKET_MAX_COUNT), "HASHMAP_BUCKET_MAX_COUNT must be a power of two");
+static_assert(is_pow2(HASHMAP_BUCKET_LOCK_COUNT), "HASHMAP_BUCKET_LOCK_COUNT must be a power of two");
+static_assert(is_pow2(HASHMAP_RESIZE_FACTOR), "HASHMAP_RESIZE_FACTOR must be a power of two");
+static_assert(is_pow2(HASHMAP_SLOT_MAX_COUNT), "HASHMAP_SLOT_MAX_COUNT must be a power of two");
+
 typedef struct HashMapThreaded HashMapThreaded;
 
 static void kevue__hm_threaded_destroy(HashMap *hm);
@@ -106,7 +111,7 @@ static const HashMapOps hm_ops = {
 
 static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *hm_internal, size_t bucket_idx)
 {
-    return &hm_internal->bucket_locks[bucket_idx % HASHMAP_BUCKET_LOCK_COUNT];
+    return &hm_internal->bucket_locks[bucket_idx & (HASHMAP_BUCKET_LOCK_COUNT - 1)];
 }
 
 HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
@@ -176,7 +181,7 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len,
         }
     }
     uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
-    size_t   idx = hash % hm_internal->bucket_count;
+    size_t   idx = hash & (hm_internal->bucket_count - 1);
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
     if (hm_internal->buckets[idx].len > 0) {
@@ -225,7 +230,7 @@ static bool kevue__hm_threaded_get(HashMap *hm, const void *key, size_t key_len,
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
     mutex_lock(&hm_internal->resize_lock);
     uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
-    size_t   idx = hash % hm_internal->bucket_count;
+    size_t   idx = hash & (hm_internal->bucket_count - 1);
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
     if (hm_internal->buckets[idx].len == 0) {
@@ -256,7 +261,7 @@ static bool kevue__hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
         }
     }
     uint64_t hash = rapidhash_withSeed(key, key_len, hm_internal->seed);
-    size_t   idx = hash % hm_internal->bucket_count;
+    size_t   idx = hash & (hm_internal->bucket_count - 1);
     mutex_lock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_unlock(&hm_internal->resize_lock);
     if (hm_internal->buckets[idx].len == 0) {
@@ -397,7 +402,7 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, size_t new_s
         kevue_dyna_foreach(&hm_internal->buckets[bucket], entry_ptr)
         {
             Entry *entry = *entry_ptr;
-            size_t idx = entry->hash % new_size;
+            size_t idx = entry->hash & (new_size - 1);
             kevue_dyna_append(&new_buckets[idx], entry);
         }
     }

@@ -34,19 +34,19 @@ Run the client:
 ./bin/kevue-cli 0.0.0.0 12111
 ```
 
-```bash
+```shell
 # client console session example
-INFO: Connected to 0.0.0.0:12111
-0.0.0.0:12111> get hello
-ERROR: main: Not found
-0.0.0.0:12111> set hello world
-OK
-0.0.0.0:12111> get hello
+[2026-01-20 00:20:55.179152018Z] INFO: Connected to 0.0.0.0:12111
+0.0.0.0:12111> GET hello
+(not found)
+0.0.0.0:12111> SET hello world
+(ok)
+0.0.0.0:12111> GET hello
 world
-0.0.0.0:12111> del hello
-OK
-0.0.0.0:12111> get hello
-ERROR: main: Not found
+0.0.0.0:12111> DEL hello
+(ok)
+0.0.0.0:12111> GET hello
+(not found)
 0.0.0.0:12111>
 ```
 
@@ -182,6 +182,7 @@ Deleting 10485760 items takes: 4.007769836s (2616357.83 op/sec)
 - [ ] Add more commands
 - [ ] Add arena memory allocator
 - [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing )
+- [ ] Add installation script
 
 ## Contributing
 

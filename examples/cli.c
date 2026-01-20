@@ -39,6 +39,10 @@
 #define PROMPT_LENGTH         INET6_ADDRSTRLEN + 7 + 1
 #define MAX_EVENTS            2
 
+#ifndef HISTORY_PATH
+#define HISTORY_PATH ".kevue_history"
+#endif
+
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
 #endif
@@ -398,7 +402,7 @@ int main(int argc, char **argv)
     }
     linenoiseSetCompletionCallback(kevue__completion);
     linenoiseSetHintsCallback(kevue__hints);
-    linenoiseHistoryLoad("history.txt");
+    linenoiseHistoryLoad(HISTORY_PATH);
     linenoiseSetMultiLine(1);
     char prompt[PROMPT_LENGTH];
     int  n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
@@ -641,9 +645,8 @@ int main(int argc, char **argv)
         fflush(stdout);
         kevue_buffer_reset(cmdline);
         kevue__client_parse_result_destroy(pr);
-        linenoiseHistoryAdd(line); /* Add to the history. */
-        // TODO: save history to another location
-        linenoiseHistorySave("history.txt"); /* Save the history on disk. */
+        linenoiseHistoryAdd(line); // Add to the history.
+        linenoiseHistorySave(HISTORY_PATH); // Save the history on disk.
         free(line);
     }
 client_close:

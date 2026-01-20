@@ -3,8 +3,8 @@ bin/
 docs/
 compile_commands.json
 .cache
-*.txt
 fuzz/out/
 fuzz/build/
 *.prof
 *.heap
+.kevue_history

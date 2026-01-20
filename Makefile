@@ -21,6 +21,7 @@ USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
+HISTORY_PATH ?= $(HOME)/.kevue_history
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
@@ -100,6 +101,8 @@ $(BUILD)/%.o: $(EXAMPLES)/%.c | $(BUILD)
 .PRECIOUS: $(OBJECTS) $(EXAMPLES_OBJECTS) $(FUZZ_OBJECTS)
 
 $(BIN)/$(PROJNAME)-server: LDLIBS += -pthread
+
+$(BIN)/$(PROJNAME)-cli: CPPFLAGS += -DHISTORY_PATH=\"$(HISTORY_PATH)\"
 
 $(BIN)/$(PROJNAME)-%: $(COMMON_OBJECTS) $(BUILD)/%.o | $(BIN)
 	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@

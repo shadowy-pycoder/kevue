@@ -60,11 +60,11 @@
     X(VALUES)        \
     X(KEVUE_CMD_MAX)
 
-typedef enum KevueCommand {
 #define X(name) name,
+typedef enum KevueCommand {
     COMMAND_LIST
-#undef X
 } KevueCommand;
+#undef X
 
 // Compile-time length of the command
 //
@@ -93,11 +93,11 @@ extern const char *kevue_command_to_string[];
     X(KEVUE_ERR_PAYLOAD_INVALID, "Payload is invalid")       \
     X(KEVUE_ERR_MAX, "")
 
-typedef enum KevueErr {
 #define X(name, str) name,
+typedef enum KevueErr {
     ERROR_CODE_LIST
-#undef X
 } KevueErr;
+#undef X
 
 // Compile-time string value of the error code
 //

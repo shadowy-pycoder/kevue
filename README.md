@@ -15,11 +15,31 @@ make release
 
 ## Usage
 
+```bash
+./bin/kevue-server -help
+Usage: kevue-server [OPTIONS]
+OPTIONS:
+    -help
+        Print this help message and exit
+    -host <str>
+        Server host
+        Default: 0.0.0.0
+    -port <str>
+        Server port
+        Default: 12111
+    -recvb <int>
+        Receive buffer size
+        Default: 2097152
+    -sendb <int>
+        Send buffer size
+        Default: 2097152
+```
+
 Run the server:
 
 ```bash
 make run
-# or ./bin/kevue-server 0.0.0.0 12111
+# or ./bin/kevue-server -host 0.0.0.0 -port 12111
 ```
 
 Compile cli app from `./examples`:
@@ -28,10 +48,30 @@ Compile cli app from `./examples`:
 make examples
 ```
 
+```bash
+./bin/kevue-cli -help
+Usage: kevue-cli [OPTIONS]
+OPTIONS:
+    -help
+        Print this help message and exit
+    -host <str>
+        Server host
+        Default: 0.0.0.0
+    -port <str>
+        Server port
+        Default: 12111
+    -read_timeout <int>
+        Read timeout
+        Default: 10
+    -write_timeout <int>
+        Write timeout
+        Default: 10
+```
+
 Run the client:
 
 ```bash
-./bin/kevue-cli 0.0.0.0 12111
+./bin/kevue-cli -host 0.0.0.0 -port 12111
 ```
 
 ```shell

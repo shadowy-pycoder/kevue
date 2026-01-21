@@ -50,6 +50,18 @@ bool kevue_command_valid(KevueCommand cmd)
     return cmd >= 0 && cmd < KEVUE_CMD_MAX;
 }
 
+#define X(name) sizeof(#name) - 1,
+const uint8_t kevue_command_length[] = {
+    COMMAND_LIST
+};
+#undef X
+
+#define X(name) #name,
+const char *kevue_command_to_string[] = {
+    COMMAND_LIST
+};
+#undef X
+
 static KevueCommandDispatchResult kevue__command_dispatch(uint8_t cmd_len, Buffer *buf)
 {
     KevueCommandDispatchResult dr = { 0 };
@@ -122,6 +134,12 @@ bool kevue_error_code_valid(KevueErr e)
 {
     return e >= 0 && e < KEVUE_ERR_MAX;
 }
+
+#define X(name, str) str,
+const char *kevue_error_code_to_string[] = {
+    ERROR_CODE_LIST
+};
+#undef X
 
 KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)
 {
@@ -390,21 +408,3 @@ void kevue_response_print(KevueResponse *resp)
     }
     fflush(stdout);
 }
-
-const uint8_t kevue_command_length[] = {
-#define X(name) sizeof(#name) - 1,
-    COMMAND_LIST
-#undef X
-};
-
-const char *kevue_command_to_string[] = {
-#define X(name) #name,
-    COMMAND_LIST
-#undef X
-};
-
-const char *kevue_error_code_to_string[] = {
-#define X(name, str) str,
-    ERROR_CODE_LIST
-#undef X
-};

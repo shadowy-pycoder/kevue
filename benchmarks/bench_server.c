@@ -22,31 +22,23 @@
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
 #endif
-#ifdef USE_TCMALLOC
-#include "../src/tcmalloc_allocator.c"
-#endif
-#ifdef USE_JEMALLOC
-#include "../src/jemalloc_allocator.c"
+#if defined(USE_TCMALLOC)
+#include <tcmalloc_allocator.h>
+#elif defined(USE_JEMALLOC)
+#include <jemalloc_allocator.h>
 #endif
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
 int main(void)
 {
-    KevueAllocator *ma;
-#if defined(USE_TCMALLOC)
-    ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-    ma = &kevue_jemalloc_allocator;
-#else
-    ma = &kevue_default_allocator;
-#endif
-    KevueClient *kc = kevue_client_create(HOST, PORT, ma);
+    KevueClientConfig conf = { 0 };
+    KevueClient      *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(*resp), conf.ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -67,7 +59,7 @@ int main(void)
     uint64_t finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -90,7 +82,7 @@ int main(void)
     finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -102,7 +94,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_items(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -112,7 +104,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_keys(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -122,7 +114,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_values(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -132,7 +124,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_count(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -153,7 +145,7 @@ int main(void)
     finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -162,7 +154,7 @@ int main(void)
     req_sec = NUM_ENTRIES / elapsed_sec;
     printf("Deleting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
+    conf.ma->free(resp, conf.ma->ctx);
     kevue_client_destroy(kc);
     return 0;
 }

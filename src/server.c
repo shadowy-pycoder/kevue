@@ -30,12 +30,16 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#define FLAG_IMPLEMENTATION
+#include <flag.h>
 
 #include <allocator.h>
 #include <buffer.h>
@@ -47,10 +51,9 @@
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
 #endif
-#ifdef USE_TCMALLOC
+#if defined(USE_TCMALLOC)
 #include <tcmalloc_allocator.h>
-#endif
-#ifdef USE_JEMALLOC
+#elif defined(USE_JEMALLOC)
 #include <jemalloc_allocator.h>
 #endif
 
@@ -63,6 +66,16 @@ typedef struct sockaddr_storage SockAddr;
 typedef struct Address          Address;
 typedef struct Socket           Socket;
 typedef struct KevueConnection  KevueConnection;
+
+struct KevueServer {
+    const char     *host;
+    const char     *port;
+    int             fds[SERVER_WORKERS];
+    pthread_t       threads[SERVER_WORKERS];
+    int             efd;
+    KevueAllocator *ma;
+    HashMap        *hm;
+};
 
 struct Address {
     int  port;
@@ -97,7 +110,7 @@ static int kevue__setnonblocking(int fd);
 static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
 static int kevue__epoll_del(int epfd, Socket *sock);
 static void *kevue__handle_server_epoll(void *args);
-static int kevue__create_server_sock(char *host, char *port, bool check);
+static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_size, size_t send_buf_size, bool check);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
@@ -108,7 +121,7 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
 static bool kevue__handle_write(KevueConnection *c);
 static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
 static void kevue__signal_handler(int sig);
-static void kevue__usage(void);
+static void kevue__usage(FILE *stream);
 
 static int kevue__setnonblocking(int fd)
 {
@@ -607,7 +620,7 @@ static void kevue__signal_handler(int sig)
     }
 }
 
-static int kevue__create_server_sock(char *host, char *port, bool check)
+static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_size, size_t send_buf_size, bool check)
 {
     struct addrinfo hints, *servinfo, *p;
     int             server_sock;
@@ -646,15 +659,13 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
                 return -1;
             }
         }
-        int send_buffer_size = SND_BUF_SIZE;
-        int recv_buffer_size = RECV_BUF_SIZE;
-        if (setsockopt(server_sock, SOL_SOCKET, SO_SNDBUF, &send_buffer_size, sizeof(send_buffer_size)) < 0) {
+        if (setsockopt(server_sock, SOL_SOCKET, SO_SNDBUF, &send_buf_size, sizeof(send_buf_size)) < 0) {
             print_err(generate_timestamp(), "Setting SO_SNDBUF option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
-        if (setsockopt(server_sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
+        if (setsockopt(server_sock, SOL_SOCKET, SO_RCVBUF, &recv_buf_size, sizeof(recv_buf_size)) < 0) {
             print_err(generate_timestamp(), "Setting SO_RCVBUF option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
@@ -683,25 +694,47 @@ static int kevue__create_server_sock(char *host, char *port, bool check)
     return server_sock;
 }
 
-static void kevue__usage(void)
+static void kevue__usage(FILE *stream)
 {
-    printf("Usage: kevue-server <host> <port>\n");
+    fprintf(stream, "Usage: kevue-server [OPTIONS]\n");
+    fprintf(stream, "OPTIONS:\n");
+    flag_print_options(stream);
 }
 
-KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
+KevueServer *kevue_server_create(KevueServerConfig *conf)
 {
+    if (!conf->host) conf->host = KEVUE_HOST;
+    if (!conf->port) conf->port = KEVUE_PORT;
+    if (conf->recv_buf_size == 0) conf->recv_buf_size = RECV_BUF_SIZE;
+    if (conf->send_buf_size == 0) conf->send_buf_size = SEND_BUF_SIZE;
+    if (conf->ma == NULL) {
+        KevueAllocator *ma = &kevue_default_allocator;
+#if defined(USE_TCMALLOC)
+        ma = &kevue_tcmalloc_allocator;
+#elif defined(USE_JEMALLOC)
+        ma = &kevue_jemalloc_allocator;
+#endif
+        conf->ma = ma;
+    }
+    if (!is_valid_ip(conf->host)) {
+        print_err(generate_timestamp(), "Server host is not a valid IP address");
+        return NULL;
+    }
+    if (!is_valid_port(conf->port)) {
+        print_err(generate_timestamp(), "Server port is not valid number");
+        return NULL;
+    }
     int server_sock;
-    if ((server_sock = kevue__create_server_sock(host, port, true)) < 0) {
+    if ((server_sock = kevue__create_server_sock(conf->host, conf->port, conf->recv_buf_size, conf->send_buf_size, true)) < 0) {
         return NULL;
     }
     close(server_sock);
-    if (ma == NULL) ma = &kevue_default_allocator;
-    KevueServer *ks = (KevueServer *)ma->malloc(sizeof(KevueServer), ma->ctx);
+    KevueServer *ks = (KevueServer *)conf->ma->malloc(sizeof(KevueServer), conf->ma->ctx);
     if (ks == NULL) return NULL;
     memset(ks, 0, sizeof(*ks));
-    ks->ma = ma;
-    ks->host = host;
-    ks->port = port;
+    ks->ma = conf->ma;
+    ks->host = conf->host;
+    ks->port = conf->port;
     ks->efd = eventfd(0, EFD_NONBLOCK);
     if (ks->efd < 0) {
         print_err(generate_timestamp(), "Creating eventfd failed: %s", strerror(errno));
@@ -709,7 +742,7 @@ KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma)
         return NULL;
     }
     for (int i = 0; i < SERVER_WORKERS; i++) {
-        ks->fds[i] = kevue__create_server_sock(host, port, false);
+        ks->fds[i] = kevue__create_server_sock(conf->host, conf->port, conf->recv_buf_size, conf->send_buf_size, false);
         if (ks->fds[i] < 0) {
             close(ks->efd);
             ks->ma->free(ks, ks->ma->ctx);
@@ -778,30 +811,27 @@ void kevue_server_destroy(KevueServer *ks)
 
 int main(int argc, char **argv)
 {
-    char *host, *port;
-    if (argc == 3) {
-        host = argv[1];
-        int port_num = atoi(argv[2]);
-        if (port_num < 0 || port_num > 65535) {
-            kevue__usage();
-            exit(EXIT_FAILURE);
-        }
-        host = argv[1];
-        port = argv[2];
-    } else if (argc > 1) {
-        kevue__usage();
+    KevueServerConfig conf = { 0 };
+
+    bool *help = flag_bool("help", false, "Print this help message and exit");
+    flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
+    flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
+    flag_size_var(&conf.recv_buf_size, "recvb", RECV_BUF_SIZE, "Receive buffer size");
+    flag_size_var(&conf.send_buf_size, "sendb", SEND_BUF_SIZE, "Send buffer size");
+    if (!flag_parse(argc, argv)) {
+        kevue__usage(stderr);
+        flag_print_error(stderr);
         exit(EXIT_FAILURE);
-    } else {
-        host = HOST;
-        port = PORT;
     }
-    KevueAllocator *ma = NULL;
-#if defined(USE_TCMALLOC)
-    ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-    ma = &kevue_jemalloc_allocator;
-#endif
-    KevueServer *ks = kevue_server_create(host, port, ma);
+
+    argc = flag_rest_argc();
+    argv = flag_rest_argv();
+
+    if (*help) {
+        kevue__usage(stdout);
+        exit(EXIT_SUCCESS);
+    }
+    KevueServer *ks = kevue_server_create(&conf);
     if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);
     kevue_server_destroy(ks);

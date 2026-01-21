@@ -25,8 +25,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define HOST          "0.0.0.0"
-#define PORT          "12111"
+#define KEVUE_HOST    "0.0.0.0"
+#define KEVUE_PORT    "12111"
 #define BUF_SIZE      (32 * 1024)
 #define READ_TIMEOUT  10
 #define WRITE_TIMEOUT 10
@@ -130,3 +130,13 @@ uint64_t nsec_now(void);
  * @note Format is "YYYY-MM-DD HH:MM:SS.nnnnnnnnnZ"
  */
 const char *generate_timestamp(void);
+
+/**
+ * @brief Check if provided port string is within (0, 65535] range.
+ */
+bool is_valid_port(char *port);
+
+/**
+ * @brief Check if provided addr string is valid IPv4/IPv6.
+ */
+bool is_valid_ip(const char *addr);

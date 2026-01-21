@@ -18,6 +18,7 @@
  * @brief kevue client implementation.
  */
 #include <arpa/inet.h>
+#include <asm-generic/errno.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -32,6 +33,15 @@
 #include <common.h>
 #include <protocol.h>
 
+#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#error "You can define only one memory allocator at a time"
+#endif
+#if defined(USE_TCMALLOC)
+#include <tcmalloc_allocator.h>
+#elif defined(USE_JEMALLOC)
+#include <jemalloc_allocator.h>
+#endif
+
 static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
 static bool kevue__handle_read_exactly(KevueClient *kc, size_t n);
@@ -43,8 +53,6 @@ struct KevueClient {
     struct sockaddr_in server_addr;
     Buffer            *rbuf;
     Buffer            *wbuf;
-    int                read_timeout;
-    int                write_timeout;
     KevueAllocator    *ma;
 };
 
@@ -97,14 +105,20 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             }
         }
         if (connect(client_sock, p->ai_addr, p->ai_addrlen) < 0) {
-            print_err(generate_timestamp(), "Connecting to %s:%s failed: %s", host, port, strerror(errno));
+            if (errno == EINPROGRESS)
+                print_err(generate_timestamp(), "Connecting to %s:%s failed", host, port);
+            else
+                print_err(generate_timestamp(), "Connecting to %s:%s failed: %s", host, port, strerror(errno));
             close(client_sock);
             continue;
         }
         break;
     }
     if (p == NULL) {
-        print_err(generate_timestamp(), "Connect failed: %s", strerror(errno));
+        if (errno == EINPROGRESS)
+            print_err(generate_timestamp(), "Connect failed");
+        else
+            print_err(generate_timestamp(), "Connect failed: %s", strerror(errno));
         close(client_sock);
         freeaddrinfo(servinfo);
         return -1;
@@ -318,15 +332,33 @@ bool kevue_client_values(KevueClient *kc, KevueResponse *resp)
     return kevue__make_request(kc, &req, resp);
 }
 
-KevueClient *kevue_client_create(const char *host, const char *port, KevueAllocator *ma)
+KevueClient *kevue_client_create(KevueClientConfig *conf)
 {
-    if (ma == NULL) ma = &kevue_default_allocator;
-    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(KevueClient), ma->ctx);
+    if (!conf->host) conf->host = KEVUE_HOST;
+    if (!conf->port) conf->port = KEVUE_PORT;
+    if (conf->read_timeout == 0) conf->read_timeout = READ_TIMEOUT;
+    if (conf->write_timeout == 0) conf->write_timeout = WRITE_TIMEOUT;
+    if (conf->ma == NULL) {
+        KevueAllocator *ma = &kevue_default_allocator;
+#if defined(USE_TCMALLOC)
+        ma = &kevue_tcmalloc_allocator;
+#elif defined(USE_JEMALLOC)
+        ma = &kevue_jemalloc_allocator;
+#endif
+        conf->ma = ma;
+    }
+    if (!is_valid_ip(conf->host)) {
+        print_err(generate_timestamp(), "Server host is not a valid IP address");
+        return NULL;
+    }
+    if (!is_valid_port(conf->port)) {
+        print_err(generate_timestamp(), "Server port is not valid number");
+        return NULL;
+    }
+    KevueClient *kc = (KevueClient *)conf->ma->malloc(sizeof(*kc), conf->ma->ctx);
     if (kc == NULL) return NULL;
-    kc->ma = ma;
-    kc->read_timeout = READ_TIMEOUT;
-    kc->write_timeout = WRITE_TIMEOUT;
-    kc->fd = kevue__create_client_sock(host, port, kc->read_timeout, kc->write_timeout);
+    kc->ma = conf->ma;
+    kc->fd = kevue__create_client_sock(conf->host, conf->port, conf->read_timeout, conf->write_timeout);
     if (kc->fd < 0) {
         kc->ma->free(kc, kc->ma->ctx);
         return NULL;

@@ -29,9 +29,10 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#define FLAG_IMPLEMENTATION
+#include <flag.h>
 #include <linenoise.h>
 
-#include <allocator.h>
 #include <client.h>
 #include <common.h>
 
@@ -43,16 +44,6 @@
 #define HISTORY_PATH ".kevue_history"
 #endif
 
-#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
-#error "You can define only one memory allocator at a time"
-#endif
-#ifdef USE_TCMALLOC
-#include <tcmalloc_allocator.h>
-#endif
-#ifdef USE_JEMALLOC
-#include <jemalloc_allocator.h>
-#endif
-
 typedef struct KevueClientParseResult {
     KevueCommand    cmd;
     Buffer         *key;
@@ -60,7 +51,7 @@ typedef struct KevueClientParseResult {
     KevueAllocator *ma;
 } KevueClientParseResult;
 
-static void kevue__usage(void);
+static void kevue__usage(FILE *stream);
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
 static void kevue__trim_left(Buffer *buf);
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf);
@@ -68,9 +59,11 @@ static void kevue__client_parse_result_destroy(KevueClientParseResult *pr);
 static void kevue__completion(const char *buf, linenoiseCompletions *lc);
 static char *kevue__hints(const char *buf, int *color, int *bold);
 
-static void kevue__usage(void)
+static void kevue__usage(FILE *stream)
 {
-    printf("Usage: kevue-client <host> <port>\n");
+    fprintf(stream, "Usage: kevue-cli [OPTIONS]\n");
+    fprintf(stream, "OPTIONS:\n");
+    flag_print_options(stream);
 }
 
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out)
@@ -314,34 +307,32 @@ static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
 
 int main(int argc, char **argv)
 {
-    char *host, *port;
-    char *line;
-    // TODO: add more args and use something like flag.h for parsing
-    if (argc == 3) {
-        int port_num = atoi(argv[2]);
-        if (port_num < 0 || port_num > 65535) {
-            kevue__usage();
-            exit(EXIT_FAILURE);
-        }
-        host = argv[1];
-        port = argv[2];
-    } else if (argc > 1) {
-        kevue__usage();
+    KevueClientConfig conf = { 0 };
+
+    bool *help = flag_bool("help", false, "Print this help message and exit");
+    flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
+    flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
+    uint64_t *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
+    uint64_t *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
+    if (!flag_parse(argc, argv)) {
+        kevue__usage(stderr);
+        flag_print_error(stderr);
         exit(EXIT_FAILURE);
-    } else {
-        host = HOST;
-        port = PORT;
     }
-    KevueAllocator *ma = &kevue_default_allocator;
-#if defined(USE_TCMALLOC)
-    ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-    ma = &kevue_jemalloc_allocator;
-#endif
-    KevueClient *kc = kevue_client_create(host, port, ma);
+
+    argc = flag_rest_argc();
+    argv = flag_rest_argv();
+
+    if (*help) {
+        kevue__usage(stdout);
+        exit(EXIT_SUCCESS);
+    }
+    conf.read_timeout = *(int *)read_timeout;
+    conf.write_timeout = *(int *)write_timeout;
+    KevueClient *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    print_info(generate_timestamp(), "Connected to %s:%s", host, port);
-    KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    print_info(generate_timestamp(), "Connected to %s:%s", conf.host, conf.port);
+    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(KevueResponse), conf.ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -349,21 +340,15 @@ int main(int argc, char **argv)
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
         print_err(generate_timestamp(), "%s", kevue_error_code_to_string[resp->err_code]);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    struct epoll_event *events = ma->malloc(sizeof(struct epoll_event) * MAX_EVENTS, ma->ctx);
-    if (events == NULL) {
-        ma->free(resp, ma->ctx);
-        kevue_client_destroy(kc);
-        exit(EXIT_FAILURE);
-    }
-    int epfd = epoll_create1(0);
+    struct epoll_event events[MAX_EVENTS] = { 0 };
+    int                epfd = epoll_create1(0);
     if (epfd < 0) {
         print_err(generate_timestamp(), "Creating epoll file descriptor failed %s", strerror(errno));
-        ma->free(events, ma->ctx);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -371,8 +356,7 @@ int main(int argc, char **argv)
     if (tfd < 0) {
         print_err(generate_timestamp(), "Creating timer socket failed: %s", strerror(errno));
         close(epfd);
-        ma->free(events, ma->ctx);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -383,8 +367,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Setting timer failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        ma->free(events, ma->ctx);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -395,8 +378,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Adding timer socket to epoll failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        ma->free(events, ma->ctx);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -405,20 +387,20 @@ int main(int argc, char **argv)
     linenoiseHistoryLoad(HISTORY_PATH);
     linenoiseSetMultiLine(1);
     char prompt[PROMPT_LENGTH];
-    int  n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", host, port);
+    int  n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
     prompt[n] = '\0';
-    Buffer *cmdline = kevue_buffer_create(BUF_SIZE, ma);
+    Buffer *cmdline = kevue_buffer_create(BUF_SIZE, conf.ma);
     if (cmdline == NULL) {
         print_err(generate_timestamp(), "Creating buffer for command line failed");
         close(epfd);
         close(tfd);
-        ma->free(events, ma->ctx);
-        ma->free(resp, ma->ctx);
+        conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    int  nready;
-    bool unrecoverable_error_occured = false;
+    char *line;
+    int   nready;
+    bool  unrecoverable_error_occured = false;
     while (true) {
         if (unrecoverable_error_occured) goto client_close_fail;
         struct linenoiseState ls;
@@ -488,6 +470,7 @@ int main(int argc, char **argv)
             free(line);
             continue;
         }
+        // TODO: add help command
         if (!strncmp(line, "exit", 4) || !strncmp(line, "quit", 4) || !strncmp(line, "q", 1)) {
             free(line);
             goto client_close;
@@ -646,25 +629,23 @@ int main(int argc, char **argv)
         kevue_buffer_reset(cmdline);
         kevue__client_parse_result_destroy(pr);
         linenoiseHistoryAdd(line); // Add to the history.
-        linenoiseHistorySave(HISTORY_PATH); // Save the history on disk.
+        linenoiseHistorySave(HISTORY_PATH); /* Save the history on disk. */
         free(line);
     }
 client_close:
     close(epfd);
     close(tfd);
-    ma->free(events, ma->ctx);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
+    conf.ma->free(resp, conf.ma->ctx);
     kevue_client_destroy(kc);
     return 0;
 client_close_fail:
     close(epfd);
     close(tfd);
-    ma->free(events, ma->ctx);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
+    conf.ma->free(resp, conf.ma->ctx);
     kevue_client_destroy(kc);
     exit(EXIT_FAILURE);
 }

@@ -27,21 +27,22 @@
 
 typedef struct KevueClient KevueClient;
 
+typedef struct KevueClientConfig {
+    char           *host; // defaults to KEVUE_HOST
+    char           *port; // defaults to KEVUE_PORT
+    int             read_timeout; // defaults to READ_TIMEOUT
+    int             write_timeout; // defaults to WRITE_TIMEOUT
+    KevueAllocator *ma; // defaults to kevue_default_allocator
+} KevueClientConfig;
+
 /**
  * @brief Creates a new kevue client instance.
  *
- * Establishes a connection to the server identified by @p host and @p port.
- * Memory is allocated using the provided allocator.
- *
- * @param host  Server hostname or IP address.
- * @param port  Server port as a string.
- * @param ma    Allocator used for client resources.
+ * @param conf  Client config
  *
  * @return Pointer to a newly created client, or NULL on failure.
- *
- * @note if @p ma is NULL default allocator is used
  */
-KevueClient *kevue_client_create(const char *host, const char *port, KevueAllocator *ma);
+KevueClient *kevue_client_create(KevueClientConfig *conf);
 
 /**
  * @brief Destroys a kevue client instance.

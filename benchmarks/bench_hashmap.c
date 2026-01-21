@@ -21,11 +21,10 @@
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
 #endif
-#ifdef USE_TCMALLOC
-#include "../src/tcmalloc_allocator.c"
-#endif
-#ifdef USE_JEMALLOC
-#include "../src/jemalloc_allocator.c"
+#if defined(USE_TCMALLOC)
+#include <tcmalloc_allocator.h>
+#elif defined(USE_JEMALLOC)
+#include <jemalloc_allocator.h>
 #endif
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)

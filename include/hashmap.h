@@ -32,7 +32,7 @@
  */
 typedef struct HashMap HashMap;
 
-typedef struct {
+typedef struct HashMapOps {
     /**
      * Destroys a hashmap instance.
      *

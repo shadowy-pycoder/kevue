@@ -134,3 +134,20 @@ const char *generate_timestamp(void)
 
     return buf;
 }
+
+bool is_valid_port(char *port)
+{
+    char         *end;
+    unsigned long val;
+    errno = 0;
+    val = strtoul(port, &end, 10);
+    if (errno) return false;
+    if (end == port || *end != '\0') return false;
+    if (val == 0 || val > 65535) return false;
+    return true;
+}
+
+bool is_valid_ip(const char *addr)
+{
+    return inet_pton(AF_INET, addr, &(struct in_addr) {}) == 1 || inet_pton(AF_INET6, addr, &(struct in6_addr) {}) == 1;
+}

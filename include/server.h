@@ -18,7 +18,7 @@
  * @brief kevue server API.
  */
 #pragma once
-#include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include <allocator.h>
@@ -26,7 +26,7 @@
 #include <hashmap.h>
 
 #define MAX_CONNECTIONS 4092
-#define SND_BUF_SIZE    (1024 * 1024 * 2)
+#define SEND_BUF_SIZE   (1024 * 1024 * 2)
 #define RECV_BUF_SIZE   (1024 * 1024 * 2)
 
 #if SERVER_WORKERS == 1
@@ -39,28 +39,26 @@
  *
  * Holds server configuration, worker threads, and shared state.
  */
-typedef struct KevueServer {
-    const char     *host;
-    const char     *port;
-    int             fds[SERVER_WORKERS];
-    pthread_t       threads[SERVER_WORKERS];
-    int             efd;
-    KevueAllocator *ma;
-    HashMap        *hm;
-} KevueServer;
+typedef struct KevueServer KevueServer;
+
+typedef struct KevueServerConfig {
+    char           *host; // defaults to KEVUE_HOST
+    char           *port; // defaults to KEVUE_PORT
+    size_t          recv_buf_size; // defaults to RECV_BUF_SIZE
+    size_t          send_buf_size; // defaults to SEND_BUF_SIZE
+    KevueAllocator *ma; // defaults to kevue_default_allocator
+} KevueServerConfig;
 
 /**
  * @brief Creates a new kevue server instance.
  *
  * Initializes server state but does not start worker threads.
  *
- * @param host  Hostname or bind address.
- * @param port  Port number as a string.
- * @param ma    Allocator used for server resources.
+ * @param conf  Server config
  *
  * @return Pointer to a newly created server, or NULL on failure.
  */
-KevueServer *kevue_server_create(char *host, char *port, KevueAllocator *ma);
+KevueServer *kevue_server_create(KevueServerConfig *conf);
 
 /**
  * @brief Starts the kevue server.

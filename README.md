@@ -215,13 +215,14 @@ Deleting 10485760 items takes: 4.007769836s (2616357.83 op/sec)
 ## TODO
 
 - [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
+- [ ] Add UNIX sockets for local clients
 - [ ] Add comments and documentation
 - [ ] Add tests and benchmarks
 - [ ] Make it compilable with C++ compilers
 - [ ] Load/save from persistent storage
-- [ ] Add more commands
+- [ ] Add more commands, `HSET`, `HGET` and the like
 - [ ] Add arena memory allocator
-- [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing )
+- [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing)
 - [ ] Add installation script
 
 ## Contributing

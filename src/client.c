@@ -18,7 +18,6 @@
  * @brief kevue client implementation.
  */
 #include <arpa/inet.h>
-#include <asm-generic/errno.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>

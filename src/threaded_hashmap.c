@@ -34,9 +34,9 @@
 #define HASHMAP_BUCKET_INITIAL_COUNT       (SERVER_WORKERS * 8U) // rounded up to the power of two
 #define HASHMAP_BUCKET_MAX_COUNT           8388608U
 #define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 2U
-#define HASHMAP_MAX_LOAD                   1.0f
+#define HASHMAP_MAX_LOAD                   0.75f
 #define HASHMAP_MIN_LOAD                   0.25f
-#define HASHMAP_RESIZE_FACTOR              2
+#define HASHMAP_RESIZE_FACTOR              4
 #define HASHMAP_SLOT_MAX_COUNT             (HASHMAP_BUCKET_MAX_COUNT * HASHMAP_BUCKET_ENTRY_INITIAL_COUNT) // 16777216
 
 #ifdef __HASHMAP_SINGLE_THREADED
@@ -199,7 +199,6 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len,
                     entry = hm_internal->buckets[idx].ptr[eidx];
                 }
                 entry->val_len = val_len;
-                memcpy(entry->data, key, key_len);
                 memcpy(entry->data + key_len, val, val_len);
                 mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
                 return true;

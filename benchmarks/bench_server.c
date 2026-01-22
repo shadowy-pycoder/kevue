@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// clang -O3 -flto -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
+// clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
 #include "../src/buffer.c"
 #include "../src/client.c"
 #include "../src/common.c"
@@ -30,6 +30,15 @@
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
+// https://github.com/svaarala/duktape/blob/master/misc/splitmix64.c
+static inline uint64_t splitmix64(uint64_t *state)
+{
+    uint64_t z = (*state += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31);
+}
+
 int main(void)
 {
     KevueClientConfig conf = { 0 };
@@ -45,12 +54,12 @@ int main(void)
     printf("Inserting %zu items...\n", NUM_ENTRIES);
     uint64_t start = nsec_now();
     bool     op_failed = false;
+    uint64_t rng = 1;
+    uint64_t val_rng = 1;
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        char key[64] = {};
-        char val[64] = {};
-        int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
-        int  val_len = snprintf(val, sizeof(val), "World%zu", i);
-        if (!kevue_client_set(kc, resp, key, (uint16_t)key_len, val, (uint16_t)val_len)) {
+        uint64_t key = splitmix64(&rng);
+        uint64_t val = splitmix64(&val_rng);
+        if (!kevue_client_set(kc, resp, &key, 8, &val, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
@@ -69,11 +78,11 @@ int main(void)
     printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
+    rng = 1;
     start = nsec_now();
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        char key[64] = {};
-        int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
-        if (!kevue_client_get(kc, resp, key, (uint16_t)key_len)) {
+        uint64_t key = splitmix64(&rng);
+        if (!kevue_client_get(kc, resp, &key, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
@@ -132,11 +141,11 @@ int main(void)
     printf("Counting %zu entries takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
     printf("Deleting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
+    rng = 1;
     start = nsec_now();
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        char key[64] = {};
-        int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
-        if (!kevue_client_del(kc, resp, key, (uint16_t)key_len)) {
+        uint64_t key = splitmix64(&rng);
+        if (!kevue_client_del(kc, resp, &key, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;

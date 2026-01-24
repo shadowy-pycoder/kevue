@@ -176,7 +176,7 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, size_t key_len,
         return false;
     }
     if (hm_internal->bucket_count < HASHMAP_BUCKET_MAX_COUNT) {
-        if ((double)hm_internal->slots_taken / (double)hm_internal->bucket_count > HASHMAP_MAX_LOAD) {
+        if ((double)hm_internal->bucket_count * HASHMAP_MAX_LOAD < (double)hm_internal->slots_taken) {
             kevue__hm_threaded_resize(hm_internal, hm_internal->bucket_count * HASHMAP_RESIZE_FACTOR);
         }
     }
@@ -255,7 +255,7 @@ static bool kevue__hm_threaded_del(HashMap *hm, const void *key, size_t key_len)
     HashMapThreaded *hm_internal = (HashMapThreaded *)hm->internal;
     mutex_lock(&hm_internal->resize_lock);
     if (hm_internal->bucket_count > hm_internal->initial_bucket_count) {
-        if ((double)hm_internal->slots_taken / (double)hm_internal->bucket_count < HASHMAP_MIN_LOAD) {
+        if ((double)hm_internal->bucket_count * HASHMAP_MIN_LOAD > (double)hm_internal->slots_taken) {
             kevue__hm_threaded_resize(hm_internal, max(hm_internal->initial_bucket_count, hm_internal->bucket_count / HASHMAP_RESIZE_FACTOR));
         }
     }

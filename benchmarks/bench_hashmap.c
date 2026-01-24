@@ -17,6 +17,7 @@
 #include "../src/buffer.c"
 #include "../src/common.c"
 #include "../src/threaded_hashmap.c"
+#include <stdint.h>
 
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
@@ -70,7 +71,8 @@ int main(void)
     uint64_t elapsed_ns = finish - start;
     double   elapsed_sec = (double)elapsed_ns * 1e-9;
     double   req_sec = NUM_ENTRIES / elapsed_sec;
-    printf("Inserting %zu items takes: %.9fs (%.2f op/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+    uint64_t ns_op = elapsed_ns / NUM_ENTRIES;
+    printf("Inserting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     start = nsec_now();
@@ -92,7 +94,8 @@ int main(void)
     elapsed_ns = finish - start;
     elapsed_sec = (double)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
-    printf("Getting %zu items takes: %.9fs (%.2f op/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+    ns_op = elapsed_ns / NUM_ENTRIES;
+    printf("Getting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
     printf("Fetching %zu items...\n", NUM_ENTRIES);
     kevue_buffer_reset(buf);
     start = nsec_now();
@@ -148,7 +151,8 @@ int main(void)
     elapsed_ns = finish - start;
     elapsed_sec = (double)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
-    printf("Deleting %zu items takes: %.9fs (%.2f op/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+    ns_op = elapsed_ns / NUM_ENTRIES;
+    printf("Deleting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
     kevue__hm_threaded_destroy(hm);
     kevue_buffer_destroy(buf);
     return 0;

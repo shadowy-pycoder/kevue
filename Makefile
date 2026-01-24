@@ -134,7 +134,7 @@ bench-server: $(BIN)/kevue-bench-server  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-server
 
 $(BIN)/kevue-bench-hashmap: | $(BIN)
-	$(CC) -O3 -flto --march=native Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
 
 .PHONY: bench-hashmap
 bench-hashmap: $(BIN)/kevue-bench-hashmap  | $(BIN)

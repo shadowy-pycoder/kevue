@@ -165,53 +165,53 @@ Deleting 10485760 items takes: 127.858687401s (82010.54 req/sec)
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
 taskset -c 0 ./bin/kevue-bench-hashmap
 Inserting 10485760 items...
-Inserting 10485760 items takes: 2.369143025s (4425971.71 op/sec)
+Inserting 10485760 items takes: 2.273541346s (4612082.39 op/sec 216 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.478306758s (7093088.05 op/sec)
+Getting 10485760 items takes: 1.447180676s (7245646.78 op/sec 138 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.628600289s
+Fetching 10485760 items takes: 0.605650347s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.291223106s
+Fetching 10485760 keys takes: 0.279577792s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.313610413s
+Fetching 10485760 values takes: 0.302108685s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000154s
+Counting 10485760 entries takes: 0.000000229s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.717743429s (6104380.80 op/sec)
+Deleting 10485760 items takes: 1.784692096s (5875388.83 op/sec 170 ns/op)
 
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__HASHMAP_SINGLE_THREADED
 taskset -c 0 ./bin/kevue-bench-hashmap
-Ijnserting 10485760 items...
-Inserting 10485760 items takes: 1.693756791s (6190829.79 op/sec)
+Inserting 10485760 items...
+Inserting 10485760 items takes: 1.632071587s (6424816.22 op/sec 155 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.047558695s (10009711.20 op/sec)
+Getting 10485760 items takes: 1.026033423s (10219706.07 op/sec 97 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.648280134s
+Fetching 10485760 items takes: 0.624026397s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.295500887s
+Fetching 10485760 keys takes: 0.279553502s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.309397667s
+Fetching 10485760 values takes: 0.299064313s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000027s
+Counting 10485760 entries takes: 0.000000020s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.329503598s (7886973.77 op/sec)
+Deleting 10485760 items takes: 1.306019460s (8028793.08 op/sec 124 ns/op)
 
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_JEMALLOC -ljemalloc -D__HASHMAP_SINGLE_THREADED
 taskset -c 0 ./bin/kevue-bench-hashmap
 Inserting 10485760 items...
-Inserting 10485760 items takes: 2.078912370s (5043868.20 op/sec)
+Inserting 10485760 items takes: 2.003944935s (5232558.95 op/sec 191 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.047995867s (10005535.64 op/sec)
+Getting 10485760 items takes: 1.017855923s (10301811.64 op/sec 97 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.592397845s
+Fetching 10485760 items takes: 0.576068544s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.289765484s
+Fetching 10485760 keys takes: 0.277789404s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.307829373s
+Fetching 10485760 values takes: 0.298131536s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000027s
+Counting 10485760 entries takes: 0.000000021s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.299129788s (8071372.16 op/sec)
+Deleting 10485760 items takes: 1.257090664s (8341291.76 op/sec 119 ns/op)
 
 ```
 

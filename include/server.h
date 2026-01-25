@@ -29,10 +29,6 @@
 #define SEND_BUF_SIZE   (1024 * 1024 * 2)
 #define RECV_BUF_SIZE   (1024 * 1024 * 2)
 
-#if SERVER_WORKERS == 1
-#define __HASHMAP_SINGLE_THREADED
-#endif
-
 /**
  * @struct KevueServer
  * @brief kevue server instance.
@@ -44,6 +40,8 @@ typedef struct KevueServer KevueServer;
 typedef struct KevueServerConfig {
     char           *host; // defaults to KEVUE_HOST
     char           *port; // defaults to KEVUE_PORT
+    char           *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
+    int             workers; // defaults to KEVUE_SERVER_WORKERS
     size_t          recv_buf_size; // defaults to RECV_BUF_SIZE
     size_t          send_buf_size; // defaults to SEND_BUF_SIZE
     KevueAllocator *ma; // defaults to kevue_default_allocator

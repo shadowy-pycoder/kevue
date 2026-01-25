@@ -31,7 +31,7 @@
 #include <hashmap.h>
 #include <threaded_hashmap.h>
 
-#define HASHMAP_BUCKET_INITIAL_COUNT       (SERVER_WORKERS * 8U) // rounded up to the power of two
+#define HASHMAP_BUCKET_INITIAL_COUNT       (KEVUE_SERVER_WORKERS * 8U) // rounded up to the power of two
 #define HASHMAP_BUCKET_MAX_COUNT           8388608U
 #define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 2U
 #define HASHMAP_MAX_LOAD                   0.75f
@@ -53,10 +53,10 @@
 #define mutex_destroy(l)          pthread_mutex_destroy((l))
 #endif
 
-static_assert(is_pow2(HASHMAP_BUCKET_MAX_COUNT), "HASHMAP_BUCKET_MAX_COUNT must be a power of two");
-static_assert(is_pow2(HASHMAP_BUCKET_LOCK_COUNT), "HASHMAP_BUCKET_LOCK_COUNT must be a power of two");
-static_assert(is_pow2(HASHMAP_RESIZE_FACTOR), "HASHMAP_RESIZE_FACTOR must be a power of two");
-static_assert(is_pow2(HASHMAP_SLOT_MAX_COUNT), "HASHMAP_SLOT_MAX_COUNT must be a power of two");
+_Static_assert(is_pow2(HASHMAP_BUCKET_MAX_COUNT), "HASHMAP_BUCKET_MAX_COUNT must be a power of two");
+_Static_assert(is_pow2(HASHMAP_BUCKET_LOCK_COUNT), "HASHMAP_BUCKET_LOCK_COUNT must be a power of two");
+_Static_assert(is_pow2(HASHMAP_RESIZE_FACTOR), "HASHMAP_RESIZE_FACTOR must be a power of two");
+_Static_assert(is_pow2(HASHMAP_SLOT_MAX_COUNT), "HASHMAP_SLOT_MAX_COUNT must be a power of two");
 
 typedef struct HashMapThreaded HashMapThreaded;
 

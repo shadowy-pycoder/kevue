@@ -30,6 +30,7 @@ typedef struct KevueClient KevueClient;
 typedef struct KevueClientConfig {
     char           *host; // defaults to KEVUE_HOST
     char           *port; // defaults to KEVUE_PORT
+    char           *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
     int             read_timeout; // defaults to READ_TIMEOUT
     int             write_timeout; // defaults to WRITE_TIMEOUT
     KevueAllocator *ma; // defaults to kevue_default_allocator

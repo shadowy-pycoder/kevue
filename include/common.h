@@ -25,15 +25,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define KEVUE_HOST    "0.0.0.0"
-#define KEVUE_PORT    "12111"
-#define BUF_SIZE      (32 * 1024)
-#define READ_TIMEOUT  10
-#define WRITE_TIMEOUT 10
+#define KEVUE_HOST               "0.0.0.0"
+#define KEVUE_PORT               "12111"
+#define KEVUE_UNIX_SOCK_PATH     "/tmp/kevue.sock"
+#define BUF_SIZE                 (32 * 1024)
+#define READ_TIMEOUT             10
+#define WRITE_TIMEOUT            10
+#define KEVUE_MAX_SERVER_WORKERS 256
 
-#ifndef SERVER_WORKERS
-#define SERVER_WORKERS 10
+#ifndef TCP_SERVER_WORKERS
+#define TCP_SERVER_WORKERS 10
 #endif
+
+#define KEVUE_SERVER_WORKERS TCP_SERVER_WORKERS + 1 // account for one UNIX socket worker
+
+_Static_assert(KEVUE_SERVER_WORKERS > 0, "KEVUE_SERVER_WORKERS must be greater than 0");
 
 // stolen from https://github.com/tsoding/nob.h
 #define UNREACHABLE(where)                                                                  \

@@ -37,7 +37,7 @@
 #include <common.h>
 
 #define PING_INTERVAL_SECONDS 15
-#define PROMPT_LENGTH         INET6_ADDRSTRLEN + 7 + 1
+#define PROMPT_LENGTH         256
 #define MAX_EVENTS            2
 
 #ifndef HISTORY_PATH
@@ -312,6 +312,7 @@ int main(int argc, char **argv)
     bool *help = flag_bool("help", false, "Print this help message and exit");
     flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
     flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
+    flag_str_var(&conf.unix_path, "unix", "", "UNIX socket path");
     uint64_t *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
     uint64_t *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
     if (!flag_parse(argc, argv)) {
@@ -331,8 +332,7 @@ int main(int argc, char **argv)
     conf.write_timeout = *(int *)write_timeout;
     KevueClient *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    print_info(generate_timestamp(), "Connected to %s:%s", conf.host, conf.port);
-    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(KevueResponse), conf.ma->ctx);
+    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(*resp), conf.ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -386,8 +386,20 @@ int main(int argc, char **argv)
     linenoiseSetHintsCallback(kevue__hints);
     linenoiseHistoryLoad(HISTORY_PATH);
     linenoiseSetMultiLine(1);
+
+    bool unix = conf.unix_path != NULL && conf.unix_path[0] != '\0';
+    if (unix) {
+        print_info(generate_timestamp(), "Connected to %s", conf.unix_path);
+    } else {
+        print_info(generate_timestamp(), "Connected to %s:%s", conf.host, conf.port);
+    }
     char prompt[PROMPT_LENGTH];
-    int  n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
+    int  n;
+    if (unix) {
+        n = snprintf(prompt, PROMPT_LENGTH - 1, "%s> ", conf.unix_path);
+    } else {
+        n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
+    }
     prompt[n] = '\0';
     Buffer *cmdline = kevue_buffer_create(BUF_SIZE, conf.ma);
     if (cmdline == NULL) {

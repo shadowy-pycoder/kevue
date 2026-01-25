@@ -27,12 +27,18 @@ OPTIONS:
     -port <str>
         Server port
         Default: 12111
+    -unix <str>
+        UNIX socket path
+        Default: /tmp/kevue.sock
     -recvb <int>
         Receive buffer size
         Default: 2097152
     -sendb <int>
         Send buffer size
         Default: 2097152
+    -workers <int>
+        Server workers
+        Default: 1
 ```
 
 Run the server:
@@ -60,6 +66,9 @@ OPTIONS:
     -port <str>
         Server port
         Default: 12111
+    -unix <str>
+        UNIX socket path
+        Default:
     -read_timeout <int>
         Read timeout
         Default: 10
@@ -101,6 +110,24 @@ Performed on `13th Gen Intel(R) Core(TM) i7-1355U (12) @ 5.00 GHz` with perfoman
 ### Server
 
 ```bash
+# make release -B TCP_SERVER_WORKERS=0
+# make run
+# clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o ./bin/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc -DTCP_SERVER_WORKERS=0
+Inserting 10485760 items...
+Inserting 10485760 items takes: 63.813164444s (164319.70 req/sec)
+Getting 10485760 items...
+Getting 10485760 items takes: 62.684439796s (167278.51 req/sec)
+Fetching 10485760 items...
+Fetching 10485760 items takes: 1.376357072s
+Fetching 10485760 keys...
+Fetching 10485760 keys takes: 0.386575986s
+Fetching 10485760 values...
+Fetching 10485760 values takes: 0.411162984s
+Counting 10485760 entries...
+Counting 10485760 entries takes: 0.000161935s
+Deleting 10485760 items...
+Deleting 10485760 items takes: 63.829875791s (164276.68 req/sec)
+
 # make release -B
 # make run
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
@@ -218,8 +245,8 @@ Deleting 10485760 items takes: 1.257090664s (8341291.76 op/sec 119 ns/op)
 ## TODO
 
 - [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
-- [ ] Add UNIX sockets for local clients
-- [ ] Add comments and documentation
+- [x] Add UNIX sockets for local clients
+- [x] Add comments and documentation
 - [ ] Add tests and benchmarks
 - [ ] Make it compilable with C++ compilers
 - [ ] Load/save from persistent storage

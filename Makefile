@@ -13,8 +13,8 @@ LIB := $(PROJDIR)/lib
 CC := clang
 CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -std=c2x -march=native
 CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion -Wswitch-enum
-SERVER_WORKERS ?= $(shell command -v nproc >/dev/null 2>&1 && nproc || echo 1)
-CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DSERVER_WORKERS=$(SERVER_WORKERS)
+TCP_SERVER_WORKERS ?= $(shell command -v nproc >/dev/null 2>&1 && nproc || echo 1)
+CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DTCP_SERVER_WORKERS=$(TCP_SERVER_WORKERS)
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
 USE_JEMALLOC ?= auto
@@ -133,12 +133,22 @@ $(BIN)/kevue-bench-server: | $(BIN)
 bench-server: $(BIN)/kevue-bench-server  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-server
 
+$(BIN)/kevue-bench-unix-server: | $(BIN)
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o $(BIN)/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
+
+.PHONY: bench-unix-server
+bench-unix-server: $(BIN)/kevue-bench-unix-server  | $(BIN)
+	./$(notdir $(BIN))/kevue-bench-unix-server
+
 $(BIN)/kevue-bench-hashmap: | $(BIN)
-	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__HASHMAP_SINGLE_THREADED
 
 .PHONY: bench-hashmap
 bench-hashmap: $(BIN)/kevue-bench-hashmap  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-hashmap
+
+.PHONY: benchmarks
+benchmarks: $(BIN)/kevue-bench-server $(BIN)/kevue-bench-unix-server $(BIN)/kevue-bench-hashmap
 
 .PHONY: cpuprof
 cpuprof: $(BIN)/kevue-test-fill-server | $(BIN)
@@ -158,7 +168,7 @@ leakcheck: $(BIN)/kevue-test-fill-server | $(BIN)
 
 AFL_CC          ?= afl-clang-fast
 AFL_CFLAGS      := -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra
-AFL_INCLUDES   := -I$(INCLUDE) -I$(LIB)
+AFL_INCLUDES    := -I$(INCLUDE) -I$(LIB)
 FUZZ_BUILD      := $(PROJDIR)/fuzz/build
 FUZZ_BIN        := $(PROJDIR)/fuzz/bin
 FUZZ_OUT_BASE   := $(PROJDIR)/fuzz/out
@@ -208,7 +218,7 @@ fuzz-response: $(FUZZ_BIN)/fuzz_response | fuzz-dirs
 		-x $(FUZZ_DICT_BASE)/response/protocol.dict -- $(FUZZ_BIN)/fuzz_response
 
 compile_commands:
-	bear -- make --always-make all examples fuzz-build tests
+	bear -- make --always-make all examples fuzz-build tests benchmarks
 
 docs:
 	doxygen

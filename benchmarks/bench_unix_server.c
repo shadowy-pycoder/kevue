@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
+// clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o ./bin/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
 #include "../src/buffer.c"
+#include "../src/client.c"
 #include "../src/common.c"
-#include "../src/threaded_hashmap.c"
+#include "../src/protocol.c"
 
 #if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
 #error "You can define only one memory allocator at a time"
@@ -40,15 +41,17 @@ static inline uint64_t splitmix64(uint64_t *state)
 
 int main(void)
 {
-    KevueAllocator *ma;
-#if defined(USE_TCMALLOC)
-    ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-    ma = &kevue_jemalloc_allocator;
-#else
-    ma = &kevue_default_allocator;
-#endif
-    HashMap *hm = kevue_hm_threaded_create(ma);
+    KevueClientConfig conf = { 0 };
+    conf.unix_path = KEVUE_UNIX_SOCK_PATH;
+    KevueClient *kc = kevue_client_create(&conf);
+    if (kc == NULL) exit(EXIT_FAILURE);
+    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(*resp), conf.ma->ctx);
+    if (!kevue_client_hello(kc, resp)) {
+        printf("%s\n", kevue_error_code_to_string[resp->err_code]);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
+        exit(EXIT_FAILURE);
+    }
     printf("Inserting %zu items...\n", NUM_ENTRIES);
     uint64_t start = nsec_now();
     bool     op_failed = false;
@@ -57,102 +60,111 @@ int main(void)
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
         uint64_t key = splitmix64(&rng);
         uint64_t val = splitmix64(&val_rng);
-        if (!kevue__hm_threaded_put(hm, &key, 8, &val, 8)) {
+        if (!kevue_client_set(kc, resp, &key, 8, &val, 8)) {
+            printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
         }
     }
     uint64_t finish = nsec_now();
     if (op_failed) {
-        kevue__hm_threaded_destroy(hm);
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     uint64_t elapsed_ns = finish - start;
     double   elapsed_sec = (double)elapsed_ns * 1e-9;
     double   req_sec = NUM_ENTRIES / elapsed_sec;
-    uint64_t ns_op = elapsed_ns / NUM_ENTRIES;
-    printf("Inserting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
+    printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
-    start = nsec_now();
-    Buffer *buf = kevue_buffer_create(BUF_SIZE, ma);
     rng = 1;
+    start = nsec_now();
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
         uint64_t key = splitmix64(&rng);
-        if (!kevue__hm_threaded_get(hm, &key, 8, buf)) {
+        if (!kevue_client_get(kc, resp, &key, 8)) {
+            printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
         }
     }
     finish = nsec_now();
     if (op_failed) {
-        kevue__hm_threaded_destroy(hm);
-        kevue_buffer_destroy(buf);
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     elapsed_ns = finish - start;
     elapsed_sec = (double)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
-    ns_op = elapsed_ns / NUM_ENTRIES;
-    printf("Getting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
+    printf("Getting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     printf("Fetching %zu items...\n", NUM_ENTRIES);
-    kevue_buffer_reset(buf);
     start = nsec_now();
-    if (!kevue__hm_threaded_items(hm, buf)) {
-        kevue__hm_threaded_destroy(hm);
-        kevue_buffer_destroy(buf);
+    if (!kevue_client_items(kc, resp)) {
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
     printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
     printf("Fetching %zu keys...\n", NUM_ENTRIES);
-    kevue_buffer_reset(buf);
     start = nsec_now();
-    if (!kevue__hm_threaded_keys(hm, buf)) {
-        kevue__hm_threaded_destroy(hm);
-        kevue_buffer_destroy(buf);
+    if (!kevue_client_keys(kc, resp)) {
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
     printf("Fetching %zu keys takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
     printf("Fetching %zu values...\n", NUM_ENTRIES);
-    kevue_buffer_reset(buf);
     start = nsec_now();
-    if (!kevue__hm_threaded_values(hm, buf)) {
-        kevue__hm_threaded_destroy(hm);
-        kevue_buffer_destroy(buf);
+    if (!kevue_client_values(kc, resp)) {
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
     printf("Fetching %zu values takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
     printf("Counting %zu entries...\n", NUM_ENTRIES);
     start = nsec_now();
-    kevue__hm_threaded_len(hm);
+    if (!kevue_client_count(kc, resp)) {
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
+        exit(EXIT_FAILURE);
+    }
     finish = nsec_now();
     printf("Counting %zu entries takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
     printf("Deleting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
-    start = nsec_now();
     rng = 1;
+    start = nsec_now();
     for (size_t i = 0; i < NUM_ENTRIES; i++) {
         uint64_t key = splitmix64(&rng);
-        if (!kevue__hm_threaded_del(hm, &key, 8)) {
+        if (!kevue_client_del(kc, resp, &key, 8)) {
+            printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
         }
     }
     finish = nsec_now();
     if (op_failed) {
-        kevue__hm_threaded_destroy(hm);
-        kevue_buffer_destroy(buf);
+        kevue_buffer_destroy(resp->val);
+        conf.ma->free(resp, conf.ma->ctx);
+        kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
     elapsed_ns = finish - start;
     elapsed_sec = (double)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
-    ns_op = elapsed_ns / NUM_ENTRIES;
-    printf("Deleting %zu items takes: %.9fs (%.2f op/sec %lu ns/op)\n", NUM_ENTRIES, elapsed_sec, req_sec, ns_op);
-    kevue__hm_threaded_destroy(hm);
-    kevue_buffer_destroy(buf);
+    printf("Deleting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
+    kevue_buffer_destroy(resp->val);
+    conf.ma->free(resp, conf.ma->ctx);
+    kevue_client_destroy(kc);
     return 0;
 }

@@ -25,21 +25,58 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define KEVUE_HOST               "0.0.0.0"
-#define KEVUE_PORT               "12111"
-#define KEVUE_UNIX_SOCK_PATH     "/tmp/kevue.sock"
-#define BUF_SIZE                 (32 * 1024)
-#define READ_TIMEOUT             10
-#define WRITE_TIMEOUT            10
-#define KEVUE_MAX_SERVER_WORKERS 256
+#define KEVUE_HOST           "0.0.0.0"
+#define KEVUE_PORT           "12111"
+#define KEVUE_UNIX_SOCK_PATH "/tmp/kevue.sock"
+#define BUF_SIZE             (32 * 1024)
+#define READ_TIMEOUT         10
+#define WRITE_TIMEOUT        10
 
-#ifndef TCP_SERVER_WORKERS
-#define TCP_SERVER_WORKERS 10
+#if !defined(VERSION)
+#define VERSION "0.0.1"
 #endif
 
-#define KEVUE_SERVER_WORKERS TCP_SERVER_WORKERS + 1 // account for one UNIX socket worker
+#if defined(__linux__)
+#define OS "Linux"
+#elif defined(_WIN32) || defined(_WIN64)
+#define OS "Windows"
+#elif defined(__APPLE__) && defined(__MACH__)
+#define OS "macOS"
+#elif defined(__FreeBSD__)
+#define OS "FreeBSD"
+#elif defined(__NetBSD__)
+#define OS "NetBSD"
+#elif defined(__OpenBSD__)
+#define OS "OpenBSD"
+#elif defined(__DragonFly__)
+#define OS "DragonFly BSD"
+#elif defined(__unix__)
+#define OS "Unix"
+#else
+#define OS "Unknown OS"
+#endif
 
-_Static_assert(KEVUE_SERVER_WORKERS > 0, "KEVUE_SERVER_WORKERS must be greater than 0");
+#if defined(__x86_64__) || defined(_M_X64)
+#define ARCH "x86_64"
+#elif defined(__i386__) || defined(_M_IX86)
+#define ARCH "x86"
+#elif defined(__aarch64__) || defined(_M_ARM64)
+#define ARCH "arm64"
+#elif defined(__arm__) || defined(_M_ARM)
+#define ARCH "arm"
+#elif defined(__riscv) && (__riscv_xlen == 64)
+#define ARCH "riscv64"
+#elif defined(__riscv) && (__riscv_xlen == 32)
+#define ARCH "riscv32"
+#elif defined(__ppc64__) || defined(__powerpc64__)
+#define ARCH "ppc64"
+#elif defined(__ppc__) || defined(__powerpc__)
+#define ARCH "ppc"
+#elif defined(__s390x__)
+#define ARCH "s390x"
+#else
+#define ARCH "Unknown arch"
+#endif
 
 // stolen from https://github.com/tsoding/nob.h
 #define UNREACHABLE(where)                                                                  \

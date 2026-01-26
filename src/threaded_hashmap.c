@@ -31,7 +31,7 @@
 #include <hashmap.h>
 #include <threaded_hashmap.h>
 
-#define HASHMAP_BUCKET_INITIAL_COUNT       (KEVUE_SERVER_WORKERS * 8U) // rounded up to the power of two
+#define HASHMAP_BUCKET_INITIAL_COUNT       128U
 #define HASHMAP_BUCKET_MAX_COUNT           8388608U
 #define HASHMAP_BUCKET_ENTRY_INITIAL_COUNT 2U
 #define HASHMAP_MAX_LOAD                   0.75f
@@ -53,6 +53,7 @@
 #define mutex_destroy(l)          pthread_mutex_destroy((l))
 #endif
 
+_Static_assert(is_pow2(HASHMAP_BUCKET_INITIAL_COUNT), "HASHMAP_BUCKET_INITIAL_COUNT must be a power of two");
 _Static_assert(is_pow2(HASHMAP_BUCKET_MAX_COUNT), "HASHMAP_BUCKET_MAX_COUNT must be a power of two");
 _Static_assert(is_pow2(HASHMAP_BUCKET_LOCK_COUNT), "HASHMAP_BUCKET_LOCK_COUNT must be a power of two");
 _Static_assert(is_pow2(HASHMAP_RESIZE_FACTOR), "HASHMAP_RESIZE_FACTOR must be a power of two");
@@ -126,7 +127,7 @@ HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
     }
     memset(hm_internal, 0, sizeof(*hm_internal));
     hm_internal->ma = ma;
-    size_t bucket_count = round_up_pow2(HASHMAP_BUCKET_INITIAL_COUNT);
+    size_t bucket_count = HASHMAP_BUCKET_INITIAL_COUNT;
     hm_internal->buckets = hm_internal->ma->malloc(bucket_count * sizeof(Bucket), hm_internal->ma->ctx);
     if (hm_internal->buckets == NULL) {
         hm_internal->ma->free(hm_internal, hm_internal->ma->ctx);

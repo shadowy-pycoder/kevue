@@ -110,9 +110,9 @@ Performed on `13th Gen Intel(R) Core(TM) i7-1355U (12) @ 5.00 GHz` with perfoman
 ### Server
 
 ```bash
-# make release -B TCP_SERVER_WORKERS=0
+# make release -B SINGLE_THREADED_UNIX_SERVER=1
 # make run
-# clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o ./bin/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc -DTCP_SERVER_WORKERS=0
+# clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o ./bin/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
 Inserting 10485760 items...
 Inserting 10485760 items takes: 63.813164444s (164319.70 req/sec)
 Getting 10485760 items...

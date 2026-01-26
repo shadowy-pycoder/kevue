@@ -58,6 +58,37 @@
 #include <jemalloc_allocator.h>
 #endif
 
+#if defined(SINGLE_THREADED_TCP_SERVER) && defined(SINGLE_THREADED_UNIX_SERVER)
+#error "You can define only one type of single threaded server at a time"
+#endif
+#if defined(SINGLE_THREADED_TCP_SERVER) || defined(SINGLE_THREADED_UNIX_SERVER)
+#if !defined(__HASHMAP_SINGLE_THREADED)
+#error "You must define __HASHMAP_SINGLE_THREADED"
+#endif
+#if defined(SINGLE_THREADED_TCP_SERVER)
+#define KEVUE_TCP_SERVER_WORKERS  1
+#define KEVUE_UNIX_SERVER_WORKERS 0
+#endif
+#if defined(SINGLE_THREADED_UNIX_SERVER)
+#define KEVUE_TCP_SERVER_WORKERS  0
+#define KEVUE_UNIX_SERVER_WORKERS 1
+#endif
+#endif
+
+#define KEVUE_MAX_SERVER_WORKERS 256
+
+#ifndef KEVUE_TCP_SERVER_WORKERS
+#define KEVUE_TCP_SERVER_WORKERS 10
+#endif
+
+#ifndef KEVUE_UNIX_SERVER_WORKERS
+#define KEVUE_UNIX_SERVER_WORKERS 1
+#endif
+
+_Static_assert(KEVUE_TCP_SERVER_WORKERS >= 0, "KEVUE_TCP_SERVER_WORKERS must be greater than or equal to 0");
+_Static_assert(KEVUE_UNIX_SERVER_WORKERS >= 0 && KEVUE_UNIX_SERVER_WORKERS <= 1, "KEVUE_UNIX_SERVER_WORKERS must be either 0 or 1");
+_Static_assert(KEVUE_TCP_SERVER_WORKERS + KEVUE_UNIX_SERVER_WORKERS > 0, "KEVUE_TCP_SERVER_WORKERS + KEVUE_UNIX_SERVER_WORKERS must be greater than 0");
+
 #define MAX_EVENTS    500
 #define EPOLL_TIMEOUT (30 * 1000)
 
@@ -72,7 +103,8 @@ struct KevueServer {
     const char     *host;
     const char     *port;
     const char     *unix_path;
-    int             workers;
+    int             tcp_workers;
+    int             unix_workers;
     int            *fds;
     pthread_t      *threads;
     int             efd;
@@ -777,9 +809,35 @@ static int kevue__create_server_unix_sock(char *path, size_t recv_buf_size, size
 
 static void kevue__usage(FILE *stream)
 {
+    fprintf(stream, "kevue-server v%s (built for %s %s)\n", VERSION, OS, ARCH);
     fprintf(stream, "Usage: kevue-server [OPTIONS]\n");
     fprintf(stream, "OPTIONS:\n");
     flag_print_options(stream);
+    fprintf(stream, "Compiled with:\n");
+#if defined(SINGLE_THREADED_TCP_SERVER)
+    fprintf(stream, "SINGLE_THREADED_TCP_SERVER\n");
+#endif
+#if defined(SINGLE_THREADED_UNIX_SERVER)
+    fprintf(stream, "SINGLE_THREADED_UNIX_SERVER\n");
+#endif
+#if defined(KEVUE_TCP_SERVER_WORKERS)
+    fprintf(stream, "KEVUE_TCP_SERVER_WORKERS=%d\n", KEVUE_TCP_SERVER_WORKERS);
+#endif
+#if defined(KEVUE_UNIX_SERVER_WORKERS)
+    fprintf(stream, "KEVUE_UNIX_SERVER_WORKERS=%d\n", KEVUE_UNIX_SERVER_WORKERS);
+#endif
+#if defined(__HASHMAP_SINGLE_THREADED)
+    fprintf(stream, "__HASHMAP_SINGLE_THREADED\n");
+#endif
+#if defined(__HASHMAP_DETERMINISTIC)
+    fprintf(stream, "__HASHMAP_DETERMINISTIC\n");
+#endif
+#if defined(USE_TCMALLOC)
+    fprintf(stream, "USE_TCMALLOC\n");
+#endif
+#if defined(USE_JEMALLOC)
+    fprintf(stream, "USE_JEMALLOC\n");
+#endif
 }
 
 KevueServer *kevue_server_create(KevueServerConfig *conf)
@@ -789,7 +847,7 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
     if (conf->unix_path == NULL || conf->unix_path[0] == '\0') conf->unix_path = KEVUE_UNIX_SOCK_PATH;
     if (conf->recv_buf_size == 0) conf->recv_buf_size = RECV_BUF_SIZE;
     if (conf->send_buf_size == 0) conf->send_buf_size = SEND_BUF_SIZE;
-    if (conf->workers <= 0 || conf->workers > KEVUE_MAX_SERVER_WORKERS) conf->workers = KEVUE_SERVER_WORKERS;
+    if (conf->workers <= 0 || conf->workers > KEVUE_MAX_SERVER_WORKERS) conf->workers = KEVUE_TCP_SERVER_WORKERS;
     if (conf->ma == NULL) {
         KevueAllocator *ma = &kevue_default_allocator;
 #if defined(USE_TCMALLOC)
@@ -812,42 +870,52 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
         return NULL;
     }
     close(server_sock);
-    KevueServer *ks = (KevueServer *)conf->ma->malloc(sizeof(KevueServer), conf->ma->ctx);
+    KevueServer *ks = (KevueServer *)conf->ma->malloc(sizeof(*ks), conf->ma->ctx);
     if (ks == NULL) return NULL;
     memset(ks, 0, sizeof(*ks));
     ks->ma = conf->ma;
     ks->host = conf->host;
     ks->port = conf->port;
     ks->unix_path = conf->unix_path;
-    ks->workers = conf->workers;
+#if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
+    ks->tcp_workers = conf->workers;
+    ks->unix_workers = KEVUE_UNIX_SERVER_WORKERS;
+#else
+    ks->tcp_workers = KEVUE_TCP_SERVER_WORKERS;
+    ks->unix_workers = KEVUE_UNIX_SERVER_WORKERS;
+#endif
     ks->efd = eventfd(0, EFD_NONBLOCK);
     if (ks->efd < 0) {
         print_err(generate_timestamp(), "Creating eventfd failed: %s", strerror(errno));
         ks->ma->free(ks, ks->ma->ctx);
         return NULL;
     }
+    int server_workers = ks->tcp_workers + ks->unix_workers;
     // create unix server
-    ks->fds = (int *)ks->ma->malloc(sizeof(*ks->fds) * (size_t)ks->workers, ks->ma->ctx);
+    ks->fds = (int *)ks->ma->malloc(sizeof(*ks->fds) * (size_t)server_workers, ks->ma->ctx);
     if (ks->fds == NULL) {
         close(ks->efd);
         ks->ma->free(ks->fds, ks->ma->ctx);
         ks->ma->free(ks, ks->ma->ctx);
     }
-    ks->fds[0] = kevue__create_server_unix_sock(conf->unix_path, conf->recv_buf_size, conf->send_buf_size);
-    if (ks->fds[0] < 0) {
-        close(ks->efd);
-        ks->ma->free(ks->fds, ks->ma->ctx);
-        ks->ma->free(ks, ks->ma->ctx);
-        return NULL;
-    }
-    ks->threads = (pthread_t *)ks->ma->malloc(sizeof(*ks->threads) * (size_t)ks->workers, ks->ma->ctx);
+    ks->threads = (pthread_t *)ks->ma->malloc(sizeof(*ks->threads) * (size_t)server_workers, ks->ma->ctx);
     if (ks->threads == NULL) {
         close(ks->efd);
         ks->ma->free(ks->fds, ks->ma->ctx);
         ks->ma->free(ks, ks->ma->ctx);
     }
+    int i = 0;
+    for (; i < ks->unix_workers; i++) {
+        ks->fds[i] = kevue__create_server_unix_sock(conf->unix_path, conf->recv_buf_size, conf->send_buf_size);
+        if (ks->fds[i] < 0) {
+            close(ks->efd);
+            ks->ma->free(ks->fds, ks->ma->ctx);
+            ks->ma->free(ks, ks->ma->ctx);
+            return NULL;
+        }
+    }
     // creating tcp servers
-    for (int i = 1; i < ks->workers; i++) {
+    for (; i < server_workers; i++) {
         ks->fds[i] = kevue__create_server_sock(conf->host, conf->port, conf->recv_buf_size, conf->send_buf_size, false);
         if (ks->fds[i] < 0) {
             close(ks->efd);
@@ -856,9 +924,6 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
             ks->ma->free(ks, ks->ma->ctx);
             return NULL;
         }
-    }
-    if (conf->workers == 1) {
-#define __HASHMAP_SINGLE_THREADED
     }
     HashMap *hm = kevue_hm_threaded_create(ks->ma);
     if (hm == NULL) {
@@ -891,8 +956,8 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
 
 void kevue_server_start(KevueServer *ks)
 {
-    for (int i = 0; i < ks->workers; i++) {
-        EpollServerArgs *esargs = (EpollServerArgs *)ks->ma->malloc(sizeof(EpollServerArgs), ks->ma->ctx);
+    for (int i = 0; i < ks->tcp_workers + ks->unix_workers; i++) {
+        EpollServerArgs *esargs = (EpollServerArgs *)ks->ma->malloc(sizeof(*esargs), ks->ma->ctx);
         esargs->ssock = &ks->fds[i];
         esargs->esock = &ks->efd;
         esargs->ma = ks->ma;
@@ -901,20 +966,22 @@ void kevue_server_start(KevueServer *ks)
     }
     while (!shutting_down)
         pause();
-    print_info(generate_timestamp(), "Shutting down UNIX server on %s... Please wait", ks->unix_path);
-    if (ks->workers - 1 > 0)
-        print_info(generate_timestamp(), "Shutting down %d TCP servers on %s:%s... Please wait", ks->workers - 1, ks->host, ks->port);
+    if (ks->unix_workers > 0)
+        print_info(generate_timestamp(), "Shutting down UNIX server on %s... Please wait", ks->unix_path);
+    if (ks->tcp_workers > 0)
+        print_info(generate_timestamp(), "Shutting down %d TCP servers on %s:%s... Please wait", ks->tcp_workers, ks->host, ks->port);
     uint64_t one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
         print_err(generate_timestamp(), "Writing to eventfd failed: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < KEVUE_SERVER_WORKERS; i++) {
+    for (int i = 0; i < ks->tcp_workers + ks->unix_workers; i++) {
         pthread_join(ks->threads[i], NULL);
     }
-    print_info(generate_timestamp(), "UNIX server on %s gracefully shut down", ks->unix_path);
-    if (ks->workers - 1 > 0)
-        print_info(generate_timestamp(), "%d TCP servers on %s:%s gracefully shut down", ks->workers - 1, ks->host, ks->port);
+    if (ks->unix_workers > 0)
+        print_info(generate_timestamp(), "UNIX server on %s gracefully shut down", ks->unix_path);
+    if (ks->tcp_workers > 0)
+        print_info(generate_timestamp(), "%d TCP servers on %s:%s gracefully shut down", ks->tcp_workers, ks->host, ks->port);
 }
 
 void kevue_server_destroy(KevueServer *ks)
@@ -931,12 +998,18 @@ int main(int argc, char **argv)
     KevueServerConfig conf = { 0 };
 
     bool *help = flag_bool("help", false, "Print this help message and exit");
+#if !defined(SINGLE_THREADED_UNIX_SERVER)
     flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
     flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
+#endif
+#if !defined(SINGLE_THREADED_TCP_SERVER)
     flag_str_var(&conf.unix_path, "unix", KEVUE_UNIX_SOCK_PATH, "UNIX socket path");
+#endif
     flag_size_var(&conf.recv_buf_size, "recvb", RECV_BUF_SIZE, "Receive buffer size");
     flag_size_var(&conf.send_buf_size, "sendb", SEND_BUF_SIZE, "Send buffer size");
-    uint64_t *workers = flag_uint64("workers", KEVUE_SERVER_WORKERS, "Server workers");
+#if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
+    uint64_t *workers = flag_uint64("workers", KEVUE_TCP_SERVER_WORKERS, "TCP server workers");
+#endif
     if (!flag_parse(argc, argv)) {
         kevue__usage(stderr);
         flag_print_error(stderr);
@@ -950,7 +1023,9 @@ int main(int argc, char **argv)
         kevue__usage(stdout);
         exit(EXIT_SUCCESS);
     }
+#if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
     conf.workers = *(int *)workers;
+#endif
     KevueServer *ks = kevue_server_create(&conf);
     if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);

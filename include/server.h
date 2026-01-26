@@ -41,7 +41,7 @@ typedef struct KevueServerConfig {
     char           *host; // defaults to KEVUE_HOST
     char           *port; // defaults to KEVUE_PORT
     char           *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
-    int             workers; // defaults to KEVUE_SERVER_WORKERS
+    int             workers; // defaults to KEVUE_TCP_SERVER_WORKERS
     size_t          recv_buf_size; // defaults to RECV_BUF_SIZE
     size_t          send_buf_size; // defaults to SEND_BUF_SIZE
     KevueAllocator *ma; // defaults to kevue_default_allocator

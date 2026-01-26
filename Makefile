@@ -1,5 +1,6 @@
 PROJNAME := kevue
 PROJDIR := $(realpath $(CURDIR))
+VERSION := $(shell git describe --tags --dirty --always)
 BUILD := $(PROJDIR)/build
 BIN := $(PROJDIR)/bin
 DOCS := $(PROJDIR)/docs
@@ -14,7 +15,7 @@ CC := clang
 CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-function -Wno-gnu-zero-variadic-macro-arguments -pedantic -std=c2x -march=native
 CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion -Wswitch-enum
 TCP_SERVER_WORKERS ?= $(shell command -v nproc >/dev/null 2>&1 && nproc || echo 1)
-CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DTCP_SERVER_WORKERS=$(TCP_SERVER_WORKERS)
+CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DVERSION=\"$(VERSION)\"
 LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
 LDLIBS  =
 USE_JEMALLOC ?= auto
@@ -22,6 +23,8 @@ USE_TCMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
 HISTORY_PATH ?= $(HOME)/.kevue_history
+SINGLE_THREADED_TCP_SERVER ?= 0
+SINGLE_THREADED_UNIX_SERVER ?= 0
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
@@ -68,6 +71,16 @@ endif
 ifeq ($(USE_JEMALLOC),1)
   CPPFLAGS  += -DUSE_JEMALLOC
   LDLIBS  += -ljemalloc
+endif
+
+ifneq ($(SINGLE_THREADED_UNIX_SERVER),0)
+  CPPFLAGS  += -DSINGLE_THREADED_UNIX_SERVER -D__HASHMAP_SINGLE_THREADED
+else
+  ifneq ($(SINGLE_THREADED_TCP_SERVER),0)
+    CPPFLAGS  += -DSINGLE_THREADED_TCP_SERVER -D__HASHMAP_SINGLE_THREADED
+  else
+    CPPFLAGS  += -DKEVUE_TCP_SERVER_WORKERS=$(TCP_SERVER_WORKERS)
+  endif
 endif
 
 .PHONY: default all clean run debug release compile_commands docs examples tests

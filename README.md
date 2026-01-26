@@ -17,6 +17,14 @@ make release
 
 ```bash
 ./bin/kevue-server -help
+ _
+| |  _ ____ _   _ _   _  ____
+| | / ) _  ) | | | | | |/ _  )
+| |< ( (/ / \ V /| |_| ( (/ /
+|_| \_)____) \_/  \____|\____)
+kevue-server v0.0.1 (built for Linux x86_64)
+GitHub: https://github.com/shadowy-pycoder/kevue
+
 Usage: kevue-server [OPTIONS]
 OPTIONS:
     -help
@@ -37,8 +45,12 @@ OPTIONS:
         Send buffer size
         Default: 2097152
     -workers <int>
-        Server workers
+        TCP server workers
         Default: 1
+Compiled with:
+KEVUE_TCP_SERVER_WORKERS=1
+KEVUE_UNIX_SERVER_WORKERS=1
+USE_TCMALLOC
 ```
 
 Run the server:
@@ -56,6 +68,14 @@ make examples
 
 ```bash
 ./bin/kevue-cli -help
+ _
+| |  _ ____ _   _ _   _  ____
+| | / ) _  ) | | | | | |/ _  )
+| |< ( (/ / \ V /| |_| ( (/ /
+|_| \_)____) \_/  \____|\____)
+kevue-cli v0.0.1 (built for Linux x86_64)
+GitHub: https://github.com/shadowy-pycoder/kevue
+
 Usage: kevue-cli [OPTIONS]
 OPTIONS:
     -help

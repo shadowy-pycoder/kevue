@@ -158,6 +158,7 @@ static bool kevue__handle_write(KevueConnection *c);
 static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
 static void kevue__signal_handler(int sig);
 static void kevue__usage(FILE *stream);
+static void kevue__info(FILE *stream);
 
 static int kevue__setnonblocking(int fd)
 {
@@ -809,11 +810,11 @@ static int kevue__create_server_unix_sock(char *path, size_t recv_buf_size, size
 
 static void kevue__usage(FILE *stream)
 {
-    fprintf(stream, "kevue-server v%s (built for %s %s)\n", VERSION, OS, ARCH);
+    kevue__info(stream);
     fprintf(stream, "Usage: kevue-server [OPTIONS]\n");
     fprintf(stream, "OPTIONS:\n");
     flag_print_options(stream);
-    fprintf(stream, "Compiled with:\n");
+    fprintf(stream, "\nCompiled with:\n");
 #if defined(SINGLE_THREADED_TCP_SERVER)
     fprintf(stream, "SINGLE_THREADED_TCP_SERVER\n");
 #endif
@@ -838,6 +839,17 @@ static void kevue__usage(FILE *stream)
 #if defined(USE_JEMALLOC)
     fprintf(stream, "USE_JEMALLOC\n");
 #endif
+}
+
+static void kevue__info(FILE *stream)
+{
+    printf(" _                            \n"
+           "| |  _ ____ _   _ _   _  ____ \n"
+           "| | / ) _  ) | | | | | |/ _  )\n"
+           "| |< ( (/ / \\ V /| |_| ( (/ / \n"
+           "|_| \\_)____) \\_/  \\____|\\____)\n");
+    fprintf(stream, "kevue-server v%s (built for %s %s)\n", VERSION, OS, ARCH);
+    fprintf(stream, "GitHub: https://github.com/shadowy-pycoder/kevue\n\n");
 }
 
 KevueServer *kevue_server_create(KevueServerConfig *conf)
@@ -890,6 +902,7 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
         ks->ma->free(ks, ks->ma->ctx);
         return NULL;
     }
+    kevue__info(stdout);
     int server_workers = ks->tcp_workers + ks->unix_workers;
     // create unix server
     ks->fds = (int *)ks->ma->malloc(sizeof(*ks->fds) * (size_t)server_workers, ks->ma->ctx);

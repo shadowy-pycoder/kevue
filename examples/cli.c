@@ -52,6 +52,7 @@ typedef struct KevueClientParseResult {
 } KevueClientParseResult;
 
 static void kevue__usage(FILE *stream);
+static void kevue__info(FILE *stream);
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
 static void kevue__trim_left(Buffer *buf);
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf);
@@ -61,9 +62,21 @@ static char *kevue__hints(const char *buf, int *color, int *bold);
 
 static void kevue__usage(FILE *stream)
 {
+    kevue__info(stream);
     fprintf(stream, "Usage: kevue-cli [OPTIONS]\n");
     fprintf(stream, "OPTIONS:\n");
     flag_print_options(stream);
+}
+
+static void kevue__info(FILE *stream)
+{
+    printf(" _                            \n"
+           "| |  _ ____ _   _ _   _  ____ \n"
+           "| | / ) _  ) | | | | | |/ _  )\n"
+           "| |< ( (/ / \\ V /| |_| ( (/ / \n"
+           "|_| \\_)____) \\_/  \\____|\\____)\n");
+    fprintf(stream, "kevue-cli v%s (built for %s %s)\n", VERSION, OS, ARCH);
+    fprintf(stream, "GitHub: https://github.com/shadowy-pycoder/kevue\n\n");
 }
 
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out)

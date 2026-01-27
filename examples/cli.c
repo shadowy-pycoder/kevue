@@ -569,11 +569,11 @@ int main(int argc, char **argv)
                     uint64_t v;
                     size_t   size_v = sizeof(v);
                     size_t   count = 0;
+                    char     c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        char c[64];
-                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);
@@ -601,11 +601,11 @@ int main(int argc, char **argv)
                     uint64_t v;
                     size_t   size_v = sizeof(v);
                     size_t   count = 0;
+                    char     c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        char c[64];
-                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);
@@ -626,11 +626,11 @@ int main(int argc, char **argv)
                     uint64_t v;
                     size_t   size_v = sizeof(v);
                     size_t   count = 0;
+                    char     c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
-                        char c[64];
-                        int  clen = snprintf(c, sizeof(c), "%zu) ", count);
+                        int clen = snprintf(c, sizeof(c), "%zu) ", count);
                         fwrite(c, 1, (size_t)clen, stdout);
                         fwrite(resp->val->ptr + resp->val->offset, sizeof(*resp->val->ptr), v, stdout);
                         fwrite("\n", 1, 1, stdout);

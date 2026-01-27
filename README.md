@@ -1,6 +1,6 @@
 # kevue - key-value in-memory database
 
-`kevue` is a multithreaded TCP server that maps its endpoints to hash table operations (get/put/delete).
+`kevue` is a multithreaded TCP server that maps its endpoints to hash table operations (get/put/delete). It implements [Kevue Protocol](PROTOCOL.md).
 
 > [!WARNING]
 > This project is not in production ready state yet. Moreover, this is my second project in C so expect many bugs, memory leaks with undefined behaviour

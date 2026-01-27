@@ -27,6 +27,7 @@
 
 Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
 {
+    if (capacity == 0 || ma == NULL) return NULL;
     Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
     if (buf == NULL) return NULL;
     memset(buf, 0, sizeof(Buffer));
@@ -63,7 +64,7 @@ void kevue_buffer_grow(Buffer *buf, size_t n)
 size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
-    while (buf->capacity <= buf->size + n) {
+    while (buf->capacity < buf->size + n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
@@ -77,7 +78,7 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
 size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n)
 {
     size_t initial_capacity = buf->capacity;
-    while (buf->capacity <= n) {
+    while (buf->capacity < n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {

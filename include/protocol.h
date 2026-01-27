@@ -46,7 +46,6 @@
 #define KEVUE_MAGIC_BYTE          "\x22"
 #define KEVUE_MAGIC_BYTE_SIZE     1
 #define KEVUE_MESSAGE_HEADER_SIZE (KEVUE_MAGIC_BYTE_SIZE + 4)
-#define KEVUE_MESSAGE_MAX_LEN     UINT32_MAX
 
 #define COMMAND_LIST \
     X(HELLO)         \

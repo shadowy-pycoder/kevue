@@ -62,6 +62,7 @@ void kevue_buffer_destroy(Buffer *buf);
  * @param n     Number of bytes to append.
  *
  * @return Number of bytes appended.
+ * @pre Capacity must be greater than 0
  */
 size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
 
@@ -75,6 +76,7 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
  * @param n     Number of bytes to write.
  *
  * @return Number of bytes written.
+ * @pre Capacity must be greater than 0
  */
 size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
 
@@ -134,6 +136,7 @@ bool kevue_buffer_at_eof(Buffer *buf);
  *
  * @param buf  Buffer to grow.
  * @param n    Total number of bytes required.
+ * @pre Capacity must be greater than 0
  */
 void kevue_buffer_grow(Buffer *buf, size_t n);
 

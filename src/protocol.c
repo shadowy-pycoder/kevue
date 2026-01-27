@@ -179,24 +179,26 @@ KevueErr kevue_request_deserialize(KevueRequest *req, Buffer *buf)
         return KEVUE_ERR_LEN_INVALID;
     }
 
-    // parse key
-    if (buf->offset + req->key_len > req->total_len || buf->offset + req->key_len > buf->size) return KEVUE_ERR_LEN_INVALID;
-    req->key = buf->ptr + buf->offset;
-    buf->offset += req->key_len;
+    if (req->key_len > 0) {
+        // parse key
+        if (buf->offset + req->key_len > req->total_len || buf->offset + req->key_len > buf->size) return KEVUE_ERR_LEN_INVALID;
+        req->key = buf->ptr + buf->offset;
+        buf->offset += req->key_len;
 
-    req->val_len = 0;
-    req->val = NULL;
-    if (req->cmd == SET) {
-        // parse value length
-        if (buf->offset + sizeof(req->val_len) > req->total_len || buf->offset + sizeof(req->val_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
-        memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(req->val_len));
-        req->val_len = be16toh(req->val_len);
-        buf->offset += sizeof(req->val_len);
+        req->val_len = 0;
+        req->val = NULL;
+        if (req->cmd == SET) {
+            // parse value length
+            if (buf->offset + sizeof(req->val_len) > req->total_len || buf->offset + sizeof(req->val_len) > buf->size) return KEVUE_ERR_LEN_INVALID;
+            memcpy(&req->val_len, buf->ptr + buf->offset, sizeof(req->val_len));
+            req->val_len = be16toh(req->val_len);
+            buf->offset += sizeof(req->val_len);
 
-        // parse value
-        if (buf->offset + req->val_len > req->total_len || buf->offset + req->val_len > buf->size) return KEVUE_ERR_LEN_INVALID;
-        req->val = buf->ptr + buf->offset;
-        buf->offset += req->val_len;
+            // parse value
+            if (buf->offset + req->val_len > req->total_len || buf->offset + req->val_len > buf->size) return KEVUE_ERR_LEN_INVALID;
+            req->val = buf->ptr + buf->offset;
+            buf->offset += req->val_len;
+        }
     }
     return KEVUE_ERR_OK;
 }
@@ -288,7 +290,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
     resp->err_code = (KevueErr)buf->ptr[buf->offset];
     if (!kevue_error_code_valid(resp->err_code)) return KEVUE_ERR_PAYLOAD_INVALID;
     if (resp->err_code != KEVUE_ERR_OK) {
-        resp->val_len = 0;
+        if (resp->val_len != 0) return KEVUE_ERR_LEN_INVALID;
         return resp->err_code;
     }
     buf->offset += sizeof(uint8_t);

@@ -13,6 +13,13 @@ Create `kevue-server` executable in the `./bin/` directory by running the follow
 make release
 ```
 
+To install system-wide:
+
+```bash
+make release
+sudo make install
+```
+
 ## Usage
 
 ```bash

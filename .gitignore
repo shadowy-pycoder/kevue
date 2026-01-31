@@ -1,5 +1,6 @@
 build/
 bin/
+docs/
 compile_commands.json
 .cache
 fuzz/out/

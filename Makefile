@@ -25,6 +25,8 @@ ASAN ?= 1
 HISTORY_PATH ?= $(HOME)/.kevue_history
 SINGLE_THREADED_TCP_SERVER ?= 0
 SINGLE_THREADED_UNIX_SERVER ?= 0
+PREFIX      ?= /usr/local
+BINPATH      := $(PREFIX)/bin
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
@@ -83,7 +85,7 @@ else
   endif
 endif
 
-.PHONY: default all clean run debug release compile_commands docs examples tests
+.PHONY: default all clean run debug release compile_commands docs examples tests install uninstall
 
 default: $(BINARIES)
 all: default
@@ -245,3 +247,12 @@ clean:
 	rm -rf $(FUZZ_BUILD)/*
 	rm -f *.prof
 	rm -f *.heap
+
+install:
+	install -d $${DESTDIR}$(BINPATH)
+	install -m 0755 $(BIN)/$(PROJNAME)-server $${DESTDIR}$(BINPATH)/$(PROJNAME)-server
+	install -m 0755 $(BIN)/$(PROJNAME)-cli $${DESTDIR}$(BINPATH)/$(PROJNAME)-cli
+
+uninstall:
+	rm -f $${DESTDIR}$(BINPATH)/$(PROJNAME)-server
+	rm -f $${DESTDIR}$(BINPATH)/$(PROJNAME)-cli

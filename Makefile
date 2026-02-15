@@ -16,8 +16,10 @@ CFLAGS := -Wall -Wextra -Wshadow -Wconversion -Wpointer-arith -Wno-unused-functi
 CFLAGS += -Wno-gnu-statement-expression-from-macro-expansion -Wswitch-enum
 TCP_SERVER_WORKERS ?= $(shell command -v nproc >/dev/null 2>&1 && nproc || echo 1)
 CPPFLAGS := -I$(INCLUDE) -I$(LIB) -D_GNU_SOURCE -DVERSION=\"$(VERSION)\"
-LDFLAGS := -L$(LIB) -Wl,-rpath,$(LIB)
+LDFLAGS =
 LDLIBS  =
+GUI_LDFLAGS = -L$(RAYLIB_PATH)/lib/ -Wl,-Bdynamic
+GUI_LDLIBS  = -lraylib -lm
 USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 DEBUG ?= 1
@@ -25,12 +27,18 @@ ASAN ?= 1
 HISTORY_PATH ?= $(HOME)/.kevue_history
 SINGLE_THREADED_TCP_SERVER ?= 0
 SINGLE_THREADED_UNIX_SERVER ?= 0
-PREFIX      ?= /usr/local
-BINPATH      := $(PREFIX)/bin
+PREFIX  ?= /usr/local
+BINPATH := $(PREFIX)/bin
+LIBPATH := $(PREFIX)/lib
+INCPATH := $(PREFIX)/include
+RAYLIB_PATH := $(LIB)/raylib/raylib-5.5_linux_amd64
+RAYLIB_VERSION := 5.5.0
+RAYLIB_SONAME := 550
 
 ifeq ($(DEBUG),1)
   CFLAGS += -ggdb -O0
   CPPFLAGS += -DDEBUG -D__HASHMAP_DETERMINISTIC
+  GUI_LDFLAGS += -Wl,-rpath,$(RAYLIB_PATH)/lib/
 else
   CFLAGS += -O3 -flto
   LDFLAGS += -flto
@@ -92,6 +100,7 @@ all: default
 
 OBJECTS = $(patsubst $(SRC)/%.c, $(BUILD)/%.o, $(wildcard $(SRC)/*.c))
 OBJECTS += $(patsubst $(LIB)/%.c, $(BUILD)/%.o, $(wildcard $(LIB)/*.c))
+OBJECTS := $(filter-out $(BUILD)/clay_renderer_raylib.o,$(OBJECTS))
 COMMON_OBJECTS := $(filter-out $(foreach t,$(TARGETS),$(BUILD)/$(t).o),$(OBJECTS))
 EXAMPLES_OBJECTS = $(patsubst $(EXAMPLES)/%.c, $(BUILD)/%.o, $(wildcard $(EXAMPLES)/*.c))
 HEADERS = $(wildcard $(INCLUDE)/*.h)
@@ -110,6 +119,8 @@ $(BUILD)/%.o: $(SRC)/%.c  $(HEADERS) | $(BUILD)
 $(BUILD)/%.o: $(LIB)/%.c $(HEADERS) | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -w -c $< -o $@
 
+$(BUILD)/gui.o: CFLAGS += -Wno-overlength-strings -Wno-missing-braces -Wno-unused-parameter
+$(BUILD)/gui.o: CFLAGS := $(filter-out -Wconversion -Wswitch-enum,$(CFLAGS))
 $(BUILD)/%.o: $(EXAMPLES)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
@@ -118,6 +129,10 @@ $(BUILD)/%.o: $(EXAMPLES)/%.c | $(BUILD)
 $(BIN)/$(PROJNAME)-server: LDLIBS += -pthread
 
 $(BIN)/$(PROJNAME)-cli: CPPFLAGS += -DHISTORY_PATH=\"$(HISTORY_PATH)\"
+
+$(BIN)/$(PROJNAME)-gui: CPPFLAGS += -I$(RAYLIB_PATH)/include/
+$(BIN)/$(PROJNAME)-gui: $(COMMON_OBJECTS) $(BUILD)/gui.o | $(BIN)
+	$(CC) $^ $(LDFLAGS) $(LDLIBS) $(GUI_LDFLAGS) $(GUI_LDLIBS) -o $@
 
 $(BIN)/$(PROJNAME)-%: $(COMMON_OBJECTS) $(BUILD)/%.o | $(BIN)
 	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
@@ -252,7 +267,16 @@ install:
 	install -d $${DESTDIR}$(BINPATH)
 	install -m 0755 $(BIN)/$(PROJNAME)-server $${DESTDIR}$(BINPATH)/$(PROJNAME)-server
 	install -m 0755 $(BIN)/$(PROJNAME)-cli $${DESTDIR}$(BINPATH)/$(PROJNAME)-cli
+	install -m 0755 $(BIN)/$(PROJNAME)-gui $${DESTDIR}$(BINPATH)/$(PROJNAME)-gui
+	install -m 0755 $(RAYLIB_PATH)/lib/libraylib.so.$(RAYLIB_VERSION) $${DESTDIR}$(LIBPATH)/
+	ln -sf libraylib.so.$(RAYLIB_VERSION) $${DESTDIR}$(LIBPATH)/libraylib.so.$(RAYLIB_SONAME)
+	ln -sf libraylib.so.$(RAYLIB_SONAME) $${DESTDIR}$(LIBPATH)/libraylib.so
+	ldconfig
 
 uninstall:
 	rm -f $${DESTDIR}$(BINPATH)/$(PROJNAME)-server
 	rm -f $${DESTDIR}$(BINPATH)/$(PROJNAME)-cli
+	rm -f $${DESTDIR}$(BINPATH)/$(PROJNAME)-gui
+	rm -f $${DESTDIR}$(LIBPATH)/libraylib.so
+	rm -f $${DESTDIR}$(LIBPATH)/libraylib.so.$(RAYLIB_SONAME)
+	rm -f $${DESTDIR}$(LIBPATH)/libraylib.so.$(RAYLIB_VERSION)

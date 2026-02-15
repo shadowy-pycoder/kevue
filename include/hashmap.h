@@ -100,7 +100,7 @@ typedef struct HashMapOps {
     /**
      * @brief Retrieves the number of entries stored in the hashmap.
      *
-     * Returns the current count of key–value pairs present in @p hm.
+     * Returns the current count of key-value pairs present in @p hm.
      *
      * @param hm  Hashmap instance.
      *
@@ -114,7 +114,7 @@ typedef struct HashMapOps {
     /**
      * Retrieves all stored items.
      *
-     * Serializes all key–value pairs in the hashmap into @p buf.
+     * Serializes all key-value pairs in the hashmap into @p buf.
      *
      * @param hm   Hashmap instance.
      * @param buf  Buffer to receive serialized items.
@@ -321,7 +321,7 @@ struct HashMap {
  * @def kevue_hmts_len
  * @brief Returns the number of entries in a type-safe hashmap.
  *
- * Returns the current count of key–value pairs present in @p hmts.
+ * Returns the current count of key-value pairs present in @p hmts.
  *
  * @param hmts  Pointer to a HashMapTS instance.
  *
@@ -333,7 +333,7 @@ struct HashMap {
  * @def kevue_hmts_items
  * @brief Retrieves all stored items from a type-safe hashmap.
  *
- * Serializes all key–value pairs from the underlying hashmap
+ * Serializes all key-value pairs from the underlying hashmap
  * into the provided buffer.
  *
  * @param hmts  Pointer to a HashMapTS instance.

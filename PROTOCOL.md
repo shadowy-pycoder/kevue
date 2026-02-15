@@ -2,7 +2,7 @@
 
 ## Overview
 
-Kevue Protocol is a binary request/response protocol for a key–value database.
+Kevue Protocol is a binary request/response protocol for a key-value database.
 The protocol is connection-oriented and transport-agnostic (TCP, UNIX sockets, etc).
 
 All length fields MUST be encoded in network byte order (big-endian).
@@ -20,7 +20,7 @@ Magic byte `0x22` (`"` in ASCII) is a starting byte in each request and response
 | `SET`    | Stores a value under a specified key, replacing any existing value. |
 | `DEL`    | Removes a key and its associated value from the database.           |
 | `PING`   | Checks server availability, returns a simple (echoed) response.     |
-| `COUNT`  | Returns the total number of key–value pairs currently stored.       |
+| `COUNT`  | Returns the total number of key-value pairs currently stored.       |
 | `ITEMS`  | Returns all key-value pairs stored in the database.                 |
 | `KEYS`   | Returns a list of all keys in the database.                         |
 | `VALUES` | Returns a list of all values stored in the database.                |

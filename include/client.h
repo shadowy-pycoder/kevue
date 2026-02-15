@@ -55,7 +55,7 @@ KevueClient *kevue_client_create(KevueClientConfig *conf);
 void kevue_client_destroy(KevueClient *kc);
 
 /**
- * @brief Performs the client–server handshake.
+ * @brief Performs the client-server handshake.
  *
  * Sends a HELLO command to the server and validates the response.
  * This function is typically called immediately after establishing
@@ -181,7 +181,7 @@ bool kevue_client_count(KevueClient *kc, KevueResponse *resp);
  *
  * @return true on successful request execution, false on failure.
  *
- * @note The response payload contains a serialized list of key–value pairs.
+ * @note The response payload contains a serialized list of key-value pairs.
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
 bool kevue_client_items(KevueClient *kc, KevueResponse *resp);

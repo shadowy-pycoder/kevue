@@ -27,8 +27,6 @@
 #include <common.h>
 #include <kevue_string.h>
 
-static u64 kevue__cstring_len(const u8 *s);
-
 String kevue_string_create(const u8 *s, KevueAllocator *ma)
 {
     if (ma == NULL) return (String) { 0 };
@@ -111,7 +109,7 @@ String kevue_string_to_title(String str, KevueAllocator *ma)
     return out;
 }
 
-static u64 kevue__cstring_len(const u8 *s)
+u64 kevue__cstring_len(const u8 *s)
 {
     const u8 *p = s;
     while (*p++);
@@ -132,6 +130,21 @@ bool kevue_string_view_compare(StringView sv1, StringView sv2)
 {
     if (sv1.len != sv2.len) return false;
     return memcmp(sv1.data, sv2.data, sv1.len) == 0;
+}
+
+bool kevue_string_view_compare_icase(StringView sv1, StringView sv2)
+{
+    if (sv1.len != sv2.len) return false;
+    for (u64 i = 0; i < sv1.len; i++) {
+        u8 c1 = sv1.data[i];
+        u8 c2 = sv2.data[i];
+        if ((c1 >= 'A' && c1 <= 'Z') || (c1 >= 'a' && c1 <= 'z')) {
+            c1 |= (1 << 5);
+            c2 |= (1 << 5);
+        }
+        if (c1 != c2) return false;
+    }
+    return true;
 }
 
 bool kevue_string_view_has_suffix(StringView sv, StringView suffix)

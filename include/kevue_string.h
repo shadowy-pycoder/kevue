@@ -43,14 +43,16 @@ String kevue_string_to_lower(String str, KevueAllocator *ma);
 String kevue_string_to_upper(String str, KevueAllocator *ma);
 String kevue_string_to_title(String str, KevueAllocator *ma);
 
+u64 kevue__cstring_len(const u8 *s);
+
 #define StringView(s) \
     (StringView) { .data = (s).data, .len = (s).len }
 
 #define StringViewFromCString(s) \
-    (StringView) { .data = (s), .len = kevue__cstring_len((s)) }
+    (StringView) { .data = (u8 *)(s), .len = kevue__cstring_len((s)) }
 
 #define StringViewFromLiteral(s) \
-    (StringView) { .data = (s), .len = sizeof((s)) - 1 }
+    (StringView) { .data = (u8 *)(s), .len = sizeof((s)) - 1 }
 
 #ifndef STR_FMT
 #define STR_FMT "%.*s"
@@ -62,6 +64,7 @@ String kevue_string_to_title(String str, KevueAllocator *ma);
 StringView kevue_string_view_from_string(String str);
 StringView kevue_string_view_from_cstring(u8 *s);
 bool kevue_string_view_compare(StringView sv1, StringView sv2);
+bool kevue_string_view_compare_icase(StringView sv1, StringView sv2);
 bool kevue_string_view_has_suffix(StringView sv, StringView suffix);
 bool kevue_string_view_has_prefix(StringView sv, StringView prefix);
 StringView kevue_string_view_trim_suffix(StringView sv, StringView suffix);

@@ -22,7 +22,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/un.h>
 #include <unistd.h>

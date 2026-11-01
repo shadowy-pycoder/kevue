@@ -28,7 +28,6 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,9 +99,9 @@ typedef struct Socket           Socket;
 typedef struct KevueConnection  KevueConnection;
 
 struct KevueServer {
-    const char     *host;
-    const char     *port;
-    const char     *unix_path;
+    const u8       *host;
+    const u8       *port;
+    const u8       *unix_path;
     int             tcp_workers;
     int             unix_workers;
     int            *fds;
@@ -113,8 +112,8 @@ struct KevueServer {
 };
 
 struct Address {
-    int  port;
-    char addr_str[INET6_ADDRSTRLEN];
+    int port;
+    u8  addr_str[INET6_ADDRSTRLEN];
 };
 
 struct Socket {
@@ -142,18 +141,18 @@ typedef struct EpollServerArgs {
 } EpollServerArgs;
 
 static int kevue__setnonblocking(int fd);
-static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events);
+static int kevue__epoll_add(int epfd, Socket *sock, u32 events);
 static int kevue__epoll_del(int epfd, Socket *sock);
 static void *kevue__handle_server_epoll(void *args);
-static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_size, size_t send_buf_size, bool check);
-static int kevue__create_server_unix_sock(char *path, size_t recv_buf_size, size_t send_buf_size);
+static int kevue__create_server_sock(u8 *host, u8 *port, u64 recv_buf_size, u64 send_buf_size, bool check);
+static int kevue__create_server_unix_sock(u8 *path, u64 recv_buf_size, u64 send_buf_size);
 static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__connection_destroy(KevueConnection *c);
 static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllocator *ma, HashMap *hm);
 static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueRequest *req, KevueResponse *resp, HashMap *hm, Buffer *hmbuf);
-static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing);
+static void kevue__dispatch_client_events(Socket *sock, u32 events, bool closing);
 static bool kevue__handle_read(KevueConnection *c);
-static bool kevue__handle_read_exactly(KevueConnection *c, size_t n);
+static bool kevue__handle_read_exactly(KevueConnection *c, u64 n);
 static bool kevue__handle_write(KevueConnection *c);
 static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event *events, int idx, int nready);
 static void kevue__signal_handler(int sig);
@@ -312,12 +311,12 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, KevueAllo
     }
     if (addr.ss_family != AF_UNIX) {
         int enable = 1;
-        if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const char *)&enable, sizeof(enable)) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const u8 *)&enable, sizeof(enable)) < 0) {
             print_err(generate_timestamp(), "[%d] Setting SOL_SOCKET option for client failed: %s", tid, strerror(errno));
             close(sock);
             return false;
         }
-        if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
+        if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const u8 *)&enable, sizeof(enable)) < 0) {
             print_err(generate_timestamp(), "[%d] Setting TCP_NODELAY option for client failed: %s", tid, strerror(errno));
             close(sock);
             return false;
@@ -351,7 +350,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
     resp->err_code = KEVUE_ERR_OK;
     resp->cmd = req->cmd;
     resp->cmd_len = req->cmd_len;
-    uint64_t hm_len = 0;
+    u64 hm_len = 0;
     if (!c->handshake_done && resp->cmd != HELLO) {
         resp->err_code = KEVUE_ERR_HANDSHAKE;
         c->closed = true;
@@ -370,7 +369,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
         if (!hm->ops->kevue_hm_get(hm, req->key, req->key_len, hmbuf)) {
             resp->err_code = KEVUE_ERR_NOT_FOUND;
         } else {
-            resp->val_len = (uint16_t)hmbuf->size;
+            resp->val_len = (u16)hmbuf->size;
             resp->val = hmbuf;
         }
         break;
@@ -404,7 +403,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
         if (!hm->ops->kevue_hm_items(hm, hmbuf)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         } else {
-            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val_len = (u64)hmbuf->size;
             resp->val = hmbuf;
         }
         break;
@@ -412,7 +411,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
         if (!hm->ops->kevue_hm_keys(hm, hmbuf)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         } else {
-            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val_len = (u64)hmbuf->size;
             resp->val = hmbuf;
         }
         break;
@@ -420,7 +419,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
         if (!hm->ops->kevue_hm_values(hm, hmbuf)) {
             resp->err_code = KEVUE_ERR_OPERATION;
         } else {
-            resp->val_len = (uint64_t)hmbuf->size;
+            resp->val_len = (u64)hmbuf->size;
             resp->val = hmbuf;
         }
         break;
@@ -434,7 +433,7 @@ static void kevue__response_populate_from_hashmap(KevueConnection *c, KevueReque
 #endif
 }
 
-static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool closing)
+static void kevue__dispatch_client_events(Socket *sock, u32 events, bool closing)
 {
     pid_t            tid = gettid();
     KevueConnection *c = sock->c;
@@ -493,12 +492,12 @@ static void kevue__dispatch_client_events(Socket *sock, uint32_t events, bool cl
     return;
 }
 
-static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
+static bool kevue__handle_read_exactly(KevueConnection *c, u64 n)
 {
     kevue_buffer_grow(c->rbuf, n);
     pid_t tid = gettid();
     while (c->rbuf->size < n) {
-        ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
+        i64 nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, n - c->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) break;
             if (errno == EINTR) continue;
@@ -508,7 +507,7 @@ static bool kevue__handle_read_exactly(KevueConnection *c, size_t n)
             print_debug(generate_timestamp(), "[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
-            c->rbuf->size += (size_t)nr;
+            c->rbuf->size += (u64)nr;
             print_debug(generate_timestamp(), "[%d] Read %ld bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
@@ -520,7 +519,7 @@ static bool kevue__handle_read(KevueConnection *c)
     pid_t tid = gettid();
     while (true) {
         if (c->rbuf->size >= c->rbuf->capacity) kevue_buffer_grow(c->rbuf, c->rbuf->capacity * 2);
-        ssize_t nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, c->rbuf->capacity - c->rbuf->size);
+        i64 nr = read(c->sock->fd, c->rbuf->ptr + c->rbuf->size, c->rbuf->capacity - c->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
@@ -532,7 +531,7 @@ static bool kevue__handle_read(KevueConnection *c)
             print_debug(generate_timestamp(), "[%d] %s:%d:EOF", tid, c->addr.addr_str, c->addr.port);
             return false;
         } else {
-            c->rbuf->size += (size_t)nr;
+            c->rbuf->size += (u64)nr;
             print_debug(generate_timestamp(), "[%d] Read %zu bytes from client %s:%d", tid, nr, c->addr.addr_str, c->addr.port);
         }
     }
@@ -543,7 +542,7 @@ static bool kevue__handle_write(KevueConnection *c)
 {
     pid_t tid = gettid();
     while (true) {
-        ssize_t nw = write(c->sock->fd, c->wbuf->ptr + c->wbuf->offset, c->wbuf->size - c->wbuf->offset);
+        i64 nw = write(c->sock->fd, c->wbuf->ptr + c->wbuf->offset, c->wbuf->size - c->wbuf->offset);
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) break;
             if (errno == EINTR) continue;
@@ -552,7 +551,7 @@ static bool kevue__handle_write(KevueConnection *c)
         } else if (nw == 0) {
             break;
         } else {
-            c->wbuf->offset += (size_t)nw;
+            c->wbuf->offset += (u64)nw;
             print_debug(generate_timestamp(), "[%d] Written %ld bytes -> %s:%d", tid, nw, c->addr.addr_str, c->addr.port);
             if (c->wbuf->offset >= c->wbuf->size) {
                 kevue_buffer_reset(c->wbuf);
@@ -584,7 +583,7 @@ static void kevue__connection_cleanup(int epfd, Socket *sock, struct epoll_event
     }
 }
 
-static int kevue__epoll_add(int epfd, Socket *sock, uint32_t events)
+static int kevue__epoll_add(int epfd, Socket *sock, u32 events)
 {
     struct epoll_event ev;
     ev.data.ptr = sock;
@@ -631,7 +630,7 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, K
             c->ma->free(c->sock, c->ma->ctx);
             return false;
         }
-        snprintf(c->addr.addr_str, sizeof(c->addr.addr_str), "unix:%d", cred.pid);
+        snprintf((char *)c->addr.addr_str, sizeof(c->addr.addr_str), "unix:%d", cred.pid);
     }
     c->rbuf = kevue_buffer_create(BUF_SIZE, ma);
     if (c->rbuf == NULL) return false;
@@ -670,7 +669,7 @@ static void kevue__signal_handler(int sig)
     }
 }
 
-static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_size, size_t send_buf_size, bool check)
+static int kevue__create_server_sock(u8 *host, u8 *port, u64 recv_buf_size, u64 send_buf_size, bool check)
 {
     struct addrinfo hints, *servinfo, *p;
     int             server_sock;
@@ -680,7 +679,7 @@ static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_siz
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     errno = 0;
-    if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
+    if ((rv = getaddrinfo((const char *)host, (const char *)port, &hints, &servinfo)) < 0) {
         print_err(generate_timestamp(), "getaddrinfo failed: %s", gai_strerror(rv));
         return -1;
     }
@@ -690,20 +689,20 @@ static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_siz
             continue;
         }
         int enable = 1;
-        if (setsockopt(server_sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, (const char *)&enable, sizeof(enable)) < 0) {
+        if (setsockopt(server_sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, (const u8 *)&enable, sizeof(enable)) < 0) {
             print_err(generate_timestamp(), "Setting TCP_DEFER_ACCEPT option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
-        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable, sizeof(enable)) < 0) {
+        if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const u8 *)&enable, sizeof(enable)) < 0) {
             print_err(generate_timestamp(), "Setting SO_REUSEADDR option failed: %s", strerror(errno));
             close(server_sock);
             freeaddrinfo(servinfo);
             return -1;
         }
         if (!check) {
-            if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&enable, sizeof(enable)) < 0) {
+            if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, (const u8 *)&enable, sizeof(enable)) < 0) {
                 print_err(generate_timestamp(), "Setting SO_REUSEPORT option failed: %s", strerror(errno));
                 close(server_sock);
                 freeaddrinfo(servinfo);
@@ -745,12 +744,12 @@ static int kevue__create_server_sock(char *host, char *port, size_t recv_buf_siz
     return server_sock;
 }
 
-static int kevue__create_server_unix_sock(char *path, size_t recv_buf_size, size_t send_buf_size)
+static int kevue__create_server_unix_sock(u8 *path, u64 recv_buf_size, u64 send_buf_size)
 {
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, (const char *)path, sizeof(addr.sun_path) - 1);
 
     int server_sock;
     errno = 0;
@@ -854,9 +853,9 @@ static void kevue__info(FILE *stream)
 
 KevueServer *kevue_server_create(KevueServerConfig *conf)
 {
-    if (conf->host == NULL || conf->host[0] == '\0') conf->host = KEVUE_HOST;
-    if (conf->port == NULL || conf->port[0] == '\0') conf->port = KEVUE_PORT;
-    if (conf->unix_path == NULL || conf->unix_path[0] == '\0') conf->unix_path = KEVUE_UNIX_SOCK_PATH;
+    if (conf->host == NULL || conf->host[0] == '\0') conf->host = (u8 *)KEVUE_HOST;
+    if (conf->port == NULL || conf->port[0] == '\0') conf->port = (u8 *)KEVUE_PORT;
+    if (conf->unix_path == NULL || conf->unix_path[0] == '\0') conf->unix_path = (u8 *)KEVUE_UNIX_SOCK_PATH;
     if (conf->recv_buf_size == 0) conf->recv_buf_size = RECV_BUF_SIZE;
     if (conf->send_buf_size == 0) conf->send_buf_size = SEND_BUF_SIZE;
     if (conf->workers <= 0 || conf->workers > KEVUE_MAX_SERVER_WORKERS) conf->workers = KEVUE_TCP_SERVER_WORKERS;
@@ -948,7 +947,7 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
     }
     ks->hm = hm;
 #ifndef __HASHMAP_DETERMINISTIC
-    uint64_t seed;
+    u64 seed;
     if (!random_u64(&seed)) {
         print_err(generate_timestamp(), "Generating random seed failed: %s", strerror(errno));
         kevue_server_destroy(ks);
@@ -983,7 +982,7 @@ void kevue_server_start(KevueServer *ks)
         print_info(generate_timestamp(), "Shutting down UNIX server on %s... Please wait", ks->unix_path);
     if (ks->tcp_workers > 0)
         print_info(generate_timestamp(), "Shutting down %d TCP servers on %s:%s... Please wait", ks->tcp_workers, ks->host, ks->port);
-    uint64_t one = 1;
+    u64 one = 1;
     if (write(ks->efd, &one, sizeof(one)) < 0) {
         print_err(generate_timestamp(), "Writing to eventfd failed: %s", strerror(errno));
         exit(EXIT_FAILURE);
@@ -1012,16 +1011,16 @@ int main(int argc, char **argv)
 
     bool *help = flag_bool("help", false, "Print this help message and exit");
 #if !defined(SINGLE_THREADED_UNIX_SERVER)
-    flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
-    flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
+    flag_str_var((char **)&conf.host, "host", KEVUE_HOST, "Server host");
+    flag_str_var((char **)&conf.port, "port", KEVUE_PORT, "Server port");
 #endif
 #if !defined(SINGLE_THREADED_TCP_SERVER)
-    flag_str_var(&conf.unix_path, "unix", KEVUE_UNIX_SOCK_PATH, "UNIX socket path");
+    flag_str_var((char **)&conf.unix_path, "unix", KEVUE_UNIX_SOCK_PATH, "UNIX socket path");
 #endif
     flag_size_var(&conf.recv_buf_size, "recvb", RECV_BUF_SIZE, "Receive buffer size");
     flag_size_var(&conf.send_buf_size, "sendb", SEND_BUF_SIZE, "Send buffer size");
 #if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
-    uint64_t *workers = flag_uint64("workers", KEVUE_TCP_SERVER_WORKERS, "TCP server workers");
+    u64 *workers = flag_uint64("workers", KEVUE_TCP_SERVER_WORKERS, "TCP server workers");
 #endif
     if (!flag_parse(argc, argv)) {
         kevue__usage(stderr);

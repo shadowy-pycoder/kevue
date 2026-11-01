@@ -36,7 +36,7 @@ RAYLIB_VERSION := 5.5.0
 RAYLIB_SONAME := 550
 
 ifeq ($(DEBUG),1)
-  CFLAGS += -ggdb -O0
+  CFLAGS += -g3 -O0
   CPPFLAGS += -DDEBUG -D__HASHMAP_DETERMINISTIC
   GUI_LDFLAGS += -Wl,-rpath,$(RAYLIB_PATH)/lib/
 else

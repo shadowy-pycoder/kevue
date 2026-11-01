@@ -43,13 +43,13 @@ int main(void)
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    for (size_t i = 0; i < NUM_ENTRIES; i++) {
+    for (u64 i = 0; i < NUM_ENTRIES; i++) {
         if (i % 100000 == 0) printf("Added (%zu/%zu) key-value pairs\n", i, NUM_ENTRIES);
         char key[64] = {};
         char val[64] = {};
         int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
         int  val_len = snprintf(val, sizeof(val), "World%zu", i);
-        if (!kevue_client_set(kc, resp, key, (uint16_t)key_len, val, (uint16_t)val_len)) {
+        if (!kevue_client_set(kc, resp, key, (u16)key_len, val, (u16)val_len)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             break;
         }

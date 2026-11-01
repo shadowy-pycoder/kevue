@@ -38,10 +38,10 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdint.h>
 
 #include <allocator.h>
 #include <buffer.h>
+#include <common.h>
 
 #define KEVUE_MAGIC_BYTE          "\x22"
 #define KEVUE_MAGIC_BYTE_SIZE     1
@@ -68,7 +68,7 @@ typedef enum KevueCommand {
 // Compile-time length of the command
 //
 // Caller must check if command is valid before getting length
-extern const uint8_t kevue_command_length[];
+extern const u8 kevue_command_length[];
 
 // Compile-time string value of the command
 //
@@ -104,21 +104,21 @@ typedef enum KevueErr {
 extern const char *kevue_error_code_to_string[];
 
 typedef struct KevueRequest {
-    uint32_t       total_len;
-    uint8_t        cmd_len;
-    KevueCommand   cmd;
-    uint16_t       key_len;
-    const uint8_t *key;
-    uint16_t       val_len;
-    const uint8_t *val;
+    u32          total_len;
+    u8           cmd_len;
+    KevueCommand cmd;
+    u16          key_len;
+    const u8    *key;
+    u16          val_len;
+    const u8    *val;
 } KevueRequest;
 
 typedef struct KevueResponse {
-    uint64_t     total_len;
-    uint8_t      cmd_len;
+    u64          total_len;
+    u8           cmd_len;
     KevueCommand cmd;
     KevueErr     err_code;
-    uint64_t     val_len;
+    u64          val_len;
     Buffer      *val;
 } KevueResponse;
 
@@ -212,7 +212,7 @@ void kevue_response_print(KevueResponse *resp);
  *
  * @return true if the command matches, false otherwise.
  */
-bool kevue_command_compare(const char *data, uint8_t len, KevueCommand cmd);
+bool kevue_command_compare(const u8 *data, u8 len, KevueCommand cmd);
 
 /**
  * @brief Validate a Kevue command.

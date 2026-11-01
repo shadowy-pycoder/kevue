@@ -20,13 +20,12 @@
 #pragma once
 
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 
 // typedef struct DynamicArray {
 //     T              *ptr;
-//     size_t          len;
-//     size_t          cap;
+//     u64          len;
+//     u64          cap;
 //     KevueAllocator *ma;
 // } DynamicArray;
 
@@ -65,7 +64,7 @@
  */
 #define kevue_dyna_append(dyna, item)                                                                            \
     do {                                                                                                         \
-        size_t initial_cap = (dyna)->cap;                                                                        \
+        u64 initial_cap = (dyna)->cap;                                                                           \
         while ((dyna)->cap <= (dyna)->len + 1) (dyna)->cap *= 2;                                                 \
         if ((dyna)->cap > initial_cap) {                                                                         \
             (dyna)->ptr = (dyna)->ma->realloc((dyna)->ptr, (dyna)->cap * sizeof(*(dyna)->ptr), (dyna)->ma->ctx); \
@@ -83,7 +82,7 @@
  */
 #define kevue_dyna_remove(dyna, index)                             \
     do {                                                           \
-        size_t index_to_remove = (index);                          \
+        u64 index_to_remove = (index);                             \
         assert(index_to_remove < (dyna)->len);                     \
         (dyna)->ptr[index_to_remove] = (dyna)->ptr[--(dyna)->len]; \
     } while (0)

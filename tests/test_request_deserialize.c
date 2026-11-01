@@ -16,8 +16,6 @@
 
 // clang -Iinclude -Ilib ./tests/test_request_deserialize.c -o ./bin/kevue-test-request-deserialize -DDEBUG
 #include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,7 +24,7 @@
 #include "../src/common.c"
 #include "../src/protocol.c"
 
-uint8_t data[] = {
+u8 data[] = {
     0x22, // magic byte
     0x00, 0x00, 0x00, 0x0f, // total length
     0x03, // command length
@@ -35,7 +33,7 @@ uint8_t data[] = {
     't', 'e', 's', 't' // key
 };
 
-uint8_t malformed_data[] = {
+u8 malformed_data[] = {
     0x22, // magic byte
     0x00, 0x00, 0x00, 0x0f, // total length
     0x03, // command length
@@ -44,7 +42,7 @@ uint8_t malformed_data[] = {
     't', 'e', 's', 't' // key
 };
 
-uint8_t garbage[] = {
+u8 garbage[] = {
     0x00, 0x04, 0x45, 0x00, 0x00, 0x54, 0x00, 0x22,
     0x00, 0x00, 0x00, 0x10, 0x04, 0x50, 0x49, 0x00,
     0x00, 0x02, 0x00, 0x40, 0x00, 0x73, 0x00, 0x03,
@@ -80,7 +78,7 @@ int main()
 
     kevue_buffer_reset(buf);
     memset(&req, 0, sizeof(req));
-    for (size_t i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
+    for (u64 i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
         kevue_buffer_append(buf, &data[i], sizeof(data[0]));
         err = kevue_request_deserialize(&req, buf);
         if (err == KEVUE_ERR_INCOMPLETE_READ) continue;

@@ -20,16 +20,15 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #include <allocator.h>
+#include <common.h>
 
 typedef struct Buffer {
-    uint8_t        *ptr;
-    size_t          size;
-    size_t          offset;
-    size_t          capacity;
+    u8             *ptr;
+    u64             size;
+    u64             offset;
+    u64             capacity;
     KevueAllocator *ma;
 } Buffer;
 
@@ -43,7 +42,7 @@ typedef struct Buffer {
  *
  * @return Pointer to a newly created buffer, or NULL on failure.
  */
-Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma);
+Buffer *kevue_buffer_create(u64 capacity, KevueAllocator *ma);
 
 /**
  * @brief Destroys a buffer and releases all associated resources.
@@ -64,7 +63,7 @@ void kevue_buffer_destroy(Buffer *buf);
  * @return Number of bytes appended.
  * @pre Capacity must be greater than 0
  */
-size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
+u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
 
 /**
  * @brief Writes data to the start of the buffer.
@@ -78,7 +77,7 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
  * @return Number of bytes written.
  * @pre Capacity must be greater than 0
  */
-size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
+u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n);
 
 /**
  * @brief Reads a single byte from the buffer.
@@ -138,7 +137,7 @@ bool kevue_buffer_at_eof(Buffer *buf);
  * @param n    Total number of bytes required.
  * @pre Capacity must be greater than 0
  */
-void kevue_buffer_grow(Buffer *buf, size_t n);
+void kevue_buffer_grow(Buffer *buf, u64 n);
 
 /**
  * @brief Resets the buffer to an empty state.

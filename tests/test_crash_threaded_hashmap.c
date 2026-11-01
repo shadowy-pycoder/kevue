@@ -37,6 +37,6 @@ int main()
     for (long long i = 0;;) {
         char key[32] = {};
         int  len = snprintf(key, sizeof(key), "%lld", i++);
-        if (!kevue__hm_threaded_put(m, key, (size_t)len, ".", 1)) return 0;
+        if (!kevue__hm_threaded_put(m, key, (u64)len, ".", 1)) return 0;
     }
 }

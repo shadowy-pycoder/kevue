@@ -18,8 +18,6 @@
  * @brief kevue server API.
  */
 #pragma once
-#include <stddef.h>
-#include <stdint.h>
 
 #include <allocator.h>
 #include <common.h>
@@ -38,12 +36,12 @@
 typedef struct KevueServer KevueServer;
 
 typedef struct KevueServerConfig {
-    char           *host; // defaults to KEVUE_HOST
-    char           *port; // defaults to KEVUE_PORT
-    char           *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
+    u8             *host; // defaults to KEVUE_HOST
+    u8             *port; // defaults to KEVUE_PORT
+    u8             *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
     int             workers; // defaults to KEVUE_TCP_SERVER_WORKERS
-    size_t          recv_buf_size; // defaults to RECV_BUF_SIZE
-    size_t          send_buf_size; // defaults to SEND_BUF_SIZE
+    u64             recv_buf_size; // defaults to RECV_BUF_SIZE
+    u64             send_buf_size; // defaults to SEND_BUF_SIZE
     KevueAllocator *ma; // defaults to kevue_default_allocator
 } KevueServerConfig;
 

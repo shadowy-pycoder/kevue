@@ -21,7 +21,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,13 +193,13 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    switch ((uint8_t)pr->key->size) {
+    switch ((u8)pr->key->size) {
     case 3:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, GET)) {
             pr->cmd = GET;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, SET)) {
             pr->cmd = SET;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, DEL)) {
             pr->cmd = DEL;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -209,9 +208,9 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 4:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, PING)) {
             pr->cmd = PING;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, KEYS)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, KEYS)) {
             pr->cmd = KEYS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -220,9 +219,9 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 5:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, COUNT)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, COUNT)) {
             pr->cmd = COUNT;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, ITEMS)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, ITEMS)) {
             pr->cmd = ITEMS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -231,7 +230,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 6:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, VALUES)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, VALUES)) {
             pr->cmd = VALUES;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -244,7 +243,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    size_t offset = buf->offset;
+    u64 offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
@@ -323,11 +322,11 @@ int main(int argc, char **argv)
     KevueClientConfig conf = { 0 };
 
     bool *help = flag_bool("help", false, "Print this help message and exit");
-    flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
-    flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
-    flag_str_var(&conf.unix_path, "unix", "", "UNIX socket path");
-    uint64_t *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
-    uint64_t *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
+    flag_str_var((char **)&conf.host, "host", KEVUE_HOST, "Server host");
+    flag_str_var((char **)&conf.port, "port", KEVUE_PORT, "Server port");
+    flag_str_var((char **)&conf.unix_path, "unix", "", "UNIX socket path");
+    u64 *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
+    u64 *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
     if (!flag_parse(argc, argv)) {
         kevue__usage(stderr);
         flag_print_error(stderr);
@@ -460,8 +459,8 @@ int main(int argc, char **argv)
                         linenoiseHide(&ls);
                         goto client_close_fail;
                     }
-                    uint64_t exp;
-                    ssize_t  res = read(tfd, &exp, sizeof(exp));
+                    u64 exp;
+                    i64 res = read(tfd, &exp, sizeof(exp));
                     UNUSED(res);
                     continue;
                 }
@@ -510,7 +509,7 @@ int main(int argc, char **argv)
         linenoiseHide(&ls);
         switch (pr->cmd) {
         case GET:
-            if (kevue_client_get(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_get(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
             } else {
@@ -523,7 +522,7 @@ int main(int argc, char **argv)
             }
             break;
         case SET:
-            if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
+            if (kevue_client_set(kc, resp, pr->key->ptr, (u16)pr->key->size, pr->value->ptr, (u16)pr->value->size)) {
                 fprintf(stdout, "(ok)\n");
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
@@ -531,7 +530,7 @@ int main(int argc, char **argv)
             }
             break;
         case DEL:
-            if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_del(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fprintf(stdout, "(ok)\n");
             } else {
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
@@ -543,7 +542,7 @@ int main(int argc, char **argv)
             }
             break;
         case PING:
-            if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
             } else {
@@ -553,7 +552,7 @@ int main(int argc, char **argv)
             break;
         case COUNT:
             if (kevue_client_count(kc, resp)) {
-                uint64_t count;
+                u64 count;
                 memcpy(&count, resp->val->ptr, sizeof(count));
                 fprintf(stdout, "%lu\n", count);
             } else {
@@ -566,10 +565,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
@@ -598,10 +597,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
@@ -623,10 +622,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;

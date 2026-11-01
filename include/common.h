@@ -20,7 +20,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +30,17 @@
 #define BUF_SIZE             (32 * 1024)
 #define READ_TIMEOUT         10
 #define WRITE_TIMEOUT        10
+
+typedef int8_t   i8;
+typedef int16_t  i16;
+typedef int32_t  i32;
+typedef int64_t  i64;
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef float    f32;
+typedef double   f64;
 
 #if !defined(VERSION)
 #define VERSION "0.0.1"
@@ -126,22 +136,22 @@
 /**
  *  Convert string @p s to upper case and return it.
  */
-char *to_upper(char *s, size_t n);
+u8 *to_upper(u8 *s, u64 n);
 
 /**
  * Wrapper for @c inet_ntop with dispatching for IPv4 and IPv6 addresses.
  */
-const char *inet_ntop2(void *addr, char *buf, size_t size);
+const u8 *inet_ntop2(void *addr, u8 *buf, u64 size);
 
 /**
  * Wrapper for @c ntohs with dispatching for IPv4 and IPv6 addresses and ports.
  */
-uint16_t ntohs2(void *addr);
+u16 ntohs2(void *addr);
 
 /**
  * Round up @p x to the nearest power of 2.
  */
-size_t round_up_pow2(size_t x);
+u64 round_up_pow2(u64 x);
 
 /**
  * @brief Generates a random 64-bit value.
@@ -154,7 +164,7 @@ size_t round_up_pow2(size_t x);
  * @note On Linux, failures originate from getrandom(2) and
  *       set errno accordingly.
  */
-bool random_u64(uint64_t *x);
+bool random_u64(u64 *x);
 
 /**
  * @brief Returns the current monotonic time in nanoseconds.
@@ -165,21 +175,21 @@ bool random_u64(uint64_t *x);
  * @note On Linux, this is backed by clock_gettime(CLOCK_MONOTONIC_RAW).
  * @note Suitable for interval measurement and benchmarking.
  */
-uint64_t nsec_now(void);
+u64 nsec_now(void);
 
 /**
  * @brief Generates a formatted timestamp string.
  *
  * @note Format is "YYYY-MM-DD HH:MM:SS.nnnnnnnnnZ"
  */
-const char *generate_timestamp(void);
+const u8 *generate_timestamp(void);
 
 /**
  * @brief Check if provided port string is within (0, 65535] range.
  */
-bool is_valid_port(char *port);
+bool is_valid_port(u8 *port);
 
 /**
  * @brief Check if provided addr string is valid IPv4/IPv6.
  */
-bool is_valid_ip(const char *addr);
+bool is_valid_ip(const u8 *addr);

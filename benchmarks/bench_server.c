@@ -31,9 +31,9 @@
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
 // https://github.com/svaarala/duktape/blob/master/misc/splitmix64.c
-static inline uint64_t splitmix64(uint64_t *state)
+static inline u64 splitmix64(u64 *state)
 {
-    uint64_t z = (*state += 0x9e3779b97f4a7c15ULL);
+    u64 z = (*state += 0x9e3779b97f4a7c15ULL);
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
     z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
     return z ^ (z >> 31);
@@ -52,36 +52,36 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     printf("Inserting %zu items...\n", NUM_ENTRIES);
-    uint64_t start = nsec_now();
-    bool     op_failed = false;
-    uint64_t rng = 1;
-    uint64_t val_rng = 1;
-    for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        uint64_t key = splitmix64(&rng);
-        uint64_t val = splitmix64(&val_rng);
+    u64  start = nsec_now();
+    bool op_failed = false;
+    u64  rng = 1;
+    u64  val_rng = 1;
+    for (u64 i = 0; i < NUM_ENTRIES; i++) {
+        u64 key = splitmix64(&rng);
+        u64 val = splitmix64(&val_rng);
         if (!kevue_client_set(kc, resp, &key, 8, &val, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
             break;
         }
     }
-    uint64_t finish = nsec_now();
+    u64 finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
         conf.ma->free(resp, conf.ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    uint64_t elapsed_ns = finish - start;
-    double   elapsed_sec = (double)elapsed_ns * 1e-9;
-    double   req_sec = NUM_ENTRIES / elapsed_sec;
+    u64 elapsed_ns = finish - start;
+    f64 elapsed_sec = (f64)elapsed_ns * 1e-9;
+    f64 req_sec = NUM_ENTRIES / elapsed_sec;
     printf("Inserting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     rng = 1;
     start = nsec_now();
-    for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        uint64_t key = splitmix64(&rng);
+    for (u64 i = 0; i < NUM_ENTRIES; i++) {
+        u64 key = splitmix64(&rng);
         if (!kevue_client_get(kc, resp, &key, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
@@ -96,7 +96,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     elapsed_ns = finish - start;
-    elapsed_sec = (double)elapsed_ns * 1e-9;
+    elapsed_sec = (f64)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
     printf("Getting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     printf("Fetching %zu items...\n", NUM_ENTRIES);
@@ -108,7 +108,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
-    printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+    printf("Fetching %zu items takes: %.9fs\n", NUM_ENTRIES, (f64)(finish - start) * 1e-9);
     printf("Fetching %zu keys...\n", NUM_ENTRIES);
     start = nsec_now();
     if (!kevue_client_keys(kc, resp)) {
@@ -118,7 +118,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
-    printf("Fetching %zu keys takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+    printf("Fetching %zu keys takes: %.9fs\n", NUM_ENTRIES, (f64)(finish - start) * 1e-9);
     printf("Fetching %zu values...\n", NUM_ENTRIES);
     start = nsec_now();
     if (!kevue_client_values(kc, resp)) {
@@ -128,7 +128,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
-    printf("Fetching %zu values takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+    printf("Fetching %zu values takes: %.9fs\n", NUM_ENTRIES, (f64)(finish - start) * 1e-9);
     printf("Counting %zu entries...\n", NUM_ENTRIES);
     start = nsec_now();
     if (!kevue_client_count(kc, resp)) {
@@ -138,13 +138,13 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     finish = nsec_now();
-    printf("Counting %zu entries takes: %.9fs\n", NUM_ENTRIES, (double)(finish - start) * 1e-9);
+    printf("Counting %zu entries takes: %.9fs\n", NUM_ENTRIES, (f64)(finish - start) * 1e-9);
     printf("Deleting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     rng = 1;
     start = nsec_now();
-    for (size_t i = 0; i < NUM_ENTRIES; i++) {
-        uint64_t key = splitmix64(&rng);
+    for (u64 i = 0; i < NUM_ENTRIES; i++) {
+        u64 key = splitmix64(&rng);
         if (!kevue_client_del(kc, resp, &key, 8)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             op_failed = true;
@@ -159,7 +159,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     elapsed_ns = finish - start;
-    elapsed_sec = (double)elapsed_ns * 1e-9;
+    elapsed_sec = (f64)elapsed_ns * 1e-9;
     req_sec = NUM_ENTRIES / elapsed_sec;
     printf("Deleting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     kevue_buffer_destroy(resp->val);

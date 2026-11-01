@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <sys/random.h>
 #include <sys/socket.h>
@@ -32,15 +31,15 @@
 
 #include <common.h>
 
-char *to_upper(char *s, size_t n)
+u8 *to_upper(u8 *s, u64 n)
 {
-    for (size_t i = 0; i < n; i++)
-        s[i] = (char)toupper(s[i]);
+    for (u64 i = 0; i < n; i++)
+        s[i] = (u8)toupper(s[i]);
     return s;
 }
 
 // https://beej.us/guide/bgnet/html/split/slightly-advanced-techniques.html#poll
-const char *inet_ntop2(void *addr, char *buf, size_t size)
+const u8 *inet_ntop2(void *addr, u8 *buf, u64 size)
 {
     struct sockaddr_storage *sas = addr;
     struct sockaddr_in      *sa4;
@@ -59,15 +58,16 @@ const char *inet_ntop2(void *addr, char *buf, size_t size)
     default:
         return NULL;
     }
-    return inet_ntop(sas->ss_family, src, buf, (socklen_t)size);
+    return (const u8 *)inet_ntop(sas->ss_family, src, (char *)buf, (socklen_t)size);
 }
 
-uint16_t ntohs2(void *addr)
+u16 ntohs2(void *addr)
 {
     struct sockaddr_storage *sas = addr;
     struct sockaddr_in      *sa4;
     struct sockaddr_in6     *sa6;
-    uint16_t                 port = 0;
+
+    u16 port = 0;
     switch (sas->ss_family) {
     case AF_INET:
         sa4 = addr;
@@ -83,7 +83,7 @@ uint16_t ntohs2(void *addr)
     return ntohs(port);
 }
 
-size_t round_up_pow2(size_t x)
+u64 round_up_pow2(u64 x)
 {
     if (x <= 1)
         return 1;
@@ -100,9 +100,9 @@ size_t round_up_pow2(size_t x)
     return x + 1;
 }
 
-bool random_u64(uint64_t *x)
+bool random_u64(u64 *x)
 {
-    ssize_t n;
+    i64 n;
     do {
         n = getrandom(x, sizeof(*x), 0);
     } while (n < 0 && errno == EINTR);
@@ -112,16 +112,16 @@ bool random_u64(uint64_t *x)
     return true;
 }
 
-uint64_t nsec_now(void)
+u64 nsec_now(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+    return (u64)ts.tv_sec * 1000000000ull + (u64)ts.tv_nsec;
 }
 
-const char *generate_timestamp(void)
+const u8 *generate_timestamp(void)
 {
-    static thread_local char buf[32];
+    static thread_local u8 buf[32];
 
     struct timespec ts;
     struct tm       tm;
@@ -129,25 +129,25 @@ const char *generate_timestamp(void)
     clock_gettime(CLOCK_REALTIME, &ts);
     gmtime_r(&ts.tv_sec, &tm);
 
-    size_t n = strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
-    snprintf(buf + n, sizeof(buf) - n, ".%09ldZ", ts.tv_nsec);
+    u64 n = strftime((char *)buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    snprintf((char *)buf + n, sizeof(buf) - n, ".%09ldZ", ts.tv_nsec);
 
     return buf;
 }
 
-bool is_valid_port(char *port)
+bool is_valid_port(u8 *port)
 {
     char         *end;
     unsigned long val;
     errno = 0;
-    val = strtoul(port, &end, 10);
+    val = strtoul((const char *)port, &end, 10);
     if (errno) return false;
-    if (end == port || *end != '\0') return false;
+    if ((u8 *)end == port || *end != '\0') return false;
     if (val == 0 || val > 65535) return false;
     return true;
 }
 
-bool is_valid_ip(const char *addr)
+bool is_valid_ip(const u8 *addr)
 {
-    return inet_pton(AF_INET, addr, &(struct in_addr) {}) == 1 || inet_pton(AF_INET6, addr, &(struct in6_addr) {}) == 1;
+    return inet_pton(AF_INET, (const char *)addr, &(struct in_addr) {}) == 1 || inet_pton(AF_INET6, (const char *)addr, &(struct in6_addr) {}) == 1;
 }

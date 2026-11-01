@@ -20,8 +20,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #include <allocator.h>
 #include <buffer.h>
@@ -56,7 +54,7 @@ typedef struct HashMapOps {
      * @note The existing contents of @p buf may be overwritten or partially
      * replaced depending on the implementation.
      */
-    bool (*kevue_hm_get)(HashMap *hm, const void *key, size_t key_len, Buffer *buf);
+    bool (*kevue_hm_get)(HashMap *hm, const void *key, u64 key_len, Buffer *buf);
     /**
      * Inserts or replaces a key-value pair in the hashmap.
      *
@@ -72,7 +70,7 @@ typedef struct HashMapOps {
      *
      * @note returns false if hashmap is full
      */
-    bool (*kevue_hm_put)(HashMap *hm, const void *key, size_t key_len, const void *val, size_t val_len);
+    bool (*kevue_hm_put)(HashMap *hm, const void *key, u64 key_len, const void *val, u64 val_len);
     /**
      * Removes a key-value pair from the hashmap.
      *
@@ -82,7 +80,7 @@ typedef struct HashMapOps {
      *
      * @return true if the key was removed, false if it was not found.
      */
-    bool (*kevue_hm_del)(HashMap *hm, const void *key, size_t key_len);
+    bool (*kevue_hm_del)(HashMap *hm, const void *key, u64 key_len);
     /**
      * @brief Sets the hash seed used by the hashmap.
      *
@@ -96,7 +94,7 @@ typedef struct HashMapOps {
      * @note Must be called before inserting any entries.
      * @note Changing the seed after use requires a full rehash.
      */
-    void (*kevue_hm_seed)(HashMap *hm, uint64_t seed);
+    void (*kevue_hm_seed)(HashMap *hm, u64 seed);
     /**
      * @brief Retrieves the number of entries stored in the hashmap.
      *
@@ -110,7 +108,7 @@ typedef struct HashMapOps {
      * not its internal capacity.
      * @note This operation is O(1).
      */
-    uint64_t (*kevue_hm_len)(HashMap *hm);
+    u64 (*kevue_hm_len)(HashMap *hm);
     /**
      * Retrieves all stored items.
      *
@@ -160,7 +158,7 @@ typedef struct HashMapOps {
     bool (*kevue_hm_values)(HashMap *hm, Buffer *buf);
 } HashMapOps;
 
-typedef HashMap *(*kevue_hm_create)(uint64_t seed, KevueAllocator *ma);
+typedef HashMap *(*kevue_hm_create)(u64 seed, KevueAllocator *ma);
 
 struct HashMap {
     const HashMapOps *ops;

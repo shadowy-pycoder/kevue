@@ -17,22 +17,20 @@
  * @file buffer.c
  * @brief Bytes buffer implementation.
  */
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <allocator.h>
 #include <buffer.h>
 
-Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
+Buffer *kevue_buffer_create(u64 capacity, KevueAllocator *ma)
 {
     if (capacity == 0 || ma == NULL) return NULL;
     Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
     if (buf == NULL) return NULL;
     memset(buf, 0, sizeof(Buffer));
     buf->ma = ma;
-    buf->ptr = (uint8_t *)buf->ma->malloc(sizeof(*buf->ptr) * capacity, buf->ma->ctx);
+    buf->ptr = (u8 *)buf->ma->malloc(sizeof(*buf->ptr) * capacity, buf->ma->ctx);
     if (buf->ptr == NULL) {
         buf->ma->free(buf, buf->ma->ctx);
         return NULL;
@@ -54,35 +52,35 @@ void kevue_buffer_destroy(Buffer *buf)
     buf->ma->free(buf, buf->ma->ctx);
 }
 
-void kevue_buffer_grow(Buffer *buf, size_t n)
+void kevue_buffer_grow(Buffer *buf, u64 n)
 {
     if (buf->capacity >= n) return;
-    buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
+    buf->ptr = (u8 *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
     buf->capacity = n;
 }
 
-size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
+u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n)
 {
-    size_t initial_capacity = buf->capacity;
+    u64 initial_capacity = buf->capacity;
     while (buf->capacity < buf->size + n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+        buf->ptr = (u8 *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
     return n;
 }
 
-size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n)
+u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n)
 {
-    size_t initial_capacity = buf->capacity;
+    u64 initial_capacity = buf->capacity;
     while (buf->capacity < n) {
         buf->capacity *= 2;
     }
     if (buf->capacity > initial_capacity) {
-        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+        buf->ptr = (u8 *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));
     buf->size = n;
@@ -135,6 +133,6 @@ void kevue_buffer_move_unread_bytes(Buffer *buf)
 
 void kevue_buffer_print_hex(Buffer *buf)
 {
-    for (size_t i = 0; i < buf->size; i++) printf("%02x ", buf->ptr[i]);
+    for (u64 i = 0; i < buf->size; i++) printf("%02x ", buf->ptr[i]);
     printf("\n");
 }

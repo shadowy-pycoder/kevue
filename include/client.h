@@ -20,7 +20,6 @@
 #pragma once
 
 #include <netinet/in.h>
-#include <stdint.h>
 
 #include <allocator.h>
 #include <protocol.h>
@@ -28,9 +27,9 @@
 typedef struct KevueClient KevueClient;
 
 typedef struct KevueClientConfig {
-    char           *host; // defaults to KEVUE_HOST
-    char           *port; // defaults to KEVUE_PORT
-    char           *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
+    u8             *host; // defaults to KEVUE_HOST
+    u8             *port; // defaults to KEVUE_PORT
+    u8             *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
     int             read_timeout; // defaults to READ_TIMEOUT
     int             write_timeout; // defaults to WRITE_TIMEOUT
     KevueAllocator *ma; // defaults to kevue_default_allocator
@@ -86,7 +85,7 @@ bool kevue_client_hello(KevueClient *kc, KevueResponse *resp);
  *
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
-bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len);
+bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len);
 
 /**
  * @brief Sets the value for a key.
@@ -105,7 +104,7 @@ bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uin
  *
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
-bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len, const void *val, uint16_t val_len);
+bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len, const void *val, u16 val_len);
 
 /**
  * @brief Deletes a key.
@@ -122,7 +121,7 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uin
  *
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
-bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len);
+bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len);
 
 /**
  * @brief Sends a ping request to the server.
@@ -153,7 +152,7 @@ bool kevue_client_ping(KevueClient *kc, KevueResponse *resp);
  *
  * @note In case of false result, caller may want to check @p resp error code for failure reason.
  */
-bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len);
+bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, u16 message_len);
 
 /**
  * @brief Retrieves the number of entries.

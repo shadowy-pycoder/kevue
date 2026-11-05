@@ -27,7 +27,7 @@
 #include <common.h>
 #include <kevue_string.h>
 
-String kevue_string_create(const u8 *s, KevueAllocator *ma)
+String kevue_string_create(const char *s, KevueAllocator *ma)
 {
     if (ma == NULL) return (String) { 0 };
     String str = { 0 };
@@ -38,10 +38,12 @@ String kevue_string_create(const u8 *s, KevueAllocator *ma)
     return str;
 }
 
-void kevue_string_destroy(String str, KevueAllocator *ma)
+void kevue_string_destroy(String *str, KevueAllocator *ma)
 {
     if (ma == NULL) return;
-    ma->free(str.data, ma->ctx);
+    ma->free(str->data, ma->ctx);
+    str->data = NULL;
+    str->len = 0;
 }
 
 String kevue_string_from_string_view(StringView sv, KevueAllocator *ma)
@@ -98,22 +100,33 @@ String kevue_string_to_title(String str, KevueAllocator *ma)
 {
     String out = kevue_string_copy(str, ma);
     if (out.data == NULL || out.len == 0) return (String) { 0 };
-    if (out.data[0] >= 'a' && out.data[0] <= 'z') {
-        out.data[0] &= ~(1 << 5);
-    }
-    for (u64 i = 1; i < out.len; i++) {
-        if (out.data[i] >= 'A' && out.data[i] <= 'Z') {
-            out.data[i] |= 1 << 5;
+    u8  *left = out.data;
+    u8  *right = out.data + out.len;
+    bool title_applied = false;
+    while (true) {
+        if (isspace((u8)*left)) {
+            while (left < right && isspace((u8)*left)) left++;
+            title_applied = false;
         }
+        if (right - left <= 0) break;
+        if (!title_applied) {
+            if (*left >= 'a' && *left <= 'z') {
+                *left &= ~(1 << 5);
+            }
+            title_applied = true;
+        } else if (*left >= 'A' && *left <= 'Z') {
+            *left |= 1 << 5;
+        }
+        left++;
     }
     return out;
 }
 
-u64 kevue__cstring_len(const u8 *s)
+u64 kevue__cstring_len(const char *s)
 {
-    const u8 *p = s;
+    const u8 *p = (const u8 *)s;
     while (*p++);
-    return (u64)(p - s - 1);
+    return (u64)(p - (const u8 *)s - 1);
 }
 
 StringView kevue_string_view_from_string(String str)
@@ -121,9 +134,9 @@ StringView kevue_string_view_from_string(String str)
     return (StringView) { .data = str.data, .len = str.len };
 }
 
-StringView kevue_string_view_from_cstring(u8 *s)
+StringView kevue_string_view_from_cstring(const char *s)
 {
-    return (StringView) { .data = s, .len = kevue__cstring_len(s) };
+    return (StringView) { .data = (u8 *)s, .len = kevue__cstring_len(s) };
 }
 
 bool kevue_string_view_compare(StringView sv1, StringView sv2)
@@ -197,7 +210,7 @@ i64 kevue_string_view_index(StringView sv, StringView substr)
 
 i64 kevue_string_view_last_index(StringView sv, StringView substr)
 {
-    if (substr.len == 0) return 0;
+    if (substr.len == 0) return (i64)sv.len;
     i64 last_index = -1;
     if (substr.len > sv.len) return last_index;
     if (sv.data == NULL || substr.data == NULL) return last_index;
@@ -208,10 +221,8 @@ i64 kevue_string_view_last_index(StringView sv, StringView substr)
         if (cur == NULL || (u64)(sv_end - cur) < substr.len) return last_index;
         if ((memcmp(cur, substr.data, substr.len)) == 0) {
             last_index = (i64)(cur - sv.data);
-            cur += substr.len;
-        } else {
-            cur++;
         }
+        cur++;
     }
     return last_index;
 }

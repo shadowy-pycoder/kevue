@@ -35,15 +35,15 @@ typedef struct StringView {
     u64 len;
 } StringView;
 
-String kevue_string_create(const u8 *s, KevueAllocator *ma);
-void kevue_string_destroy(String str, KevueAllocator *ma);
+String kevue_string_create(const char *s, KevueAllocator *ma);
+void kevue_string_destroy(String *str, KevueAllocator *ma);
 String kevue_string_from_string_view(StringView sv, KevueAllocator *ma);
 String kevue_string_copy(String str, KevueAllocator *ma);
 String kevue_string_to_lower(String str, KevueAllocator *ma);
 String kevue_string_to_upper(String str, KevueAllocator *ma);
 String kevue_string_to_title(String str, KevueAllocator *ma);
 
-u64 kevue__cstring_len(const u8 *s);
+u64 kevue__cstring_len(const char *s);
 
 #define StringView(s) \
     (StringView) { .data = (s).data, .len = (s).len }
@@ -62,7 +62,7 @@ u64 kevue__cstring_len(const u8 *s);
 #endif // STR_ARG
 
 StringView kevue_string_view_from_string(String str);
-StringView kevue_string_view_from_cstring(u8 *s);
+StringView kevue_string_view_from_cstring(const char *s);
 bool kevue_string_view_compare(StringView sv1, StringView sv2);
 bool kevue_string_view_compare_icase(StringView sv1, StringView sv2);
 bool kevue_string_view_has_suffix(StringView sv, StringView suffix);

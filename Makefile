@@ -154,6 +154,7 @@ $(BIN)/kevue-test-fill-server: | $(BIN)
 tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
 	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+	$(CC) -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_string.c -o $(BIN)/kevue-test-string -DDEBUG
 
 
 $(BIN)/kevue-bench-server: | $(BIN)

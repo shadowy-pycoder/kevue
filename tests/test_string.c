@@ -39,8 +39,17 @@ ma = &kevue_jemalloc_allocator;
 void test_string_create(void)
 {
     char  *s = "Hello, World";
-    String str = kevue_string_create(s, ma);
+    String str = kevue_string_create(ma, s);
     assert(str.len == strlen(s));
+    kevue_string_destroy(&str, ma);
+    assert(str.data == NULL && str.len == 0);
+    printf("%s PASSED\n", __func__);
+}
+
+void test_string_createf(void)
+{
+    String str = kevue_string_createf(ma, "Hello, World %d\n", 5);
+    assert(memcmp(str.data, "Hello, World 5\n", str.len));
     kevue_string_destroy(&str, ma);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
@@ -60,7 +69,7 @@ void test_string_from_string_view(void)
 void test_string_copy(void)
 {
     char  *s = "Hello, World";
-    String str1 = kevue_string_create(s, ma);
+    String str1 = kevue_string_create(ma, s);
     String str2 = kevue_string_copy(str1, ma);
     assert(str2.len == str1.len);
     assert(str2.data != str1.data);
@@ -172,9 +181,9 @@ void test_string_to_lower(void)
         "int main(void) { return 0; }",
     };
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i], ma);
+        String actual_str = kevue_string_create(ma, actual[i]);
         String actual_str_lower = kevue_string_to_lower(actual_str, ma);
-        String expected_str = kevue_string_create(expected[i], ma);
+        String expected_str = kevue_string_create(ma, expected[i]);
         assert(expected_str.len == actual_str_lower.len);
         assert(expected_str.data != actual_str_lower.data);
         assert(memcmp(expected_str.data, actual_str_lower.data, expected_str.len) == 0);
@@ -286,9 +295,9 @@ void test_string_to_upper(void)
         "INT MAIN(VOID) { RETURN 0; }",
     };
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i], ma);
+        String actual_str = kevue_string_create(ma, actual[i]);
         String actual_str_upper = kevue_string_to_upper(actual_str, ma);
-        String expected_str = kevue_string_create(expected[i], ma);
+        String expected_str = kevue_string_create(ma, expected[i]);
         assert(expected_str.len == actual_str_upper.len);
         assert(expected_str.data != actual_str_upper.data);
         assert(memcmp(expected_str.data, actual_str_upper.data, expected_str.len) == 0);
@@ -404,9 +413,9 @@ void test_string_to_title(void)
     };
 
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i], ma);
+        String actual_str = kevue_string_create(ma, actual[i]);
         String actual_str_title = kevue_string_to_title(actual_str, ma);
-        String expected_str = kevue_string_create(expected[i], ma);
+        String expected_str = kevue_string_create(ma, expected[i]);
         assert(expected_str.len == actual_str_title.len);
         assert(expected_str.data != actual_str_title.data);
         assert(memcmp(expected_str.data, actual_str_title.data, expected_str.len) == 0);
@@ -420,7 +429,7 @@ void test_string_to_title(void)
 void test_string_view_from_string(void)
 {
     char      *s = "Hello, World";
-    String     str = kevue_string_create(s, ma);
+    String     str = kevue_string_create(ma, s);
     StringView sv = kevue_string_view_from_string(str);
     assert(sv.len == str.len);
     assert(sv.data == str.data);
@@ -1302,6 +1311,7 @@ void test_string_view_trim_cutset(void)
 void run_tests()
 {
     test_string_create();
+    test_string_createf();
     test_string_from_string_view();
     test_string_copy();
     test_string_to_lower();

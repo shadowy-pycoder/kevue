@@ -19,6 +19,7 @@
  */
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -27,7 +28,7 @@
 #include <common.h>
 #include <kevue_string.h>
 
-String kevue_string_create(const char *s, KevueAllocator *ma)
+String kevue_string_create(KevueAllocator *ma, const char *s)
 {
     if (ma == NULL) return (String) { 0 };
     String str = { 0 };
@@ -35,6 +36,28 @@ String kevue_string_create(const char *s, KevueAllocator *ma)
     str.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
     if (str.data == NULL) return (String) { 0 };
     memcpy(str.data, s, str.len);
+    return str;
+}
+
+String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...)
+{
+    if (ma == NULL) return (String) { 0 };
+    String  str = { 0 };
+    va_list ap;
+    va_start(ap, fmt);
+    int len = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (len < 0) return (String) { 0 };
+    str.data = (u8 *)ma->malloc(sizeof(str.data) * (size_t)len, ma->ctx);
+    if (str.data == NULL) return (String) { 0 };
+    va_start(ap, fmt);
+    len = vsnprintf((char *)str.data, (size_t)len, fmt, ap);
+    va_end(ap);
+    if (len < 0) {
+        kevue_string_destroy(&str, ma);
+        return (String) { 0 };
+    }
+    str.len = (u64)len;
     return str;
 }
 

@@ -40,13 +40,29 @@ typedef struct StringView {
  *
  * Memory is allocated using the provided allocator.
  *
- * @param s   NUL-terminated source string.
  * @param ma  Allocator to use for memory management.
+ * @param s   NUL-terminated source string.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_create(const char *s, KevueAllocator *ma);
+String kevue_string_create(KevueAllocator *ma, const char *s);
+
+/**
+ * @brief Creates a new string from a printf-style format.
+ *
+ * The formatted result is written into memory allocated using the provided
+ * allocator. Format specifiers and argument rules are the same as for
+ * printf. The result must be destroyed with kevue_string_destroy using the
+ * same allocator.
+ *
+ * @param ma   Allocator to use for memory management.
+ * @param fmt  printf-style format string.
+ * @param ...  Arguments matching the format specifiers.
+ *
+ * @return Newly created formatted string, or an empty string on failure
+ */
+String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
 
 /**
  * @brief Destroys a string and releases its memory.

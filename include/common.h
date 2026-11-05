@@ -133,6 +133,13 @@ typedef double   f64;
 
 #define is_pow2(x) ((x) && (((x) & ((x) - 1)) == 0))
 
+#if defined(__GNUC__) || defined(__clang__)
+// https://gcc.gnu.org/onlinedocs/gcc-4.7.2/gcc/Function-Attributes.html
+#define KEVUE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__((format(printf, STRING_INDEX, FIRST_TO_CHECK)))
+#else
+#define KEVUE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
+#endif
+
 /**
  *  Convert string @p s to upper case and return it.
  */

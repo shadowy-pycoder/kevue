@@ -24,6 +24,7 @@ USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
+TRACE ?= 0
 HISTORY_PATH ?= $(HOME)/.kevue_history
 SINGLE_THREADED_TCP_SERVER ?= 0
 SINGLE_THREADED_UNIX_SERVER ?= 0
@@ -39,6 +40,9 @@ ifeq ($(DEBUG),1)
   CFLAGS += -g3 -O0
   CPPFLAGS += -DDEBUG -D__HASHMAP_DETERMINISTIC
   GUI_LDFLAGS += -Wl,-rpath,$(RAYLIB_PATH)/lib/
+  ifeq ($(TRACE),1)
+    CPPFLAGS += -DTRACE
+  endif
 else
   CFLAGS += -O3 -flto
   LDFLAGS += -flto
@@ -155,6 +159,7 @@ tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
 	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
 	$(CC) -g3 -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_string.c -o $(BIN)/kevue-test-string -DDEBUG
+	$(CC) -g3 -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_get_request.c -o $(BIN)/kevue-test-get-request -DDEBUG
 
 
 $(BIN)/kevue-bench-server: | $(BIN)

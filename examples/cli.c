@@ -351,7 +351,6 @@ int main(int argc, char **argv)
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
         print_err(generate_timestamp(), "%s", kevue_error_code_to_string[resp->err_code]);
         ma->free(resp, ma->ctx);

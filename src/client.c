@@ -40,16 +40,16 @@ static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 
 struct KevueClient {
-    int fd;
+    int     fd;
     Buffer *rbuf;
     Buffer *wbuf;
 };
 
 static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout)
 {
-    int client_sock;
+    int             client_sock;
     struct addrinfo hints, *servinfo, *p;
-    int rv;
+    int             rv;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -238,6 +238,7 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         shutdown(kc->fd, SHUT_WR);
         return false;
     }
+    memset(resp, 0, sizeof(*resp));
     while (true) {
         if (!kevue__handle_read(kc)) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -253,6 +254,9 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         if (err == KEVUE_ERR_INCOMPLETE_READ) {
             continue;
         }
+#ifdef TRACE
+        kevue_response_print(resp);
+#endif
         kevue_buffer_reset(kc->rbuf);
         if (err != KEVUE_ERR_OK) {
             resp->err_code = err;
@@ -377,7 +381,7 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
         return NULL;
     }
     KevueAllocator *ma = kevue_allocator();
-    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
+    KevueClient    *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
     if (kc == NULL) return NULL;
     if (conf->unix_path != NULL && conf->unix_path[0] != '\0') {
         kc->fd = kevue__create_client_unix_sock(conf->unix_path, conf->read_timeout, conf->write_timeout);

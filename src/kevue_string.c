@@ -28,10 +28,10 @@
 #include <common.h>
 #include <kevue_string.h>
 
-String kevue_string_create(KevueAllocator *ma, const char *s)
+String kevue_string_create(const char *s)
 {
-    if (ma == NULL) return (String) { 0 };
-    String str = { 0 };
+    KevueAllocator *ma = kevue_allocator();
+    String          str = { 0 };
     str.len = kevue__cstring_len(s);
     str.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
     if (str.data == NULL) return (String) { 0 };
@@ -39,11 +39,11 @@ String kevue_string_create(KevueAllocator *ma, const char *s)
     return str;
 }
 
-String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...)
+String kevue_string_createf(const char *fmt, ...)
 {
-    if (ma == NULL) return (String) { 0 };
-    String  str = { 0 };
-    va_list ap;
+    KevueAllocator *ma = kevue_allocator();
+    String          str = { 0 };
+    va_list         ap;
     va_start(ap, fmt);
     int len = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
@@ -54,25 +54,25 @@ String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...)
     len = vsnprintf((char *)str.data, (size_t)len, fmt, ap);
     va_end(ap);
     if (len < 0) {
-        kevue_string_destroy(&str, ma);
+        kevue_string_destroy(&str);
         return (String) { 0 };
     }
     str.len = (u64)len;
     return str;
 }
 
-void kevue_string_destroy(String *str, KevueAllocator *ma)
+void kevue_string_destroy(String *str)
 {
-    if (ma == NULL) return;
+    KevueAllocator *ma = kevue_allocator();
     ma->free(str->data, ma->ctx);
     str->data = NULL;
     str->len = 0;
 }
 
-String kevue_string_from_string_view(StringView sv, KevueAllocator *ma)
+String kevue_string_from_string_view(StringView sv)
 {
-    if (ma == NULL) return (String) { 0 };
-    String str = (String) { 0 };
+    KevueAllocator *ma = kevue_allocator();
+    String          str = (String) { 0 };
     str.len = sv.len;
     str.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
     if (str.data == NULL) {
@@ -82,9 +82,9 @@ String kevue_string_from_string_view(StringView sv, KevueAllocator *ma)
     return str;
 }
 
-String kevue_string_copy(String str, KevueAllocator *ma)
+String kevue_string_copy(String str)
 {
-    if (ma == NULL) return (String) { 0 };
+    KevueAllocator *ma = kevue_allocator();
     if (str.data == NULL || str.len == 0) return (String) { 0 };
     String out = (String) { 0 };
     out.len = str.len;
@@ -96,9 +96,9 @@ String kevue_string_copy(String str, KevueAllocator *ma)
     return out;
 }
 
-String kevue_string_to_lower(String str, KevueAllocator *ma)
+String kevue_string_to_lower(String str)
 {
-    String out = kevue_string_copy(str, ma);
+    String out = kevue_string_copy(str);
     if (out.data == NULL || out.len == 0) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'A' && out.data[i] <= 'Z') {
@@ -107,9 +107,9 @@ String kevue_string_to_lower(String str, KevueAllocator *ma)
     }
     return out;
 }
-String kevue_string_to_upper(String str, KevueAllocator *ma)
+String kevue_string_to_upper(String str)
 {
-    String out = kevue_string_copy(str, ma);
+    String out = kevue_string_copy(str);
     if (out.data == NULL || out.len == 0) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'a' && out.data[i] <= 'z') {
@@ -119,9 +119,9 @@ String kevue_string_to_upper(String str, KevueAllocator *ma)
     return out;
 }
 
-String kevue_string_to_title(String str, KevueAllocator *ma)
+String kevue_string_to_title(String str)
 {
-    String out = kevue_string_copy(str, ma);
+    String out = kevue_string_copy(str);
     if (out.data == NULL || out.len == 0) return (String) { 0 };
     u8  *left = out.data;
     u8  *right = out.data + out.len;

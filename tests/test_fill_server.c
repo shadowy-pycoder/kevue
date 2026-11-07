@@ -2,8 +2,8 @@
  * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you conf.may not use this file except in compliance with the License.
- * You conf.may obtain a copy of the License at
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -36,10 +36,11 @@ int main(void)
     KevueClientConfig conf = { 0 };
     KevueClient      *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(KevueResponse), conf.ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -55,6 +56,6 @@ int main(void)
         }
     }
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
 }

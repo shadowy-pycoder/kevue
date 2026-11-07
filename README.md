@@ -1,6 +1,6 @@
 # kevue - key-value in-memory database
 
-`kevue` is a multithreaded TCP server that maps its endpoints to hash table operations (get/put/delete). It implements [Kevue Protocol](PROTOCOL.md).
+`kevue` is a multithreaded TCP/UNIX server that maps its endpoints to hash table operations (get/put/delete). It implements [Kevue Protocol](PROTOCOL.md).
 
 > [!WARNING]
 > This project is not in production ready state yet. Moreover, this is my second project in C so expect many bugs, memory leaks with undefined behaviour
@@ -219,53 +219,53 @@ Deleting 10485760 items takes: 127.858687401s (82010.54 req/sec)
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc
 taskset -c 0 ./bin/kevue-bench-hashmap
 Inserting 10485760 items...
-Inserting 10485760 items takes: 2.273541346s (4612082.39 op/sec 216 ns/op)
+Inserting 10485760 items takes: 1.966471830s (5332270.64 op/sec 187 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.447180676s (7245646.78 op/sec 138 ns/op)
+Getting 10485760 items takes: 1.388914905s (7549605.78 op/sec 132 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.605650347s
+Fetching 10485760 items takes: 0.469762339s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.279577792s
+Fetching 10485760 keys takes: 0.276755913s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.302108685s
+Fetching 10485760 values takes: 0.304213719s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000229s
+Counting 10485760 entries takes: 0.000000214s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.784692096s (5875388.83 op/sec 170 ns/op)
+Deleting 10485760 items takes: 1.568036623s (6687190.75 op/sec 149 ns/op)
 
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__HASHMAP_SINGLE_THREADED
 taskset -c 0 ./bin/kevue-bench-hashmap
 Inserting 10485760 items...
-Inserting 10485760 items takes: 1.632071587s (6424816.22 op/sec 155 ns/op)
+Inserting 10485760 items takes: 1.542429654s (6798209.55 op/sec 147 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.026033423s (10219706.07 op/sec 97 ns/op)
+Getting 10485760 items takes: 0.935692190s (11206420.35 op/sec 89 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.624026397s
+Fetching 10485760 items takes: 0.469106122s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.279553502s
+Fetching 10485760 keys takes: 0.278296601s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.299064313s
+Fetching 10485760 values takes: 0.300366370s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000020s
+Counting 10485760 entries takes: 0.000000027s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.306019460s (8028793.08 op/sec 124 ns/op)
+Deleting 10485760 items takes: 1.250820704s (8383103.96 op/sec 119 ns/op)
 
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o ./bin/kevue-bench-hashmap -DUSE_JEMALLOC -ljemalloc -D__HASHMAP_SINGLE_THREADED
 taskset -c 0 ./bin/kevue-bench-hashmap
 Inserting 10485760 items...
-Inserting 10485760 items takes: 2.003944935s (5232558.95 op/sec 191 ns/op)
+Inserting 10485760 items takes: 1.604222289s (6536351.02 op/sec 152 ns/op)
 Getting 10485760 items...
-Getting 10485760 items takes: 1.017855923s (10301811.64 op/sec 97 ns/op)
+Getting 10485760 items takes: 0.861201997s (12175726.53 op/sec 82 ns/op)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 0.576068544s
+Fetching 10485760 items takes: 0.404981561s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.277789404s
+Fetching 10485760 keys takes: 0.248415849s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.298131536s
+Fetching 10485760 values takes: 0.266091085s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000000021s
+Counting 10485760 entries takes: 0.000000027s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 1.257090664s (8341291.76 op/sec 119 ns/op)
+Deleting 10485760 items takes: 1.143722737s (9168096.13 op/sec 109 ns/op)
 
 ```
 
@@ -274,13 +274,14 @@ Deleting 10485760 items takes: 1.257090664s (8341291.76 op/sec 119 ns/op)
 - [x] Implement basic logic to handle `GET`, `SET`, `DELETE`, hash table operations in memory
 - [x] Add UNIX sockets for local clients
 - [x] Add comments and documentation
-- [ ] Add tests and benchmarks
+- [x] Add installation script
+- [x] Add tests and benchmarks
+- [ ] Add arena memory allocator
 - [ ] Make it compilable with C++ compilers
 - [ ] Load/save from persistent storage
 - [ ] Add more commands, `HSET`, `HGET` and the like
-- [ ] Add arena memory allocator
 - [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing)
-- [ ] Add installation script
+- [ ] Add GUI
 
 ## Contributing
 

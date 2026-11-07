@@ -24,7 +24,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <allocator.h>
 #include <buffer.h>
 #include <common.h>
 #include <protocol.h>
@@ -302,7 +301,7 @@ KevueErr kevue_response_deserialize(KevueResponse *resp, Buffer *buf)
     // parse value
     if (resp->val_len > 0) {
         if (buf->offset + resp->val_len > resp->total_len || buf->offset + resp->val_len > buf->size) return KEVUE_ERR_LEN_INVALID;
-        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2, buf->ma);
+        if (resp->val == NULL) resp->val = kevue_buffer_create(resp->val_len * 2);
         // NOTE: add fatal error for situations like oom
         if (resp->val == NULL) return KEVUE_ERR_OPERATION;
         if (resp->cmd == COUNT) {

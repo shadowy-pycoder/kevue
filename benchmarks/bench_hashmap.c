@@ -40,15 +40,7 @@ static inline u64 splitmix64(u64 *state)
 
 int main(void)
 {
-    KevueAllocator *ma;
-#if defined(USE_TCMALLOC)
-    ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-    ma = &kevue_jemalloc_allocator;
-#else
-    ma = &kevue_default_allocator;
-#endif
-    HashMap *hm = kevue_hm_threaded_create(ma);
+    HashMap *hm = kevue_hm_threaded_create();
     printf("Inserting %zu items...\n", NUM_ENTRIES);
     u64  start = nsec_now();
     bool op_failed = false;
@@ -75,7 +67,7 @@ int main(void)
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     start = nsec_now();
-    Buffer *buf = kevue_buffer_create(BUF_SIZE, ma);
+    Buffer *buf = kevue_buffer_create(BUF_SIZE);
     rng = 1;
     for (u64 i = 0; i < NUM_ENTRIES; i++) {
         u64 key = splitmix64(&rng);

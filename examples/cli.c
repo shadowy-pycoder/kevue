@@ -18,6 +18,8 @@
  * @brief kevue client CLI example.
  */
 
+#include "allocator.h"
+#include "buffer.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
@@ -44,10 +46,9 @@
 #endif
 
 typedef struct KevueClientParseResult {
-    KevueCommand    cmd;
-    Buffer         *key;
-    Buffer         *value;
-    KevueAllocator *ma;
+    KevueCommand cmd;
+    Buffer      *key;
+    Buffer      *value;
 } KevueClientParseResult;
 
 static void kevue__usage(FILE *stream);
@@ -171,12 +172,11 @@ static char *kevue__hints(const char *buf, int *color, int *bold)
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
     // TODO: improve command dispatching
-    KevueAllocator         *ma = buf->ma;
+    KevueAllocator         *ma = kevue_allocator();
     KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
-    pr->ma = ma;
-    pr->key = kevue_buffer_create(BUF_SIZE, pr->ma);
+    pr->key = kevue_buffer_create(BUF_SIZE);
     if (pr->key == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
@@ -289,7 +289,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             return NULL;
         }
     }
-    pr->value = kevue_buffer_create(BUF_SIZE, pr->ma);
+    pr->value = kevue_buffer_create(BUF_SIZE);
     if (pr->value == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
@@ -314,7 +314,8 @@ static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
 {
     kevue_buffer_destroy(pr->key);
     kevue_buffer_destroy(pr->value);
-    pr->ma->free(pr, pr->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(pr, ma->ctx);
 }
 
 int main(int argc, char **argv)
@@ -344,7 +345,8 @@ int main(int argc, char **argv)
     conf.write_timeout = *(int *)write_timeout;
     KevueClient *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(*resp), conf.ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -352,7 +354,7 @@ int main(int argc, char **argv)
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
         print_err(generate_timestamp(), "%s", kevue_error_code_to_string[resp->err_code]);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -360,7 +362,7 @@ int main(int argc, char **argv)
     int                epfd = epoll_create1(0);
     if (epfd < 0) {
         print_err(generate_timestamp(), "Creating epoll file descriptor failed %s", strerror(errno));
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -368,7 +370,7 @@ int main(int argc, char **argv)
     if (tfd < 0) {
         print_err(generate_timestamp(), "Creating timer socket failed: %s", strerror(errno));
         close(epfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -379,7 +381,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Setting timer failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -390,7 +392,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Adding timer socket to epoll failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -413,12 +415,12 @@ int main(int argc, char **argv)
         n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
     }
     prompt[n] = '\0';
-    Buffer *cmdline = kevue_buffer_create(BUF_SIZE, conf.ma);
+    Buffer *cmdline = kevue_buffer_create(BUF_SIZE);
     if (cmdline == NULL) {
         print_err(generate_timestamp(), "Creating buffer for command line failed");
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -661,7 +663,7 @@ client_close:
     close(tfd);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
     return 0;
 client_close_fail:
@@ -669,7 +671,7 @@ client_close_fail:
     close(tfd);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
     exit(EXIT_FAILURE);
 }

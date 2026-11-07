@@ -20,6 +20,7 @@
 
 #include <allocator.h>
 #include <buffer.h>
+#include <common.h>
 #include <protocol.h>
 
 __AFL_FUZZ_INIT();
@@ -29,15 +30,15 @@ __AFL_FUZZ_INIT();
 static inline void buffer_init(Buffer *buf, int capacity)
 {
     memset(buf, 0, sizeof(*buf));
-    KevueAllocator *ma = &kevue_default_allocator;
+    KevueAllocator *ma = kevue_allocator();
     buf->ptr = ma->malloc(capacity, ma->ctx);
     memset(buf->ptr, 0, capacity);
-    buf->ma = ma;
 }
 
 static inline void buffer_deinit(Buffer *buf)
 {
-    buf->ma->free(buf->ptr, buf->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(buf->ptr, ma->ctx);
 }
 
 int main(void)

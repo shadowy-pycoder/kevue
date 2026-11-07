@@ -32,15 +32,6 @@
 #include <common.h>
 #include <protocol.h>
 
-#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
-#error "You can define only one memory allocator at a time"
-#endif
-#if defined(USE_TCMALLOC)
-#include <tcmalloc_allocator.h>
-#elif defined(USE_JEMALLOC)
-#include <jemalloc_allocator.h>
-#endif
-
 static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout);
 static int kevue__create_client_unix_sock(u8 *path, int read_timeout, int write_timeout);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
@@ -49,17 +40,16 @@ static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 
 struct KevueClient {
-    int             fd;
-    Buffer         *rbuf;
-    Buffer         *wbuf;
-    KevueAllocator *ma;
+    int fd;
+    Buffer *rbuf;
+    Buffer *wbuf;
 };
 
 static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout)
 {
-    int             client_sock;
+    int client_sock;
     struct addrinfo hints, *servinfo, *p;
-    int             rv;
+    int rv;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -378,15 +368,6 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
     if (conf->port == NULL || conf->port[0] == '\0') conf->port = (u8 *)KEVUE_PORT;
     if (conf->read_timeout == 0) conf->read_timeout = READ_TIMEOUT;
     if (conf->write_timeout == 0) conf->write_timeout = WRITE_TIMEOUT;
-    if (conf->ma == NULL) {
-        KevueAllocator *ma = &kevue_default_allocator;
-#if defined(USE_TCMALLOC)
-        ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-        ma = &kevue_jemalloc_allocator;
-#endif
-        conf->ma = ma;
-    }
     if (!is_valid_ip(conf->host)) {
         print_err(generate_timestamp(), "Server host is not a valid IP address");
         return NULL;
@@ -395,28 +376,28 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
         print_err(generate_timestamp(), "Server port is not valid number");
         return NULL;
     }
-    KevueClient *kc = (KevueClient *)conf->ma->malloc(sizeof(*kc), conf->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
     if (kc == NULL) return NULL;
-    kc->ma = conf->ma;
     if (conf->unix_path != NULL && conf->unix_path[0] != '\0') {
         kc->fd = kevue__create_client_unix_sock(conf->unix_path, conf->read_timeout, conf->write_timeout);
         if (kc->fd < 0) {
-            kc->ma->free(kc, kc->ma->ctx);
+            ma->free(kc, ma->ctx);
             return NULL;
         }
     } else {
         kc->fd = kevue__create_client_sock(conf->host, conf->port, conf->read_timeout, conf->write_timeout);
         if (kc->fd < 0) {
-            kc->ma->free(kc, kc->ma->ctx);
+            ma->free(kc, ma->ctx);
             return NULL;
         }
     }
-    kc->rbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    kc->rbuf = kevue_buffer_create(BUF_SIZE);
     if (kc->rbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
     }
-    kc->wbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    kc->wbuf = kevue_buffer_create(BUF_SIZE);
     if (kc->wbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
@@ -430,5 +411,6 @@ void kevue_client_destroy(KevueClient *kc)
     close(kc->fd);
     kevue_buffer_destroy(kc->rbuf);
     kevue_buffer_destroy(kc->wbuf);
-    kc->ma->free(kc, kc->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(kc, ma->ctx);
 }

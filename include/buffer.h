@@ -21,28 +21,27 @@
 
 #include <stdbool.h>
 
-#include <allocator.h>
 #include <common.h>
 
+#define KEVUE_INIT_CAP 128
+
 typedef struct Buffer {
-    u8             *ptr;
-    u64             size;
-    u64             offset;
-    u64             capacity;
-    KevueAllocator *ma;
+    u8 *ptr;
+    u64 size;
+    u64 offset;
+    u64 capacity; // defaults to KEVUE_INIT_CAP
 } Buffer;
 
 /**
  * @brief Creates a new buffer with the specified initial capacity.
  *
- * Memory is allocated using the provided allocator.
+ * Memory is allocated using kevue allocator.
  *
  * @param capacity  Initial buffer capacity in bytes.
- * @param ma        Allocator to use for memory management.
  *
  * @return Pointer to a newly created buffer, or NULL on failure.
  */
-Buffer *kevue_buffer_create(u64 capacity, KevueAllocator *ma);
+Buffer *kevue_buffer_create(u64 capacity);
 
 /**
  * @brief Destroys a buffer and releases all associated resources.
@@ -61,7 +60,6 @@ void kevue_buffer_destroy(Buffer *buf);
  * @param n     Number of bytes to append.
  *
  * @return Number of bytes appended.
- * @pre Capacity must be greater than 0
  */
 u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
 
@@ -75,7 +73,6 @@ u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
  * @param n     Number of bytes to write.
  *
  * @return Number of bytes written.
- * @pre Capacity must be greater than 0
  */
 u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n);
 
@@ -135,7 +132,6 @@ bool kevue_buffer_at_eof(Buffer *buf);
  *
  * @param buf  Buffer to grow.
  * @param n    Total number of bytes required.
- * @pre Capacity must be greater than 0
  */
 void kevue_buffer_grow(Buffer *buf, u64 n);
 

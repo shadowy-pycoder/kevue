@@ -21,7 +21,6 @@
 
 #include <stdbool.h>
 
-#include <allocator.h>
 #include <buffer.h>
 
 /**
@@ -158,7 +157,7 @@ typedef struct HashMapOps {
     bool (*kevue_hm_values)(HashMap *hm, Buffer *buf);
 } HashMapOps;
 
-typedef HashMap *(*kevue_hm_create)(u64 seed, KevueAllocator *ma);
+typedef HashMap *(*kevue_hm_create)(void);
 
 struct HashMap {
     const HashMapOps *ops;
@@ -211,13 +210,11 @@ struct HashMap {
  *
  ** @param hm_create_fn  Hashmap creation function.
  *                      Must have signature:
- *                      HashMap *(*)(KevueAllocator *)
- *
- * @param ma  KevueAllocator to use.
+ *                      HashMap *(*)(void)
  *
  * @return Initialized HashMapTS instance.
  */
-#define kevue_hmts_create(hm_create_fn, ma) { .hm = ((kevue_hm_create)(hm_create_fn))(ma) }
+#define kevue_hmts_create(hm_create_fn) { .hm = ((kevue_hm_create)(hm_create_fn))() }
 
 /**
  * @def kevue_hmts_destroy(hmts)

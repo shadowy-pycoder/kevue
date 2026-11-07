@@ -21,22 +21,22 @@
 
 #include <netinet/in.h>
 
-#include <allocator.h>
 #include <protocol.h>
 
 typedef struct KevueClient KevueClient;
 
 typedef struct KevueClientConfig {
-    u8             *host; // defaults to KEVUE_HOST
-    u8             *port; // defaults to KEVUE_PORT
-    u8             *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
-    int             read_timeout; // defaults to READ_TIMEOUT
-    int             write_timeout; // defaults to WRITE_TIMEOUT
-    KevueAllocator *ma; // defaults to kevue_default_allocator
+    u8 *host; // defaults to KEVUE_HOST
+    u8 *port; // defaults to KEVUE_PORT
+    u8 *unix_path; // defaults to KEVUE_UNIX_SOCK_PATH
+    int read_timeout; // defaults to READ_TIMEOUT
+    int write_timeout; // defaults to WRITE_TIMEOUT
 } KevueClientConfig;
 
 /**
  * @brief Creates a new kevue client instance.
+ *
+ * Memory is allocated using kevue allocator.
  *
  * @param conf  Client config
  *

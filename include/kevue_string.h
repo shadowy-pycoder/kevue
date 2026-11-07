@@ -22,7 +22,6 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
-#include <allocator.h>
 #include <common.h>
 
 typedef struct String {
@@ -38,15 +37,14 @@ typedef struct StringView {
 /**
  * @brief Creates a new string by copying a NUL-terminated C string.
  *
- * Memory is allocated using the provided allocator.
+ * Memory is allocated using kevue allocator.
  *
- * @param ma  Allocator to use for memory management.
  * @param s   NUL-terminated source string.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_create(KevueAllocator *ma, const char *s);
+String kevue_string_create(const char *s);
 
 /**
  * @brief Creates a new string from a printf-style format.
@@ -56,80 +54,72 @@ String kevue_string_create(KevueAllocator *ma, const char *s);
  * printf. The result must be destroyed with kevue_string_destroy using the
  * same allocator.
  *
- * @param ma   Allocator to use for memory management.
  * @param fmt  printf-style format string.
  * @param ...  Arguments matching the format specifiers.
  *
  * @return Newly created formatted string, or an empty string on failure
  */
-String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
+String kevue_string_createf(const char *fmt, ...) KEVUE_PRINTF_FORMAT(1, 2);
 
 /**
  * @brief Destroys a string and releases its memory.
  *
- * Memory is released using the provided allocator. The string must have
+ * Memory is released using  kevue allocator. The string must have
  * been created with the same allocator. After the call the string is reset
  * and must not be used.
  *
  * @param str  Pointer to the string to destroy.
- * @param ma   Allocator that was used to create the string.
  */
-void kevue_string_destroy(String *str, KevueAllocator *ma);
+void kevue_string_destroy(String *str);
 
 /**
  * @brief Creates a new string by copying the contents of a string view.
  *
- * Memory is allocated using the provided allocator. The view does not need
+ * Memory is allocated using kevue allocator. The view does not need
  * to be NUL-terminated, only its length is used.
  *
  * @param sv  Source string view.
- * @param ma  Allocator to use for memory management.
  *
  * @return Newly created string owning a copy of the viewed data, or an empty
  *         string on failure.
  */
-String kevue_string_from_string_view(StringView sv, KevueAllocator *ma);
+String kevue_string_from_string_view(StringView sv);
 
 /**
  * @brief Creates a deep copy of a string.
  *
- * Memory is allocated using the provided allocator. The copy is independent
+ * Memory is allocated using kevue allocator. The copy is independent
  * of the original and must be destroyed separately.
  *
  * @param str  String to copy.
- * @param ma   Allocator to use for memory management.
  *
  * @return Newly created copy of the string, or an empty string on failure.
  */
-String kevue_string_copy(String str, KevueAllocator *ma);
+String kevue_string_copy(String str);
 
 /**
  * @brief Creates a lower case copy of a string.
  *
  * Only ASCII letters A-Z are converted, all other bytes are copied unchanged.
- * The original string is not modified. Memory is allocated using the provided
- * allocator.
+ * The original string is not modified. Memory is allocated using kevue allocator.
  *
  * @param str  Source string.
- * @param ma   Allocator to use for memory management.
  *
  * @return Newly created lower case string, or an empty string on failure.
  */
-String kevue_string_to_lower(String str, KevueAllocator *ma);
+String kevue_string_to_lower(String str);
 
 /**
  * @brief Creates an upper case copy of a string.
  *
  * Only ASCII letters a-z are converted, all other bytes are copied unchanged.
- * The original string is not modified. Memory is allocated using the provided
- * allocator.
+ * The original string is not modified. Memory is allocated using kevue allocator.
  *
  * @param str  Source string.
- * @param ma   Allocator to use for memory management.
  *
  * @return Newly created upper case string, or an empty string on failure.
  */
-String kevue_string_to_upper(String str, KevueAllocator *ma);
+String kevue_string_to_upper(String str);
 
 /**
  * @brief Creates a title case copy of a string.
@@ -137,16 +127,18 @@ String kevue_string_to_upper(String str, KevueAllocator *ma);
  * A letter is upper-cased if it is the first byte of the string or follows
  * an ASCII whitespace byte. All other ASCII letters are lower-cased and
  * non-letters are copied unchanged. The original string is not modified.
- * Memory is allocated using the provided allocator.
+ * Memory is allocated using kevue allocator.
  *
  * @param str  Source string.
- * @param ma   Allocator to use for memory management.
  *
  * @return Newly created title case string, or an empty string on failure.
  */
-String kevue_string_to_title(String str, KevueAllocator *ma);
+String kevue_string_to_title(String str);
 
 u64 kevue__cstring_len(const char *s);
+
+#define String(s)         kevue_string_create((s))
+#define Stringf(fmt, ...) kevue_string_createf((fmt), ##__VA_ARGS__)
 
 #define StringView(s) \
     (StringView) { .data = (s).data, .len = (s).len }

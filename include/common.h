@@ -19,10 +19,20 @@
  */
 #pragma once
 
+#include <allocator.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#error "You can define only one memory allocator at a time"
+#endif
+#if defined(USE_TCMALLOC)
+#include <tcmalloc_allocator.h>
+#elif defined(USE_JEMALLOC)
+#include <jemalloc_allocator.h>
+#endif
 
 #define KEVUE_HOST           "0.0.0.0"
 #define KEVUE_PORT           "12111"
@@ -139,6 +149,17 @@ typedef double   f64;
 #else
 #define KEVUE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
 #endif
+
+static inline KevueAllocator *kevue_allocator(void)
+{
+#if defined(USE_TCMALLOC)
+    return &kevue_tcmalloc_allocator;
+#elif defined(USE_JEMALLOC)
+    return &kevue_jemalloc_allocator;
+#else
+    return &kevue_default_allocator;
+#endif
+}
 
 /**
  *  Convert string @p s to upper case and return it.

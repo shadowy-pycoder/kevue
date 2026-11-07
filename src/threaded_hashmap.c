@@ -114,9 +114,10 @@ static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *h
     return &hm_internal->bucket_locks[bucket_idx & (HASHMAP_BUCKET_LOCK_COUNT - 1)];
 }
 
-HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
+HashMap *kevue_hm_threaded_create()
 {
-    HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    HashMap        *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
     if (hm == NULL) return NULL;
     hm->ops = &hm_ops;
     HashMapThreaded *hm_internal = (HashMapThreaded *)ma->malloc(sizeof(*hm_internal), ma->ctx);

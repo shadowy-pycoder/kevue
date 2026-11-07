@@ -39,7 +39,6 @@
 
 #include <stdbool.h>
 
-#include <allocator.h>
 #include <buffer.h>
 #include <common.h>
 

@@ -238,7 +238,8 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         shutdown(kc->fd, SHUT_WR);
         return false;
     }
-    memset(resp, 0, sizeof(*resp));
+    kevue_buffer_reset(resp->val);
+    resp->val_len = 0;
     while (true) {
         if (!kevue__handle_read(kc)) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {

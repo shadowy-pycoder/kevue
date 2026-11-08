@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
+#include <buffer.h>
 #include <common.h>
 
 typedef struct String {
@@ -49,7 +50,7 @@ String kevue_string_create(const char *s);
 /**
  * @brief Creates a new string from a printf-style format.
  *
- * The formatted result is written into memory allocated using the provided
+ * The formatted result is written into memory allocated using kevue
  * allocator. Format specifiers and argument rules are the same as for
  * printf. The result must be destroyed with kevue_string_destroy using the
  * same allocator.
@@ -71,6 +72,15 @@ String kevue_string_createf(const char *fmt, ...) KEVUE_PRINTF_FORMAT(1, 2);
  * @param str  Pointer to the string to destroy.
  */
 void kevue_string_destroy(String *str);
+
+/**
+ * @brief Checks whether a given string is empty.
+ *
+ * @param str  String to check.
+ *
+ * @return true if the string is empty, false otherwise.
+ */
+bool kevue_string_is_empty(String str);
 
 /**
  * @brief Creates a new string by copying the contents of a string view.
@@ -149,6 +159,9 @@ u64 kevue__cstring_len(const char *s);
 #define StringViewFromLiteral(s) \
     (StringView) { .data = (u8 *)(s), .len = sizeof((s)) - 1 }
 
+#define StringViewFromBuffer(b) \
+    (StringView) { .data = (u8 *)(b).ptr, .len = (b).size }
+
 #ifndef STR_FMT
 #define STR_FMT "%.*s"
 #endif // STR_FMT
@@ -180,6 +193,18 @@ StringView kevue_string_view_from_string(String str);
  * @return View referencing the C string's data and length.
  */
 StringView kevue_string_view_from_cstring(const char *s);
+
+/**
+ * @brief Creates a string view from buffer.
+ *
+ * No memory is allocated and no data is copied. The view is valid only
+ * as long as the buffer is alive and unmodified.
+ *
+ * @param buf  Source buffer.
+ *
+ * @return View referencing the buffer's data and size.
+ */
+StringView kevue_string_view_from_buffer(Buffer buf);
 
 /**
  * @brief Compares two string views for exact equality.

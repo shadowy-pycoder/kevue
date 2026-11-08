@@ -64,6 +64,18 @@ void kevue_buffer_destroy(Buffer *buf);
 u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
 
 /**
+ * @brief Appends a printf-style formatted data to the end of the buffer.
+ *
+ * The buffer grows automatically if necessary.
+ *
+ * @param fmt  printf-style formatted data to append.
+ * @param ...  Arguments matching the format specifiers.
+ *
+ * @return Number of bytes appended.
+ */
+u64 kevue_buffer_appendf(Buffer *buf, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
+
+/**
  * @brief Writes data to the start of the buffer.
  *
  * Advances the buffer size by @p n bytes.
@@ -75,6 +87,17 @@ u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
  * @return Number of bytes written.
  */
 u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n);
+
+/**
+ * @brief Writes a printf-style formatted data to the start of the buffer.
+ *
+ * @param buf   Target buffer.
+ * @param data  printf-style formatted data to write.
+ * @param ...  Arguments matching the format specifiers.
+ *
+ * @return Number of bytes written.
+ */
+u64 kevue_buffer_writef(Buffer *buf, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
 
 /**
  * @brief Reads a single byte from the buffer.

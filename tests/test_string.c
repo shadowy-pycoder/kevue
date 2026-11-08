@@ -17,7 +17,9 @@
 // clang -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_string.c -o ./bin/kevue-test-string -DDEBUG
 #include <assert.h>
 
+#include "../src/buffer.c"
 #include "../src/kevue_string.c"
+#include "allocator.h"
 #include <common.h>
 #include <kevue_string.h>
 
@@ -50,8 +52,10 @@ void test_string_create_macro(void)
 
 void test_string_createf(void)
 {
-    String str = kevue_string_createf("Hello, World %d\n", 5);
-    assert(memcmp(str.data, "Hello, World 5\n", str.len));
+    String      str = kevue_string_createf("Hello, World %d\n", 5);
+    const char *expected = "Hello, World 5\n";
+    assert(str.len == strlen(expected));
+    assert(memcmp(str.data, expected, str.len) == 0);
     kevue_string_destroy(&str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
@@ -59,8 +63,10 @@ void test_string_createf(void)
 
 void test_string_createf_macro(void)
 {
-    String str = Stringf("Hello, World %d\n", 5);
-    assert(memcmp(str.data, "Hello, World 5\n", str.len));
+    String      str = Stringf("Hello, World %d\n", 5);
+    const char *expected = "Hello, World 5\n";
+    assert(str.len == strlen(expected));
+    assert(memcmp(str.data, expected, str.len) == 0);
     kevue_string_destroy(&str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
@@ -87,6 +93,16 @@ void test_string_copy(void)
     assert(memcmp(str2.data, str1.data, str2.len) == 0);
     kevue_string_destroy(&str1);
     kevue_string_destroy(&str2);
+    printf("%s PASSED\n", __func__);
+}
+
+void test_string_copy_empty(void)
+{
+    char  *s = "Hello, World";
+    String str1 = { 0 };
+    String str2 = kevue_string_copy(str1);
+    assert(kevue_string_is_empty(str1));
+    assert(kevue_string_is_empty(str2));
     printf("%s PASSED\n", __func__);
 }
 
@@ -195,12 +211,17 @@ void test_string_to_lower(void)
         String actual_str = kevue_string_create(actual[i]);
         String actual_str_lower = kevue_string_to_lower(actual_str);
         String expected_str = kevue_string_create(expected[i]);
-        assert(expected_str.len == actual_str_lower.len);
-        assert(expected_str.data != actual_str_lower.data);
-        assert(memcmp(expected_str.data, actual_str_lower.data, expected_str.len) == 0);
-        kevue_string_destroy(&actual_str);
-        kevue_string_destroy(&actual_str_lower);
-        kevue_string_destroy(&expected_str);
+        if (kevue_string_is_empty(expected_str)) {
+            assert(kevue_string_is_empty(actual_str));
+            assert(kevue_string_is_empty(actual_str_lower));
+        } else {
+            assert(expected_str.len == actual_str_lower.len);
+            assert(expected_str.data != actual_str_lower.data);
+            assert(memcmp(expected_str.data, actual_str_lower.data, expected_str.len) == 0);
+            kevue_string_destroy(&actual_str);
+            kevue_string_destroy(&actual_str_lower);
+            kevue_string_destroy(&expected_str);
+        }
     }
     printf("%s PASSED\n", __func__);
 }
@@ -309,12 +330,17 @@ void test_string_to_upper(void)
         String actual_str = kevue_string_create(actual[i]);
         String actual_str_upper = kevue_string_to_upper(actual_str);
         String expected_str = kevue_string_create(expected[i]);
-        assert(expected_str.len == actual_str_upper.len);
-        assert(expected_str.data != actual_str_upper.data);
-        assert(memcmp(expected_str.data, actual_str_upper.data, expected_str.len) == 0);
-        kevue_string_destroy(&actual_str);
-        kevue_string_destroy(&actual_str_upper);
-        kevue_string_destroy(&expected_str);
+        if (kevue_string_is_empty(expected_str)) {
+            assert(kevue_string_is_empty(actual_str));
+            assert(kevue_string_is_empty(actual_str_upper));
+        } else {
+            assert(expected_str.len == actual_str_upper.len);
+            assert(expected_str.data != actual_str_upper.data);
+            assert(memcmp(expected_str.data, actual_str_upper.data, expected_str.len) == 0);
+            kevue_string_destroy(&actual_str);
+            kevue_string_destroy(&actual_str_upper);
+            kevue_string_destroy(&expected_str);
+        }
     }
     printf("%s PASSED\n", __func__);
 }
@@ -427,12 +453,17 @@ void test_string_to_title(void)
         String actual_str = kevue_string_create(actual[i]);
         String actual_str_title = kevue_string_to_title(actual_str);
         String expected_str = kevue_string_create(expected[i]);
-        assert(expected_str.len == actual_str_title.len);
-        assert(expected_str.data != actual_str_title.data);
-        assert(memcmp(expected_str.data, actual_str_title.data, expected_str.len) == 0);
-        kevue_string_destroy(&actual_str);
-        kevue_string_destroy(&actual_str_title);
-        kevue_string_destroy(&expected_str);
+        if (kevue_string_is_empty(expected_str)) {
+            assert(kevue_string_is_empty(actual_str));
+            assert(kevue_string_is_empty(actual_str_title));
+        } else {
+            assert(expected_str.len == actual_str_title.len);
+            assert(expected_str.data != actual_str_title.data);
+            assert(memcmp(expected_str.data, actual_str_title.data, expected_str.len) == 0);
+            kevue_string_destroy(&actual_str);
+            kevue_string_destroy(&actual_str_title);
+            kevue_string_destroy(&expected_str);
+        }
     }
     printf("%s PASSED\n", __func__);
 }
@@ -454,6 +485,19 @@ void test_string_view_from_cstring(void)
     StringView sv = kevue_string_view_from_cstring(s);
     assert(sv.len == strlen(s));
     assert(sv.data == (u8 *)s);
+    printf("%s PASSED\n", __func__);
+}
+
+void test_string_view_from_buffer(void)
+{
+    Buffer buf = { 0 };
+    kevue_buffer_appendf(&buf, "Hello, World %d times", 42);
+    StringView sv = kevue_string_view_from_buffer(buf);
+    assert(sv.len == buf.size);
+    assert(sv.data == buf.ptr);
+    assert(memcmp(sv.data, buf.ptr, sv.len) == 0);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(buf.ptr, ma->ctx);
     printf("%s PASSED\n", __func__);
 }
 
@@ -1327,11 +1371,13 @@ void run_tests()
     test_string_createf_macro();
     test_string_from_string_view();
     test_string_copy();
+    test_string_copy_empty();
     test_string_to_lower();
     test_string_to_upper();
     test_string_to_title();
     test_string_view_from_string();
     test_string_view_from_cstring();
+    test_string_view_from_buffer();
     test_string_view_compare();
     test_string_view_compare_icase();
     test_string_view_has_suffix();

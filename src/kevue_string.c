@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <allocator.h>
@@ -33,7 +34,8 @@ String kevue_string_create(const char *s)
     KevueAllocator *ma = kevue_allocator();
     String          str = { 0 };
     str.len = kevue__cstring_len(s);
-    str.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
+    if (str.len == 0) return (String) { 0 };
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
     if (str.data == NULL) return (String) { 0 };
     memcpy(str.data, s, str.len);
     return str;
@@ -47,13 +49,13 @@ String kevue_string_createf(const char *fmt, ...)
     va_start(ap, fmt);
     int len = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
-    if (len < 0) return (String) { 0 };
-    str.data = (u8 *)ma->malloc(sizeof(str.data) * (size_t)len, ma->ctx);
+    if (len <= 0) return (String) { 0 };
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * (size_t)(len + 1), ma->ctx);
     if (str.data == NULL) return (String) { 0 };
     va_start(ap, fmt);
-    len = vsnprintf((char *)str.data, (size_t)len, fmt, ap);
+    int n = vsnprintf((char *)str.data, (size_t)(len + 1), fmt, ap);
     va_end(ap);
-    if (len < 0) {
+    if (n < 0) {
         kevue_string_destroy(&str);
         return (String) { 0 };
     }
@@ -69,12 +71,18 @@ void kevue_string_destroy(String *str)
     str->len = 0;
 }
 
+bool kevue_string_is_empty(String str)
+{
+    return str.data == NULL || str.len == 0;
+}
+
 String kevue_string_from_string_view(StringView sv)
 {
     KevueAllocator *ma = kevue_allocator();
-    String          str = (String) { 0 };
+    if (sv.len == 0) return (String) { 0 };
+    String str = (String) { 0 };
     str.len = sv.len;
-    str.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
     if (str.data == NULL) {
         return (String) { 0 };
     }
@@ -85,10 +93,10 @@ String kevue_string_from_string_view(StringView sv)
 String kevue_string_copy(String str)
 {
     KevueAllocator *ma = kevue_allocator();
-    if (str.data == NULL || str.len == 0) return (String) { 0 };
+    if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = (String) { 0 };
     out.len = str.len;
-    out.data = (u8 *)ma->malloc(sizeof(str.data) * str.len, ma->ctx);
+    out.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
     if (out.data == NULL) {
         return (String) { 0 };
     }
@@ -99,7 +107,7 @@ String kevue_string_copy(String str)
 String kevue_string_to_lower(String str)
 {
     String out = kevue_string_copy(str);
-    if (out.data == NULL || out.len == 0) return (String) { 0 };
+    if (kevue_string_is_empty(out)) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'A' && out.data[i] <= 'Z') {
             out.data[i] |= 1 << 5;
@@ -110,7 +118,7 @@ String kevue_string_to_lower(String str)
 String kevue_string_to_upper(String str)
 {
     String out = kevue_string_copy(str);
-    if (out.data == NULL || out.len == 0) return (String) { 0 };
+    if (kevue_string_is_empty(out)) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'a' && out.data[i] <= 'z') {
             out.data[i] &= ~(1 << 5);
@@ -122,11 +130,11 @@ String kevue_string_to_upper(String str)
 String kevue_string_to_title(String str)
 {
     String out = kevue_string_copy(str);
-    if (out.data == NULL || out.len == 0) return (String) { 0 };
+    if (kevue_string_is_empty(out)) return (String) { 0 };
     u8  *left = out.data;
     u8  *right = out.data + out.len;
     bool title_applied = false;
-    while (true) {
+    while (right - left > 0) {
         if (isspace((u8)*left)) {
             while (left < right && isspace((u8)*left)) left++;
             title_applied = false;
@@ -162,9 +170,15 @@ StringView kevue_string_view_from_cstring(const char *s)
     return (StringView) { .data = (u8 *)s, .len = kevue__cstring_len(s) };
 }
 
+StringView kevue_string_view_from_buffer(Buffer buf)
+{
+    return (StringView) { .data = buf.ptr, .len = buf.size };
+}
+
 bool kevue_string_view_compare(StringView sv1, StringView sv2)
 {
     if (sv1.len != sv2.len) return false;
+    if (sv1.len == 0) return true;
     return memcmp(sv1.data, sv2.data, sv1.len) == 0;
 }
 

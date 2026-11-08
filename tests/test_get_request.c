@@ -17,6 +17,7 @@
 // clang -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_get_request.c -o ./bin/kevue-test-get-request -DDEBUG
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "../src/buffer.c"
@@ -43,6 +44,7 @@ int main(void)
     if (kc == NULL) exit(EXIT_FAILURE);
     KevueAllocator *ma = kevue_allocator();
     KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
         ma->free(resp, ma->ctx);

@@ -106,8 +106,8 @@ String kevue_string_copy(String str)
 
 String kevue_string_to_lower(String str)
 {
+    if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = kevue_string_copy(str);
-    if (kevue_string_is_empty(out)) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'A' && out.data[i] <= 'Z') {
             out.data[i] |= 1 << 5;
@@ -117,8 +117,8 @@ String kevue_string_to_lower(String str)
 }
 String kevue_string_to_upper(String str)
 {
+    if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = kevue_string_copy(str);
-    if (kevue_string_is_empty(out)) return (String) { 0 };
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'a' && out.data[i] <= 'z') {
             out.data[i] &= ~(1 << 5);
@@ -129,17 +129,17 @@ String kevue_string_to_upper(String str)
 
 String kevue_string_to_title(String str)
 {
+    if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = kevue_string_copy(str);
-    if (kevue_string_is_empty(out)) return (String) { 0 };
-    u8  *left = out.data;
-    u8  *right = out.data + out.len;
-    bool title_applied = false;
+    u8    *left = out.data;
+    u8    *right = out.data + out.len;
+    bool   title_applied = false;
     while (right - left > 0) {
         if (isspace((u8)*left)) {
             while (left < right && isspace((u8)*left)) left++;
             title_applied = false;
+            continue;
         }
-        if (right - left <= 0) break;
         if (!title_applied) {
             if (*left >= 'a' && *left <= 'z') {
                 *left &= ~(1 << 5);

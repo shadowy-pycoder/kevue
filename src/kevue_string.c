@@ -115,6 +115,7 @@ String kevue_string_to_lower(String str)
     }
     return out;
 }
+
 String kevue_string_to_upper(String str)
 {
     if (kevue_string_is_empty(str)) return (String) { 0 };

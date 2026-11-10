@@ -141,76 +141,76 @@ Performed on `13th Gen Intel(R) Core(TM) i7-1355U (12) @ 5.00 GHz` with perfoman
 # make run
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o ./bin/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
 Inserting 10485760 items...
-Inserting 10485760 items takes: 63.813164444s (164319.70 req/sec)
+Inserting 10485760 items takes: 45.177852557s (232099.57 req/sec)
 Getting 10485760 items...
-Getting 10485760 items takes: 62.684439796s (167278.51 req/sec)
+Getting 10485760 items takes: 43.212917678s (242653.37 req/sec)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 1.376357072s
+Fetching 10485760 items takes: 0.850455614s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.386575986s
+Fetching 10485760 keys takes: 0.423547706s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.411162984s
+Fetching 10485760 values takes: 0.433821851s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000161935s
+Counting 10485760 entries takes: 0.000032281s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 63.829875791s (164276.68 req/sec)
+Deleting 10485760 items takes: 45.741002854s (229242.02 req/sec)
 
 # make release -B
 # make run
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
 ./bin/kevue-bench-server
 Inserting 10485760 items...
-Inserting 10485760 items takes: 123.826780740s (84680.87 req/sec)
+Inserting 10485760 items takes: 109.514137908s (95748.00 req/sec)
 Getting 10485760 items...
-Getting 10485760 items takes: 122.567068650s (85551.20 req/sec)
+Getting 10485760 items takes: 105.042856331s (99823.64 req/sec)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 1.832541620s
+Fetching 10485760 items takes: 0.850709463s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.518053989s
+Fetching 10485760 keys takes: 0.410204026s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.549419123s
+Fetching 10485760 values takes: 0.425641106s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000103205s
+Counting 10485760 entries takes: 0.000144120s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 122.464984827s (85622.51 req/sec)
+Deleting 10485760 items takes: 100.566388810s (104267.04 req/sec)
 
 # make USE_JEMALLOC=1 USE_TCMALLOC=0 ASAN=0 DEBUG=0
 # make run
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server -DUSE_JEMALLOC -ljemalloc
 ./bin/kevue-bench-server
 Inserting 10485760 items...
-Inserting 10485760 items takes: 119.200026130s (87967.77 req/sec)
+Inserting 10485760 items takes: 107.919068392s (97163.18 req/sec)
 Getting 10485760 items...
-Getting 10485760 items takes: 120.229356448s (87214.64 req/sec)
+Getting 10485760 items takes: 101.324531404s (103486.88 req/sec)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 1.969856175s
+Fetching 10485760 items takes: 0.878918233s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.542134610s
+Fetching 10485760 keys takes: 0.399739579s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.543154706s
+Fetching 10485760 values takes: 0.414424906s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000169844s
+Counting 10485760 entries takes: 0.000050001s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 125.495996207s (83554.54 req/sec)
+Deleting 10485760 items takes: 105.305730330s (99574.45 req/sec)
 
 # make USE_JEMALLOC=0 USE_TCMALLOC=0 ASAN=0 DEBUG=0
 # make run
 # clang -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o ./bin/kevue-bench-server
 ./bin/kevue-bench-server
 Inserting 10485760 items...
-Inserting 10485760 items takes: 126.509576145s (82885.11 req/sec)
+Inserting 10485760 items takes: 110.801376079s (94635.65 req/sec)
 Getting 10485760 items...
-Getting 10485760 items takes: 120.334752530s (87138.25 req/sec)
+Getting 10485760 items takes: 109.786227899s (95510.70 req/sec)
 Fetching 10485760 items...
-Fetching 10485760 items takes: 1.198423508s
+Fetching 10485760 items takes: 0.729023911s
 Fetching 10485760 keys...
-Fetching 10485760 keys takes: 0.535705443s
+Fetching 10485760 keys takes: 0.425375168s
 Fetching 10485760 values...
-Fetching 10485760 values takes: 0.551398505s
+Fetching 10485760 values takes: 0.446152672s
 Counting 10485760 entries...
-Counting 10485760 entries takes: 0.000208824s
+Counting 10485760 entries takes: 0.000176884s
 Deleting 10485760 items...
-Deleting 10485760 items takes: 127.858687401s (82010.54 req/sec)
+Deleting 10485760 items takes: 108.387425218s (96743.33 req/sec)
 ```
 
 ### HashMap

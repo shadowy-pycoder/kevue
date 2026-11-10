@@ -20,7 +20,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <sys/types.h>
 
 #include <buffer.h>
 #include <common.h>
@@ -305,6 +304,18 @@ i64 kevue_string_view_index(StringView sv, StringView substr);
  * @return Byte offset of the last match, or -1 if not found.
  */
 i64 kevue_string_view_last_index(StringView sv, StringView substr);
+
+/**
+ * @brief Counts the number of non-overlapping substrings in a view.
+ *
+ * If substr is empty, the result is the length of sv in bytes plus 1.
+ *
+ * @param sv      View to search in.
+ * @param substr  Substring to count to.
+ *
+ * @return Count of substrings.
+ */
+i64 kevue_string_view_count(StringView sv, StringView substr);
 
 /**
  * @brief Checks whether a view contains a substring.

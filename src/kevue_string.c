@@ -18,7 +18,6 @@
  * @brief Custom string implementation.
  */
 
-#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -28,6 +27,13 @@
 #include <allocator.h>
 #include <common.h>
 #include <kevue_string.h>
+
+static inline bool is_space(u8 c);
+
+static inline bool is_space(u8 c)
+{
+    return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v');
+}
 
 String kevue_string_create(const char *s)
 {
@@ -136,8 +142,8 @@ String kevue_string_to_title(String str)
     u8    *right = out.data + out.len;
     bool   title_applied = false;
     while (right - left > 0) {
-        if (isspace((u8)*left)) {
-            while (left < right && isspace((u8)*left)) left++;
+        if (is_space(*left)) {
+            while (left < right && is_space(*left)) left++;
             title_applied = false;
             continue;
         }
@@ -265,6 +271,27 @@ i64 kevue_string_view_last_index(StringView sv, StringView substr)
     return last_index;
 }
 
+i64 kevue_string_view_count(StringView sv, StringView substr)
+{
+    if (substr.len == 0) return (i64)sv.len + 1;
+    i64 count = 0;
+    if (substr.len > sv.len) return count;
+    if (sv.data == NULL || substr.data == NULL) return count;
+    u8 *cur = sv.data;
+    u8 *sv_end = sv.data + sv.len;
+    while (true) {
+        cur = (u8 *)memchr(cur, substr.data[0], sv_end - cur);
+        if (cur == NULL || (u64)(sv_end - cur) < substr.len) return count;
+        if ((memcmp(cur, substr.data, substr.len)) == 0) {
+            count++;
+            cur += substr.len;
+        } else {
+            cur++;
+        }
+    }
+    return count;
+}
+
 bool kevue_string_view_contains(StringView sv, StringView substr)
 {
     return kevue_string_view_index(sv, substr) >= 0;
@@ -275,8 +302,8 @@ StringView kevue_string_view_trim_space(StringView sv)
     if (sv.data == NULL || sv.len == 0) return sv;
     u8 *left = sv.data;
     u8 *right = sv.data + sv.len;
-    while (left < right && isspace((u8)left[0])) left++;
-    while (right > left && isspace((u8)right[-1])) right--;
+    while (left < right && is_space(left[0])) left++;
+    while (right > left && is_space(right[-1])) right--;
     return (StringView) { .data = left, .len = (u64)(right - left) };
 }
 

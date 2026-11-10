@@ -1196,6 +1196,99 @@ void test_string_view_last_index(void)
     printf("%s PASSED\n", __func__);
 }
 
+void test_string_view_count(void)
+{
+    const char *input[] = {
+        "",
+        "",
+        "",
+        "a",
+        "a",
+        "",
+        "abc",
+        "",
+        "a",
+        "a",
+        "a",
+        "A",
+        "abc",
+        "abc",
+        "abc",
+        "abcd",
+        "abc",
+        "b",
+        "abcabc",
+        "abc",
+        "abcabc",
+        "bca",
+        "aaa",
+        "aa",
+        "aaaa",
+        "aa",
+        "aaaaa",
+        "aa",
+        "ababab",
+        "bab",
+        "ababab",
+        "ab",
+        "abab",
+        "aba",
+        "xaxax",
+        "xax",
+        "Hello, World",
+        "o",
+        "Hello, World",
+        "l",
+        "Hello, World",
+        "hello",
+        "a b  c",
+        "  ",
+        "tab\ta\tb",
+        "\t",
+        "line\r\nline\r\n",
+        "\r\n",
+        "cheese",
+        "e",
+        "five",
+        "",
+    };
+
+    const int expected[] = {
+        1,
+        0,
+        2,
+        4,
+        1,
+        0,
+        1,
+        0,
+        1,
+        2,
+        1,
+        1,
+        2,
+        2,
+        1,
+        3,
+        1,
+        1,
+        2,
+        3,
+        0,
+        1,
+        2,
+        2,
+        3,
+        5,
+    };
+    for (int i = 0, j = 0; i + 1 < sizeof(input) / sizeof(input[0]); i += 2, j++) {
+        StringView sv1 = kevue_string_view_from_cstring(input[i]);
+        StringView sv2 = kevue_string_view_from_cstring(input[i + 1]);
+        assert(kevue_string_view_count(sv1, sv2) == expected[j]);
+    }
+    printf("%s PASSED\n", __func__);
+}
+
 void test_string_view_trim_space(void)
 {
     const char *input[] = {
@@ -1386,6 +1479,7 @@ void run_tests()
     test_string_view_trim_prefix();
     test_string_view_index();
     test_string_view_last_index();
+    test_string_view_count();
     test_string_view_trim_space();
     test_string_view_trim_cutset();
 }

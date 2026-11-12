@@ -20,26 +20,26 @@
 #pragma once
 
 #include <assert.h>
-#include <string.h>
+
+#include <common.h>
 
 // typedef struct DynamicArray {
 //     T              *ptr;
 //     u64          len;
 //     u64          cap;
-//     KevueAllocator *ma;
 // } DynamicArray;
 
 /**
  * @brief Initialize a dynamic array.
  */
-#define kevue_dyna_init(dyna, capacity, alloc)                                                \
-    do {                                                                                      \
-        assert((dyna) != NULL);                                                               \
-        memset((dyna), 0, sizeof(*(dyna)));                                                   \
-        (dyna)->ma = (alloc);                                                                 \
-        (dyna)->ptr = (dyna)->ma->malloc((capacity) * sizeof(*(dyna)->ptr), (dyna)->ma->ctx); \
-        assert((dyna)->ptr != NULL);                                                          \
-        (dyna)->cap = (capacity);                                                             \
+#define kevue_dyna_init(dyna, capacity)                                         \
+    do {                                                                        \
+        assert((dyna) != NULL);                                                 \
+        memset((dyna), 0, sizeof(*(dyna)));                                     \
+        KevueAllocator *_ma = kevue_allocator();                                \
+        (dyna)->ptr = _ma->malloc((capacity) * sizeof(*(dyna)->ptr), _ma->ctx); \
+        assert((dyna)->ptr != NULL);                                            \
+        (dyna)->cap = (capacity);                                               \
     } while (0)
 
 /**
@@ -47,12 +47,13 @@
  *
  * @pre Dynamic array must be initialized.
  */
-#define kevue_dyna_deinit(dyna)                         \
-    do {                                                \
-        assert((dyna) != NULL);                         \
-        assert((dyna)->ptr != NULL);                    \
-        (dyna)->ma->free((dyna)->ptr, (dyna)->ma->ctx); \
-        (dyna)->ptr = NULL;                             \
+#define kevue_dyna_deinit(dyna)                  \
+    do {                                         \
+        assert((dyna) != NULL);                  \
+        assert((dyna)->ptr != NULL);             \
+        KevueAllocator *_ma = kevue_allocator(); \
+        _ma->free((dyna)->ptr, _ma->ctx);        \
+        (dyna)->ptr = NULL;                      \
     } while (0)
 
 /**
@@ -62,15 +63,17 @@
  *
  * Credits to https://github.com/tsoding/nob.h
  */
-#define kevue_dyna_append(dyna, item)                                                                            \
-    do {                                                                                                         \
-        u64 initial_cap = (dyna)->cap;                                                                           \
-        while ((dyna)->cap <= (dyna)->len + 1) (dyna)->cap *= 2;                                                 \
-        if ((dyna)->cap > initial_cap) {                                                                         \
-            (dyna)->ptr = (dyna)->ma->realloc((dyna)->ptr, (dyna)->cap * sizeof(*(dyna)->ptr), (dyna)->ma->ctx); \
-            assert((dyna)->ptr != NULL);                                                                         \
-        }                                                                                                        \
-        (dyna)->ptr[(dyna)->len++] = (item);                                                                     \
+#define kevue_dyna_append(dyna, item)                                                              \
+    do {                                                                                           \
+        if ((dyna)->cap == 0) (dyna)->cap = KEVUE_INIT_CAP;                                        \
+        u64             initial_cap = (dyna)->cap;                                                 \
+        KevueAllocator *_ma = kevue_allocator();                                                   \
+        while ((dyna)->cap <= (dyna)->len + 1) (dyna)->cap *= 2;                                   \
+        if ((dyna)->ptr == NULL || (dyna)->cap > initial_cap) {                                    \
+            (dyna)->ptr = _ma->realloc((dyna)->ptr, (dyna)->cap * sizeof(*(dyna)->ptr), _ma->ctx); \
+            assert((dyna)->ptr != NULL);                                                           \
+        }                                                                                          \
+        (dyna)->ptr[(dyna)->len++] = (item);                                                       \
     } while (0)
 
 /**
@@ -97,16 +100,27 @@
 #define kevue_dyna_foreach(dyna, T, it) for (T *it = (dyna)->ptr; it < (dyna)->ptr + (dyna)->len; it++)
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#if __clang__
+#define kevue_dyna_foreach_from_offset(dyna, it, offset) for (__typeof__((dyna)->ptr) it = (dyna)->ptr + (offset); it < (dyna)->ptr + (dyna)->len; it++)
+#else
+#define kevue_dyna_foreach_from_offset(dyna, it, offset) for (typeof((dyna)->ptr) it = (dyna)->ptr + (offset); it < (dyna)->ptr + (dyna)->len; it++)
+#endif
+#else
+#define kevue_dyna_foreach_from_offset(dyna, T, it, offset) for (T *it = (dyna)->ptr + (offset); it < (dyna)->ptr + (dyna)->len; it++)
+#endif
+
 /**
  * @brief Increase dynamic array capacity up to @p n items.
  *
  * @pre Dynamic array must be initialized.
  */
-#define kevue_dyna_grow(dyna, n)                                                                         \
-    do {                                                                                                 \
-        if ((dyna)->cap < (n)) {                                                                         \
-            (dyna)->ptr = (dyna)->ma->realloc((dyna)->ptr, (n) * sizeof(*(dyna)->ptr), (dyna)->ma->ctx); \
-            assert((dyna)->ptr != NULL);                                                                 \
-            (dyna)->cap = (n);                                                                           \
-        }                                                                                                \
+#define kevue_dyna_grow(dyna, n)                                                           \
+    do {                                                                                   \
+        KevueAllocator *_ma = kevue_allocator();                                           \
+        if ((dyna)->ptr == NULL || (dyna)->cap < (n)) {                                    \
+            (dyna)->ptr = _ma->realloc((dyna)->ptr, (n) * sizeof(*(dyna)->ptr), _ma->ctx); \
+            assert((dyna)->ptr != NULL);                                                   \
+            (dyna)->cap = (n);                                                             \
+        }                                                                                  \
     } while (0)

@@ -67,7 +67,7 @@ void kevue_buffer_grow(Buffer *buf, u64 n)
 
 u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n)
 {
-    if (buf == NULL) return 0;
+    if (buf == NULL || n == 0) return 0;
     if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
     u64 initial_capacity = buf->capacity;
     while (buf->capacity < buf->size + n) {
@@ -112,7 +112,7 @@ u64 kevue_buffer_appendf(Buffer *buf, const char *fmt, ...)
 
 u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n)
 {
-    if (buf == NULL) return 0;
+    if (buf == NULL || n == 0) return 0;
     if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
     u64 initial_capacity = buf->capacity;
     while (buf->capacity < n) {

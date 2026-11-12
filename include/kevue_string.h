@@ -34,6 +34,18 @@ typedef struct StringView {
     u64 len;
 } StringView;
 
+typedef struct StringList {
+    String *ptr;
+    u64     len;
+    u64     cap;
+} StringList;
+
+typedef struct StringViewList {
+    StringView *ptr;
+    u64         len;
+    u64         cap;
+} StringViewList;
+
 /**
  * @brief Creates a new string by copying a NUL-terminated C string.
  *
@@ -144,7 +156,44 @@ String kevue_string_to_upper(String str);
  */
 String kevue_string_to_title(String str);
 
+/**
+ * @brief Joins a dynamic array of strings into a new string.
+ *
+ * @param strs  Strings to join.
+ * @param sep   Separator placed between elements.
+ *
+ * @return Newly created string owning a copy of the data, or an empty
+ *         string on failure.
+ */
+String kevue_string_join(StringList strs, StringView sep);
+
+/**
+ * @brief Joins a dynamic array of string views into a new string.
+ *
+ * @param svs  String views to join.
+ * @param sep  Separator placed between elements.
+ *
+ * @return Newly created string owning a copy of the data, or an empty
+ *         string on failure.
+ */
+String kevue_string_view_join(StringViewList svs, StringView sep);
+
+/**
+ * @brief Creates a string from buffer.
+ *
+ * @param buf  Source buffer.
+ *
+ * @return Newly created string owning a copy of the data, or an empty
+ *         string on failure.
+ */
+String kevue_string_from_buffer(Buffer buf);
+
 u64 kevue__cstring_len(const char *s);
+
+static inline bool is_space(u8 c)
+{
+    return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v');
+}
 
 #define String(s)         kevue_string_create((s))
 #define Stringf(fmt, ...) kevue_string_createf((fmt), ##__VA_ARGS__)

@@ -18,8 +18,6 @@
  * @brief kevue client CLI example.
  */
 
-#include "buffer.h"
-#include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -33,8 +31,10 @@
 #include <flag.h>
 #include <linenoise.h>
 
+#include <buffer.h>
 #include <client.h>
 #include <common.h>
+#include <kevue_string.h>
 
 #define PING_INTERVAL_SECONDS 15
 #define PROMPT_LENGTH         256
@@ -98,7 +98,7 @@ static bool kevue__parse_chunk(Buffer *buf, Buffer *out)
 
 static void kevue__trim_left(Buffer *buf)
 {
-    while (isspace((unsigned char)kevue_buffer_peek_byte(buf))) kevue_buffer_read_advance(buf);
+    while (is_space((u8)kevue_buffer_peek_byte(buf))) kevue_buffer_read_advance(buf);
 }
 
 static void kevue__completion(const char *buf, linenoiseCompletions *lc)

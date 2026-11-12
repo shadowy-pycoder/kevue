@@ -138,7 +138,7 @@ HashMap *kevue_hm_threaded_create()
     hm_internal->initial_bucket_count = bucket_count;
     hm_internal->slots_taken = 0;
     for (u64 bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
-        kevue_dyna_init(&hm_internal->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm_internal->ma);
+        kevue_dyna_init(&hm_internal->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
     }
     for (u64 lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
         mutex_init(&hm_internal->bucket_locks[lock], NULL);
@@ -395,7 +395,7 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, u64 new_size
         mutex_unlock(&hm_internal->bucket_locks[lock]);
     }
     for (u64 bucket = 0; bucket < new_size; bucket++) {
-        kevue_dyna_init(&new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT, hm_internal->ma);
+        kevue_dyna_init(&new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
     }
     for (u64 bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
         if (hm_internal->buckets[bucket].len == 0) continue;

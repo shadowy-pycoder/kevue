@@ -18,7 +18,6 @@
  * @brief Helper functions implementation.
  */
 #include <arpa/inet.h>
-#include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdbool.h>
@@ -30,13 +29,6 @@
 #include <time.h>
 
 #include <common.h>
-
-u8 *to_upper(u8 *s, u64 n)
-{
-    for (u64 i = 0; i < n; i++)
-        s[i] = (u8)toupper(s[i]);
-    return s;
-}
 
 // https://beej.us/guide/bgnet/html/split/slightly-advanced-techniques.html#poll
 const u8 *inet_ntop2(void *addr, u8 *buf, u64 size)

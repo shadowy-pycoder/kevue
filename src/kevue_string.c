@@ -25,15 +25,12 @@
 #include <string.h>
 
 #include <allocator.h>
+#include <buffer.h>
 #include <common.h>
+#include <dyna.h>
 #include <kevue_string.h>
 
-static inline bool is_space(u8 c);
-
-static inline bool is_space(u8 c)
-{
-    return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v');
-}
+#define MAX_U64 (u64)(-1)
 
 String kevue_string_create(const char *s)
 {
@@ -158,6 +155,97 @@ String kevue_string_to_title(String str)
         left++;
     }
     return out;
+}
+
+String kevue_string_from_buffer(Buffer buf)
+{
+    KevueAllocator *ma = kevue_allocator();
+    if (buf.size == 0) return (String) { 0 };
+    String str = (String) { 0 };
+    str.len = buf.size;
+    if (str.len == 0) {
+        return (String) { 0 };
+    }
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
+    if (str.data == NULL) {
+        return (String) { 0 };
+    }
+    memcpy(str.data, buf.ptr, str.len);
+    return str;
+}
+
+String kevue_string_join(StringList strs, StringView sep)
+{
+    if (strs.len == 0) {
+        return (String) { 0 };
+    }
+    if (strs.len == 1) {
+        return kevue_string_copy(strs.ptr[0]);
+    }
+    u64 n = 0;
+    if (sep.len > 0) {
+        if (sep.len >= MAX_U64 / (strs.len - 1)) {
+            return (String) { 0 };
+        }
+        n += sep.len * (strs.len - 1);
+    }
+
+    kevue_dyna_foreach(&strs, strp)
+    {
+        if (strp->len > MAX_U64 - n) {
+            return (String) { 0 };
+        }
+        n += strp->len;
+    }
+    Buffer buf = { 0 };
+    kevue_buffer_grow(&buf, n);
+    kevue_buffer_append(&buf, (const void *)strs.ptr[0].data, strs.ptr[0].len);
+    kevue_dyna_foreach_from_offset(&strs, strp, 1)
+    {
+        kevue_buffer_append(&buf, (const void *)sep.data, sep.len);
+        kevue_buffer_append(&buf, (const void *)strp->data, strp->len);
+    }
+    String          str = kevue_string_from_buffer(buf);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(buf.ptr, ma->ctx);
+    return str;
+}
+
+String kevue_string_view_join(StringViewList svs, StringView sep)
+{
+    if (svs.len == 0) {
+        return (String) { 0 };
+    }
+    if (svs.len == 1) {
+        return kevue_string_from_string_view(svs.ptr[0]);
+    }
+    u64 n = 0;
+    if (sep.len > 0) {
+        if (sep.len >= MAX_U64 / (svs.len - 1)) {
+            return (String) { 0 };
+        }
+        n += sep.len * (svs.len - 1);
+    }
+
+    kevue_dyna_foreach(&svs, svp)
+    {
+        if (svp->len > MAX_U64 - n) {
+            return (String) { 0 };
+        }
+        n += svp->len;
+    }
+    Buffer buf = { 0 };
+    kevue_buffer_grow(&buf, n);
+    kevue_buffer_append(&buf, (const void *)svs.ptr[0].data, svs.ptr[0].len);
+    kevue_dyna_foreach_from_offset(&svs, svp, 1)
+    {
+        kevue_buffer_append(&buf, (const void *)sep.data, sep.len);
+        kevue_buffer_append(&buf, (const void *)svp->data, svp->len);
+    }
+    String          str = kevue_string_from_buffer(buf);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(buf.ptr, ma->ctx);
+    return str;
 }
 
 u64 kevue__cstring_len(const char *s)

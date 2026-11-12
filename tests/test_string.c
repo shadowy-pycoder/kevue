@@ -19,7 +19,8 @@
 
 #include "../src/buffer.c"
 #include "../src/kevue_string.c"
-#include "allocator.h"
+#include "dyna.h"
+#include <allocator.h>
 #include <common.h>
 #include <kevue_string.h>
 
@@ -465,6 +466,71 @@ void test_string_to_title(void)
             kevue_string_destroy(&expected_str);
         }
     }
+    printf("%s PASSED\n", __func__);
+}
+
+void test_string_join(void)
+{
+    // empty
+    String     empty = { 0 };
+    StringView comma = StringViewFromLiteral(",");
+    StringList strs = { 0 };
+    kevue_dyna_append(&strs, empty);
+    String str = kevue_string_join(strs, comma);
+    assert(kevue_string_is_empty(str));
+    kevue_dyna_remove(&strs, 0);
+
+    // single element
+    String s1 = String("Hello");
+    kevue_dyna_append(&strs, s1);
+    str = kevue_string_join(strs, comma);
+    assert(memcmp(str.data, "Hello", str.len) == 0);
+    kevue_string_destroy(&str);
+    kevue_string_destroy(&s1);
+    for (i64 i = strs.len - 1; i >= 0; i--) {
+        kevue_dyna_remove(&strs, i);
+    }
+
+    // concat empty elems
+    String s2 = { 0 };
+    kevue_dyna_append(&strs, s2);
+    kevue_dyna_append(&strs, s2);
+    str = kevue_string_join(strs, comma);
+    assert(memcmp(str.data, ",", str.len) == 0);
+    kevue_string_destroy(&str);
+    for (i64 i = strs.len - 1; i >= 0; i--) {
+        kevue_dyna_remove(&strs, i);
+    }
+
+    // keep separator for empty parts
+    String s3 = { 0 };
+    String s4 = String("Hello");
+    kevue_dyna_append(&strs, s3);
+    kevue_dyna_append(&strs, s4);
+    kevue_dyna_append(&strs, s3);
+    str = kevue_string_join(strs, comma);
+    assert(memcmp(str.data, ",Hello,", str.len) == 0);
+    kevue_string_destroy(&str);
+    kevue_string_destroy(&s4);
+    for (i64 i = strs.len - 1; i >= 0; i--) {
+        kevue_dyna_remove(&strs, i);
+    }
+    // normal concat
+    String s5 = String("Hello");
+    String s6 = String("World");
+    kevue_dyna_append(&strs, s5);
+    kevue_dyna_append(&strs, s6);
+    str = kevue_string_join(strs, comma);
+    assert(memcmp(str.data, "Hello,World", str.len) == 0);
+    kevue_string_destroy(&str);
+    kevue_string_destroy(&s5);
+    kevue_string_destroy(&s6);
+    for (i64 i = strs.len - 1; i >= 0; i--) {
+        kevue_dyna_remove(&strs, i);
+    }
+
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(strs.ptr, ma->ctx);
     printf("%s PASSED\n", __func__);
 }
 
@@ -1468,6 +1534,7 @@ void run_tests()
     test_string_to_lower();
     test_string_to_upper();
     test_string_to_title();
+    test_string_join();
     test_string_view_from_string();
     test_string_view_from_cstring();
     test_string_view_from_buffer();

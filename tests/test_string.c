@@ -1181,6 +1181,131 @@ void test_string_view_index(void)
     printf("%s PASSED\n", __func__);
 }
 
+void test_string_view_index_from_offset(void)
+{
+    const char *input[] = {
+        "",
+        "",
+        "",
+        "",
+        "",
+        "a",
+        "abc",
+        "",
+        "abc",
+        "",
+        "abc",
+        "",
+        "abc",
+        "",
+        "abc",
+        "a",
+        "abc",
+        "a",
+        "abc",
+        "b",
+        "abc",
+        "b",
+        "abc",
+        "c",
+        "abc",
+        "c",
+        "abcabc",
+        "abc",
+        "abcabc",
+        "abc",
+        "abcabc",
+        "abc",
+        "abcabc",
+        "abc",
+        "aaaa",
+        "aa",
+        "aaaa",
+        "aa",
+        "aaaa",
+        "aa",
+        "ababab",
+        "bab",
+        "Hello, World",
+        "o",
+        "Hello, World",
+        "hello",
+        "abc",
+        "abc",
+        "abc",
+        "a",
+        "tab\ta\tb",
+        "\t",
+        "abc",
+        "bcd",
+    };
+    const u64 input_indexes[] = {
+        0,
+        1,
+        0,
+        0,
+        2,
+        3,
+        4,
+        0,
+        1,
+        1,
+        2,
+        2,
+        3,
+        0,
+        1,
+        3,
+        4,
+        1,
+        2,
+        3,
+        2,
+        5,
+        0,
+        1,
+        100,
+        4,
+        1,
+    };
+    const i64 expected[] = {
+        0,
+        -1,
+        -1,
+        0,
+        2,
+        3,
+        -1,
+        0,
+        -1,
+        1,
+        -1,
+        2,
+        -1,
+        0,
+        3,
+        3,
+        -1,
+        1,
+        2,
+        -1,
+        3,
+        8,
+        -1,
+        -1,
+        -1,
+        5,
+        -1,
+    };
+
+    for (int i = 0, j = 0; i + 1 < sizeof(input) / sizeof(input[0]); i += 2, j++) {
+        StringView sv1 = kevue_string_view_from_cstring(input[i]);
+        StringView sv2 = kevue_string_view_from_cstring(input[i + 1]);
+        assert(kevue_string_view_index_from_offset(sv1, input_indexes[j], sv2) == expected[j]);
+    }
+    printf("%s PASSED\n", __func__);
+}
+
 void test_string_view_last_index(void)
 {
     const char *input[] = {
@@ -1522,6 +1647,150 @@ void test_string_view_trim_cutset(void)
     printf("%s PASSED\n", __func__);
 }
 
+void test_string_view_split(void)
+{
+    const char *input[] = {
+        "",
+        "",
+        "",
+        ",",
+        "a",
+        "",
+        "abc",
+        "",
+        "abc",
+        ",",
+        "a,b,c",
+        ",",
+        "a,b,",
+        ",",
+        ",a,b",
+        ",",
+        ",",
+        ",",
+        "a,,b",
+        ",",
+        "a--b--c",
+        "--",
+        "a-b--c",
+        "--",
+        "aaa",
+        "aa",
+        "aaaa",
+        "aa",
+        "abc",
+        "abc",
+        "abc",
+        "abcd",
+        "Hello, World",
+        ", ",
+        "a b  c",
+        " ",
+        "line1\r\nline2\r\n",
+        "\r\n",
+        "aAa",
+        "a",
+        "Hello",
+        "l",
+    };
+
+    const int expected_lens[] = {
+        0,
+        1,
+        1,
+        3,
+        1,
+        3,
+        3,
+        3,
+        2,
+        3,
+        3,
+        2,
+        2,
+        3,
+        2,
+        1,
+        2,
+        4,
+        3,
+        3,
+        3,
+    };
+
+    const char *expected[] = {
+        "",
+        "a",
+        "a",
+        "b",
+        "c",
+        "abc",
+        "a",
+        "b",
+        "c",
+        "a",
+        "b",
+        "",
+        "",
+        "a",
+        "b",
+        "",
+        "",
+        "a",
+        "",
+        "b",
+        "a",
+        "b",
+        "c",
+        "a-b",
+        "c",
+        "",
+        "a",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "abc",
+        "Hello",
+        "World",
+        "a",
+        "b",
+        "",
+        "c",
+        "line1",
+        "line2",
+        "",
+        "",
+        "A",
+        "",
+        "He",
+        "",
+        "o",
+    };
+    KevueAllocator *ma = kevue_allocator();
+
+    int offset = 0;
+    for (int i = 0, j = 0; i + 1 < sizeof(input) / sizeof(input[0]); i += 2, j++) {
+        StringView     sv1 = kevue_string_view_from_cstring(input[i]);
+        StringView     sv2 = kevue_string_view_from_cstring(input[i + 1]);
+        StringViewList svs = kevue_string_view_split(sv1, sv2);
+        assert(svs.len == expected_lens[j]);
+        int k = 0;
+        kevue_dyna_foreach(&svs, it)
+        {
+            assert(memcmp(it->data, expected[offset + k], it->len) == 0);
+            k++;
+        }
+        offset += expected_lens[j];
+        String str = kevue_string_view_join(svs, sv2);
+        assert(kevue_string_view_compare(kevue_string_view_from_string(str), sv1));
+        kevue_string_destroy(&str);
+        ma->free(svs.ptr, ma->ctx);
+    }
+    printf("%s PASSED\n", __func__);
+}
+
 void run_tests()
 {
     test_string_create();
@@ -1545,10 +1814,12 @@ void run_tests()
     test_string_view_trim_suffix();
     test_string_view_trim_prefix();
     test_string_view_index();
+    test_string_view_index_from_offset();
     test_string_view_last_index();
     test_string_view_count();
     test_string_view_trim_space();
     test_string_view_trim_cutset();
+    test_string_view_split();
 }
 
 int main()

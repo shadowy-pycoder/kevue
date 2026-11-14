@@ -332,7 +332,25 @@ i64 kevue_string_view_index(StringView sv, StringView substr)
     while (true) {
         cur = (u8 *)memchr(cur, substr.data[0], sv_end - cur);
         if (cur == NULL || (u64)(sv_end - cur) < substr.len) return -1;
-        if ((memcmp(cur, substr.data, substr.len)) == 0) {
+        if (substr.len == 1 || (memcmp(cur, substr.data, substr.len)) == 0) {
+            return (i64)(cur - sv.data);
+        }
+        cur++;
+    }
+    return -1;
+}
+
+i64 kevue_string_view_index_from_offset(StringView sv, u64 offset, StringView substr)
+{
+    if (sv.data == NULL || substr.data == NULL) return -1;
+    if (offset > sv.len || sv.len - offset < substr.len) return -1;
+    if (substr.len == 0) return (i64)offset;
+    u8 *cur = sv.data + offset;
+    u8 *sv_end = sv.data + sv.len;
+    while (true) {
+        cur = (u8 *)memchr(cur, substr.data[0], sv_end - cur);
+        if (cur == NULL || (u64)(sv_end - cur) < substr.len) return -1;
+        if (substr.len == 1 || (memcmp(cur, substr.data, substr.len)) == 0) {
             return (i64)(cur - sv.data);
         }
         cur++;
@@ -351,7 +369,7 @@ i64 kevue_string_view_last_index(StringView sv, StringView substr)
     while (true) {
         cur = (u8 *)memchr(cur, substr.data[0], sv_end - cur);
         if (cur == NULL || (u64)(sv_end - cur) < substr.len) return last_index;
-        if ((memcmp(cur, substr.data, substr.len)) == 0) {
+        if (substr.len == 1 || (memcmp(cur, substr.data, substr.len)) == 0) {
             last_index = (i64)(cur - sv.data);
         }
         cur++;
@@ -370,7 +388,7 @@ i64 kevue_string_view_count(StringView sv, StringView substr)
     while (true) {
         cur = (u8 *)memchr(cur, substr.data[0], sv_end - cur);
         if (cur == NULL || (u64)(sv_end - cur) < substr.len) return count;
-        if ((memcmp(cur, substr.data, substr.len)) == 0) {
+        if (substr.len == 1 || (memcmp(cur, substr.data, substr.len)) == 0) {
             count++;
             cur += substr.len;
         } else {
@@ -427,4 +445,39 @@ StringView kevue_string_view_trim_right(StringView sv, StringView cutset)
 StringView kevue_string_view_trim(StringView sv, StringView cutset)
 {
     return kevue_string_view_trim_right(kevue_string_view_trim_left(sv, cutset), cutset);
+}
+
+bool kevue_string_view_is_empty(StringView sv)
+{
+    return sv.data == NULL || sv.len == 0;
+}
+
+StringViewList kevue_string_view_split(StringView sv, StringView sep)
+{
+    StringViewList svs = { 0 };
+    if (kevue_string_view_is_empty(sv) && kevue_string_view_is_empty(sep)) return svs;
+    if (!(kevue_string_view_contains(sv, sep) || kevue_string_view_is_empty(sep))) {
+        kevue_dyna_grow(&svs, 2);
+        kevue_dyna_append(&svs, sv);
+        return svs;
+    }
+    if (kevue_string_view_is_empty(sep)) {
+        kevue_dyna_grow(&svs, sv.len + 1);
+        for (u64 i = 0; i < sv.len; i++) {
+            kevue_dyna_append(&svs, ((StringView) { .data = &sv.data[i], .len = 1 }));
+        }
+        return svs;
+    }
+    i64 next = -1;
+    u64 prev = 0;
+    while (true) {
+        next = kevue_string_view_index_from_offset(sv, prev, sep);
+        if (next == -1) {
+            kevue_dyna_append(&svs, ((StringView) { .data = sv.data + prev, .len = sv.len - prev }));
+            break;
+        }
+        kevue_dyna_append(&svs, ((StringView) { .data = sv.data + prev, .len = (u64)next - prev }));
+        prev = (u64)next + sep.len;
+    }
+    return svs;
 }

@@ -342,6 +342,19 @@ StringView kevue_string_view_trim_prefix(StringView sv, StringView prefix);
 i64 kevue_string_view_index(StringView sv, StringView substr);
 
 /**
+ * @brief Finds the first occurrence of a substring in a view starting from byte offset.
+ *
+ * An empty substring matches at index equal to byte offset.
+ *
+ * @param sv      View to search in.
+ * @param offset  Byte offset to start from.
+ * @param substr  Substring to look for.
+ *
+ * @return Byte offset of the first match, or -1 if not found.
+ */
+i64 kevue_string_view_index_from_offset(StringView sv, u64 offset, StringView substr);
+
+/**
  * @brief Finds the last occurrence of a substring in a view.
  *
  * Overlapping matches are considered. An empty substring matches at the
@@ -450,6 +463,25 @@ StringView kevue_string_view_trim_right(StringView sv, StringView cutset);
  * @return View without the leading and trailing cutset bytes.
  */
 StringView kevue_string_view_trim(StringView sv, StringView cutset);
+
+/**
+ * @brief Checks whether a given string view is empty.
+ *
+ * @param str  String view to check.
+ *
+ * @return true if the string view is empty, false otherwise.
+ */
+bool kevue_string_view_is_empty(StringView sv);
+
+/**
+ * @brief Splits a string view into subviews separated by sep.
+ *
+ * @param sv   String view to split.
+ * @param sep  Separator, may be empty.
+ *
+ * @return List of subviews, or an empty list on failure.
+ */
+StringViewList kevue_string_view_split(StringView sv, StringView sep);
 
 // Index of substring
 // HasSuffix

@@ -528,9 +528,7 @@ void test_string_join(void)
     for (i64 i = strs.len - 1; i >= 0; i--) {
         kevue_dyna_remove(&strs, i);
     }
-
-    KevueAllocator *ma = kevue_allocator();
-    ma->free(strs.ptr, ma->ctx);
+    kevue_dyna_deinit(&strs);
     printf("%s PASSED\n", __func__);
 }
 
@@ -1768,8 +1766,6 @@ void test_string_view_split(void)
         "",
         "o",
     };
-    KevueAllocator *ma = kevue_allocator();
-
     int offset = 0;
     for (int i = 0, j = 0; i + 1 < sizeof(input) / sizeof(input[0]); i += 2, j++) {
         StringView     sv1 = kevue_string_view_from_cstring(input[i]);
@@ -1786,7 +1782,7 @@ void test_string_view_split(void)
         String str = kevue_string_view_join(svs, sv2);
         assert(kevue_string_view_compare(kevue_string_view_from_string(str), sv1));
         kevue_string_destroy(&str);
-        ma->free(svs.ptr, ma->ctx);
+        kevue_dyna_deinit(&svs);
     }
     printf("%s PASSED\n", __func__);
 }

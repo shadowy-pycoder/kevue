@@ -457,17 +457,19 @@ StringViewList kevue_string_view_split(StringView sv, StringView sep)
     StringViewList svs = { 0 };
     if (kevue_string_view_is_empty(sv) && kevue_string_view_is_empty(sep)) return svs;
     if (!(kevue_string_view_contains(sv, sep) || kevue_string_view_is_empty(sep))) {
-        kevue_dyna_grow(&svs, 2);
+        kevue_dyna_grow(&svs, 1);
         kevue_dyna_append(&svs, sv);
         return svs;
     }
     if (kevue_string_view_is_empty(sep)) {
-        kevue_dyna_grow(&svs, sv.len + 1);
+        kevue_dyna_grow(&svs, sv.len);
         for (u64 i = 0; i < sv.len; i++) {
             kevue_dyna_append(&svs, ((StringView) { .data = &sv.data[i], .len = 1 }));
         }
         return svs;
     }
+    u64 n = (u64)kevue_string_view_count(sv, sep) + 1;
+    kevue_dyna_grow(&svs, n);
     i64 next = -1;
     u64 prev = 0;
     while (true) {

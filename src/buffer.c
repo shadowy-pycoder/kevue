@@ -61,7 +61,10 @@ void kevue_buffer_grow(Buffer *buf, u64 n)
     if (buf == NULL) return;
     if (n == 0 || buf->capacity >= n) return;
     KevueAllocator *ma = kevue_allocator();
-    buf->ptr = (u8 *)ma->realloc(buf->ptr, n * sizeof(*buf->ptr), ma->ctx);
+
+    u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, n * sizeof(*buf->ptr), ma->ctx);
+    if (new_ptr == NULL) return;
+    buf->ptr = new_ptr;
     buf->capacity = n;
 }
 
@@ -75,7 +78,10 @@ u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n)
     }
     if (buf->ptr == NULL || buf->capacity > initial_capacity) {
         KevueAllocator *ma = kevue_allocator();
-        buf->ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
@@ -98,7 +104,10 @@ u64 kevue_buffer_appendf(Buffer *buf, const char *fmt, ...)
     }
     if (buf->ptr == NULL || buf->capacity > initial_capacity) {
         KevueAllocator *ma = kevue_allocator();
-        buf->ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     va_start(ap, fmt);
     n = vsnprintf((char *)buf->ptr + buf->size, (size_t)(len + 1), fmt, ap);
@@ -120,7 +129,10 @@ u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n)
     }
     if (buf->ptr == NULL || buf->capacity > initial_capacity) {
         KevueAllocator *ma = kevue_allocator();
-        buf->ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));
     buf->size = n;
@@ -143,7 +155,10 @@ u64 kevue_buffer_writef(Buffer *buf, const char *fmt, ...)
     }
     if (buf->ptr == NULL || buf->capacity > initial_capacity) {
         KevueAllocator *ma = kevue_allocator();
-        buf->ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     va_start(ap, fmt);
     n = vsnprintf((char *)buf->ptr, (size_t)(len + 1), fmt, ap);

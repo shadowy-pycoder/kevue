@@ -49,8 +49,8 @@ else
 endif
 
 ifeq ($(ASAN),1)
-  CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
-  LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  CFLAGS += -fsanitize=address,undefined,alignment -fsanitize=bounds -fno-omit-frame-pointer
+  LDFLAGS += -fsanitize=address,undefined,alignment -fsanitize=bounds -fno-omit-frame-pointer
   USE_TCMALLOC := 0
   USE_JEMALLOC := 0
 endif
@@ -157,9 +157,9 @@ $(BIN)/kevue-test-fill-server: | $(BIN)
 
 tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
-	$(CC) -g3 -fsanitize=address,undefined -fsanitize=bounds -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
-	$(CC) -g3 -fsanitize=address,undefined -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_string.c -o $(BIN)/kevue-test-string -DDEBUG
-	$(CC) -g3 -fsanitize=address,undefined -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_get_request.c -o $(BIN)/kevue-test-get-request -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_string.c -o $(BIN)/kevue-test-string -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_get_request.c -o $(BIN)/kevue-test-get-request -DDEBUG
 
 
 $(BIN)/kevue-bench-server: | $(BIN)

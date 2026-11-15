@@ -483,12 +483,4 @@ bool kevue_string_view_is_empty(StringView sv);
  */
 StringViewList kevue_string_view_split(StringView sv, StringView sep);
 
-// Index of substring
-// HasSuffix
-// HasPrefix
-// Contains subsr
-// Join by sep
-// Split
-// Trim dor cutset
-// TrimPrefix TrimSuffix for literal match
-// utf-8 support
+// TODO: utf-8 support

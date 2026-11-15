@@ -18,10 +18,8 @@
  * @brief kevue client CLI example.
  */
 
-#include <ctype.h>
 #include <errno.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,8 +31,10 @@
 #include <flag.h>
 #include <linenoise.h>
 
+#include <buffer.h>
 #include <client.h>
 #include <common.h>
+#include <kevue_string.h>
 
 #define PING_INTERVAL_SECONDS 15
 #define PROMPT_LENGTH         256
@@ -45,10 +45,9 @@
 #endif
 
 typedef struct KevueClientParseResult {
-    KevueCommand    cmd;
-    Buffer         *key;
-    Buffer         *value;
-    KevueAllocator *ma;
+    KevueCommand cmd;
+    Buffer      *key;
+    Buffer      *value;
 } KevueClientParseResult;
 
 static void kevue__usage(FILE *stream);
@@ -99,7 +98,7 @@ static bool kevue__parse_chunk(Buffer *buf, Buffer *out)
 
 static void kevue__trim_left(Buffer *buf)
 {
-    while (isspace((unsigned char)kevue_buffer_peek_byte(buf))) kevue_buffer_read_advance(buf);
+    while (is_space((u8)kevue_buffer_peek_byte(buf))) kevue_buffer_read_advance(buf);
 }
 
 static void kevue__completion(const char *buf, linenoiseCompletions *lc)
@@ -172,12 +171,11 @@ static char *kevue__hints(const char *buf, int *color, int *bold)
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
     // TODO: improve command dispatching
-    KevueAllocator         *ma = buf->ma;
+    KevueAllocator         *ma = kevue_allocator();
     KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
-    pr->ma = ma;
-    pr->key = kevue_buffer_create(BUF_SIZE, pr->ma);
+    pr->key = kevue_buffer_create(BUF_SIZE);
     if (pr->key == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
@@ -194,13 +192,13 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    switch ((uint8_t)pr->key->size) {
+    switch ((u8)pr->key->size) {
     case 3:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, GET)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, GET)) {
             pr->cmd = GET;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, SET)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, SET)) {
             pr->cmd = SET;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, DEL)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, DEL)) {
             pr->cmd = DEL;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -209,9 +207,9 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 4:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, PING)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, PING)) {
             pr->cmd = PING;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, KEYS)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, KEYS)) {
             pr->cmd = KEYS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -220,9 +218,9 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 5:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, COUNT)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, COUNT)) {
             pr->cmd = COUNT;
-        } else if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, ITEMS)) {
+        } else if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, ITEMS)) {
             pr->cmd = ITEMS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -231,7 +229,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         }
         break;
     case 6:
-        if (kevue_command_compare((char *)pr->key->ptr, (uint8_t)pr->key->size, VALUES)) {
+        if (kevue_command_compare(pr->key->ptr, (u8)pr->key->size, VALUES)) {
             pr->cmd = VALUES;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
@@ -244,7 +242,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
         kevue__client_parse_result_destroy(pr);
         return NULL;
     }
-    size_t offset = buf->offset;
+    u64 offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
@@ -290,7 +288,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             return NULL;
         }
     }
-    pr->value = kevue_buffer_create(BUF_SIZE, pr->ma);
+    pr->value = kevue_buffer_create(BUF_SIZE);
     if (pr->value == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
         kevue__client_parse_result_destroy(pr);
@@ -315,7 +313,8 @@ static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
 {
     kevue_buffer_destroy(pr->key);
     kevue_buffer_destroy(pr->value);
-    pr->ma->free(pr, pr->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(pr, ma->ctx);
 }
 
 int main(int argc, char **argv)
@@ -323,11 +322,11 @@ int main(int argc, char **argv)
     KevueClientConfig conf = { 0 };
 
     bool *help = flag_bool("help", false, "Print this help message and exit");
-    flag_str_var(&conf.host, "host", KEVUE_HOST, "Server host");
-    flag_str_var(&conf.port, "port", KEVUE_PORT, "Server port");
-    flag_str_var(&conf.unix_path, "unix", "", "UNIX socket path");
-    uint64_t *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
-    uint64_t *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
+    flag_str_var((char **)&conf.host, "host", KEVUE_HOST, "Server host");
+    flag_str_var((char **)&conf.port, "port", KEVUE_PORT, "Server port");
+    flag_str_var((char **)&conf.unix_path, "unix", "", "UNIX socket path");
+    u64 *read_timeout = flag_uint64("read_timeout", READ_TIMEOUT, "Read timeout");
+    u64 *write_timeout = flag_uint64("write_timeout", WRITE_TIMEOUT, "Write timeout");
     if (!flag_parse(argc, argv)) {
         kevue__usage(stderr);
         flag_print_error(stderr);
@@ -345,7 +344,8 @@ int main(int argc, char **argv)
     conf.write_timeout = *(int *)write_timeout;
     KevueClient *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(*resp), conf.ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
     memset(resp, 0, sizeof(*resp));
     if (!kevue_client_hello(kc, resp)) {
         print_err(generate_timestamp(), "%s", kevue_error_code_to_string[resp->err_code]);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
     int                epfd = epoll_create1(0);
     if (epfd < 0) {
         print_err(generate_timestamp(), "Creating epoll file descriptor failed %s", strerror(errno));
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -369,7 +369,7 @@ int main(int argc, char **argv)
     if (tfd < 0) {
         print_err(generate_timestamp(), "Creating timer socket failed: %s", strerror(errno));
         close(epfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -380,7 +380,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Setting timer failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -391,7 +391,7 @@ int main(int argc, char **argv)
         print_err(generate_timestamp(), "Adding timer socket to epoll failed: %s", strerror(errno));
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -414,12 +414,12 @@ int main(int argc, char **argv)
         n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
     }
     prompt[n] = '\0';
-    Buffer *cmdline = kevue_buffer_create(BUF_SIZE, conf.ma);
+    Buffer *cmdline = kevue_buffer_create(BUF_SIZE);
     if (cmdline == NULL) {
         print_err(generate_timestamp(), "Creating buffer for command line failed");
         close(epfd);
         close(tfd);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -460,8 +460,8 @@ int main(int argc, char **argv)
                         linenoiseHide(&ls);
                         goto client_close_fail;
                     }
-                    uint64_t exp;
-                    ssize_t  res = read(tfd, &exp, sizeof(exp));
+                    u64 exp;
+                    i64 res = read(tfd, &exp, sizeof(exp));
                     UNUSED(res);
                     continue;
                 }
@@ -510,7 +510,7 @@ int main(int argc, char **argv)
         linenoiseHide(&ls);
         switch (pr->cmd) {
         case GET:
-            if (kevue_client_get(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_get(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
             } else {
@@ -523,7 +523,7 @@ int main(int argc, char **argv)
             }
             break;
         case SET:
-            if (kevue_client_set(kc, resp, pr->key->ptr, (uint16_t)pr->key->size, pr->value->ptr, (uint16_t)pr->value->size)) {
+            if (kevue_client_set(kc, resp, pr->key->ptr, (u16)pr->key->size, pr->value->ptr, (u16)pr->value->size)) {
                 fprintf(stdout, "(ok)\n");
             } else {
                 fprintf(stdout, "(error): %s\n", kevue_error_code_to_string[resp->err_code]);
@@ -531,7 +531,7 @@ int main(int argc, char **argv)
             }
             break;
         case DEL:
-            if (kevue_client_del(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_del(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fprintf(stdout, "(ok)\n");
             } else {
                 if (resp->err_code == KEVUE_ERR_NOT_FOUND) {
@@ -543,7 +543,7 @@ int main(int argc, char **argv)
             }
             break;
         case PING:
-            if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (uint16_t)pr->key->size)) {
+            if (kevue_client_ping_with_message(kc, resp, pr->key->ptr, (u16)pr->key->size)) {
                 fwrite(resp->val->ptr, sizeof(*resp->val->ptr), resp->val_len, stdout);
                 fwrite("\n", 1, 1, stdout);
             } else {
@@ -553,7 +553,7 @@ int main(int argc, char **argv)
             break;
         case COUNT:
             if (kevue_client_count(kc, resp)) {
-                uint64_t count;
+                u64 count;
                 memcpy(&count, resp->val->ptr, sizeof(count));
                 fprintf(stdout, "%lu\n", count);
             } else {
@@ -566,10 +566,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
@@ -598,10 +598,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
@@ -623,10 +623,10 @@ int main(int argc, char **argv)
                 if (resp->val_len == 0) {
                     fprintf(stdout, "(empty)\n");
                 } else {
-                    uint64_t v;
-                    size_t   size_v = sizeof(v);
-                    size_t   count = 0;
-                    char     c[64];
+                    u64  v;
+                    u64  size_v = sizeof(v);
+                    u64  count = 0;
+                    char c[64];
                     while (resp->val->offset + size_v < resp->val_len) {
                         memcpy(&v, resp->val->ptr + resp->val->offset, size_v);
                         resp->val->offset += size_v;
@@ -662,7 +662,7 @@ client_close:
     close(tfd);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
     return 0;
 client_close_fail:
@@ -670,7 +670,7 @@ client_close_fail:
     close(tfd);
     kevue_buffer_destroy(cmdline);
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
     exit(EXIT_FAILURE);
 }

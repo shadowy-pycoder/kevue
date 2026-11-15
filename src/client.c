@@ -22,8 +22,8 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -33,30 +33,20 @@
 #include <common.h>
 #include <protocol.h>
 
-#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
-#error "You can define only one memory allocator at a time"
-#endif
-#if defined(USE_TCMALLOC)
-#include <tcmalloc_allocator.h>
-#elif defined(USE_JEMALLOC)
-#include <jemalloc_allocator.h>
-#endif
-
-static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout);
-static int kevue__create_client_unix_sock(char *path, int read_timeout, int write_timeout);
+static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout);
+static int kevue__create_client_unix_sock(u8 *path, int read_timeout, int write_timeout);
 static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueResponse *resp);
-static bool kevue__handle_read_exactly(KevueClient *kc, size_t n);
+static bool kevue__handle_read_exactly(KevueClient *kc, u64 n);
 static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 
 struct KevueClient {
-    int             fd;
-    Buffer         *rbuf;
-    Buffer         *wbuf;
-    KevueAllocator *ma;
+    int     fd;
+    Buffer *rbuf;
+    Buffer *wbuf;
 };
 
-static int kevue__create_client_sock(const char *host, const char *port, int read_timeout, int write_timeout)
+static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout)
 {
     int             client_sock;
     struct addrinfo hints, *servinfo, *p;
@@ -66,7 +56,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(host, port, &hints, &servinfo)) < 0) {
+    if ((rv = getaddrinfo((const char *)host, (const char *)port, &hints, &servinfo)) < 0) {
         print_err(generate_timestamp(), "getaddrinfo failed: %s", gai_strerror(rv));
         return -1;
     }
@@ -76,7 +66,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             continue;
         }
         int enable = 1;
-        if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&enable, sizeof(enable)) < 0) {
+        if (setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (const u8 *)&enable, sizeof(enable)) < 0) {
             print_err(generate_timestamp(), "Setting TCP_NODELAY option for client failed: %s", strerror(errno));
             close(client_sock);
             freeaddrinfo(servinfo);
@@ -86,7 +76,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             struct timeval tv;
             tv.tv_sec = read_timeout;
             tv.tv_usec = 0;
-            if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+            if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const u8 *)&tv, sizeof(tv)) < 0) {
                 print_err(generate_timestamp(), "Setting SO_RCVTIMEO option for client failed: %s", strerror(errno));
                 close(client_sock);
                 freeaddrinfo(servinfo);
@@ -97,7 +87,7 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
             struct timeval tv;
             tv.tv_sec = write_timeout;
             tv.tv_usec = 0;
-            if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+            if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const u8 *)&tv, sizeof(tv)) < 0) {
                 print_err(generate_timestamp(), "Setting SO_SNDTIMEO option for client failed: %s", strerror(errno));
                 close(client_sock);
                 freeaddrinfo(servinfo);
@@ -127,12 +117,12 @@ static int kevue__create_client_sock(const char *host, const char *port, int rea
     return client_sock;
 }
 
-static int kevue__create_client_unix_sock(char *path, int read_timeout, int write_timeout)
+static int kevue__create_client_unix_sock(u8 *path, int read_timeout, int write_timeout)
 {
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, (const char *)path, sizeof(addr.sun_path) - 1);
 
     int client_sock;
     if ((client_sock = socket(addr.sun_family, SOCK_STREAM, 0)) < 0) {
@@ -143,7 +133,7 @@ static int kevue__create_client_unix_sock(char *path, int read_timeout, int writ
         struct timeval tv;
         tv.tv_sec = read_timeout;
         tv.tv_usec = 0;
-        if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+        if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const u8 *)&tv, sizeof(tv)) < 0) {
             print_err(generate_timestamp(), "Setting SO_RCVTIMEO option for client failed: %s", strerror(errno));
             close(client_sock);
             return -1;
@@ -153,7 +143,7 @@ static int kevue__create_client_unix_sock(char *path, int read_timeout, int writ
         struct timeval tv;
         tv.tv_sec = write_timeout;
         tv.tv_usec = 0;
-        if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+        if (setsockopt(client_sock, SOL_SOCKET, SO_SNDTIMEO, (const u8 *)&tv, sizeof(tv)) < 0) {
             print_err(generate_timestamp(), "Setting SO_SNDTIMEO option for client failed: %s", strerror(errno));
             return -1;
         }
@@ -167,11 +157,11 @@ static int kevue__create_client_unix_sock(char *path, int read_timeout, int writ
     return client_sock;
 }
 
-static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
+static bool kevue__handle_read_exactly(KevueClient *kc, u64 n)
 {
     kevue_buffer_grow(kc->rbuf, n);
     while (kc->rbuf->size < n) {
-        ssize_t nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, n - kc->rbuf->size);
+        i64 nr = read(kc->fd, kc->rbuf->ptr + kc->rbuf->size, n - kc->rbuf->size);
         if (nr < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return false;
@@ -181,7 +171,7 @@ static bool kevue__handle_read_exactly(KevueClient *kc, size_t n)
         } else if (nr == 0) {
             return false;
         } else {
-            kc->rbuf->size += (size_t)nr;
+            kc->rbuf->size += (u64)nr;
         }
     }
     return true;
@@ -192,13 +182,13 @@ static bool kevue__handle_read(KevueClient *kc)
     while (true) {
         if (kc->rbuf->size >= kc->rbuf->capacity)
             kevue_buffer_grow(kc->rbuf, kc->rbuf->capacity * 2);
-        ssize_t nr = read(
+        i64 nr = read(
             kc->fd,
             kc->rbuf->ptr + kc->rbuf->size,
             kc->rbuf->capacity - kc->rbuf->size);
 
         if (nr > 0) {
-            kc->rbuf->size += (size_t)nr;
+            kc->rbuf->size += (u64)nr;
             return true;
         }
 
@@ -216,7 +206,7 @@ static bool kevue__handle_read(KevueClient *kc)
 static bool kevue__handle_write(KevueClient *kc)
 {
     while (kc->wbuf->offset < kc->wbuf->size) {
-        ssize_t nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
+        i64 nw = write(kc->fd, kc->wbuf->ptr + kc->wbuf->offset, kc->wbuf->size - kc->wbuf->offset);
         if (nw < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return false;
@@ -226,7 +216,7 @@ static bool kevue__handle_write(KevueClient *kc)
         } else if (nw == 0) {
             continue;
         } else {
-            kc->wbuf->offset += (size_t)nw;
+            kc->wbuf->offset += (u64)nw;
         }
     }
     kevue_buffer_reset(kc->wbuf);
@@ -249,6 +239,8 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         shutdown(kc->fd, SHUT_WR);
         return false;
     }
+    kevue_buffer_reset(resp->val);
+    resp->val_len = 0;
     while (true) {
         if (!kevue__handle_read(kc)) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -264,6 +256,9 @@ static bool kevue__make_request(KevueClient *kc, KevueRequest *req, KevueRespons
         if (err == KEVUE_ERR_INCOMPLETE_READ) {
             continue;
         }
+#ifdef TRACE
+        kevue_response_print(resp);
+#endif
         kevue_buffer_reset(kc->rbuf);
         if (err != KEVUE_ERR_OK) {
             resp->err_code = err;
@@ -286,7 +281,7 @@ bool kevue_client_hello(KevueClient *kc, KevueResponse *resp)
     return true;
 }
 
-bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
+bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len)
 {
     KevueRequest req = { 0 };
     KevueCommand cmd = GET;
@@ -297,7 +292,7 @@ bool kevue_client_get(KevueClient *kc, KevueResponse *resp, const void *key, uin
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len, const void *val, uint16_t val_len)
+bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len, const void *val, u16 val_len)
 {
     KevueRequest req = { 0 };
     KevueCommand cmd = SET;
@@ -310,7 +305,7 @@ bool kevue_client_set(KevueClient *kc, KevueResponse *resp, const void *key, uin
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uint16_t key_len)
+bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, u16 key_len)
 {
     KevueRequest req = { 0 };
     KevueCommand cmd = DEL;
@@ -321,7 +316,7 @@ bool kevue_client_del(KevueClient *kc, KevueResponse *resp, const void *key, uin
     return kevue__make_request(kc, &req, resp);
 }
 
-bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, uint16_t message_len)
+bool kevue_client_ping_with_message(KevueClient *kc, KevueResponse *resp, const void *message, u16 message_len)
 {
     KevueRequest req = { 0 };
     KevueCommand cmd = PING;
@@ -375,19 +370,10 @@ bool kevue_client_values(KevueClient *kc, KevueResponse *resp)
 
 KevueClient *kevue_client_create(KevueClientConfig *conf)
 {
-    if (conf->host == NULL || conf->host[0] == '\0') conf->host = KEVUE_HOST;
-    if (conf->port == NULL || conf->port[0] == '\0') conf->port = KEVUE_PORT;
+    if (conf->host == NULL || conf->host[0] == '\0') conf->host = (u8 *)KEVUE_HOST;
+    if (conf->port == NULL || conf->port[0] == '\0') conf->port = (u8 *)KEVUE_PORT;
     if (conf->read_timeout == 0) conf->read_timeout = READ_TIMEOUT;
     if (conf->write_timeout == 0) conf->write_timeout = WRITE_TIMEOUT;
-    if (conf->ma == NULL) {
-        KevueAllocator *ma = &kevue_default_allocator;
-#if defined(USE_TCMALLOC)
-        ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-        ma = &kevue_jemalloc_allocator;
-#endif
-        conf->ma = ma;
-    }
     if (!is_valid_ip(conf->host)) {
         print_err(generate_timestamp(), "Server host is not a valid IP address");
         return NULL;
@@ -396,28 +382,28 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
         print_err(generate_timestamp(), "Server port is not valid number");
         return NULL;
     }
-    KevueClient *kc = (KevueClient *)conf->ma->malloc(sizeof(*kc), conf->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueClient    *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
     if (kc == NULL) return NULL;
-    kc->ma = conf->ma;
     if (conf->unix_path != NULL && conf->unix_path[0] != '\0') {
         kc->fd = kevue__create_client_unix_sock(conf->unix_path, conf->read_timeout, conf->write_timeout);
         if (kc->fd < 0) {
-            kc->ma->free(kc, kc->ma->ctx);
+            ma->free(kc, ma->ctx);
             return NULL;
         }
     } else {
         kc->fd = kevue__create_client_sock(conf->host, conf->port, conf->read_timeout, conf->write_timeout);
         if (kc->fd < 0) {
-            kc->ma->free(kc, kc->ma->ctx);
+            ma->free(kc, ma->ctx);
             return NULL;
         }
     }
-    kc->rbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    kc->rbuf = kevue_buffer_create(BUF_SIZE);
     if (kc->rbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
     }
-    kc->wbuf = kevue_buffer_create(BUF_SIZE, kc->ma);
+    kc->wbuf = kevue_buffer_create(BUF_SIZE);
     if (kc->wbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
@@ -431,5 +417,6 @@ void kevue_client_destroy(KevueClient *kc)
     close(kc->fd);
     kevue_buffer_destroy(kc->rbuf);
     kevue_buffer_destroy(kc->wbuf);
-    kc->ma->free(kc, kc->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(kc, ma->ctx);
 }

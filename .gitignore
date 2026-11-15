@@ -8,3 +8,4 @@ fuzz/build/
 *.prof
 *.heap
 .kevue_history
+heaptrack*

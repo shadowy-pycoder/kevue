@@ -2,8 +2,8 @@
  * Copyright 2025-2026 shadowy-pycoder
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you conf.may not use this file except in compliance with the License.
- * You conf.may obtain a copy of the License at
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -36,25 +36,26 @@ int main(void)
     KevueClientConfig conf = { 0 };
     KevueClient      *kc = kevue_client_create(&conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)conf.ma->malloc(sizeof(KevueResponse), conf.ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
-        conf.ma->free(resp, conf.ma->ctx);
+        ma->free(resp, ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
-    for (size_t i = 0; i < NUM_ENTRIES; i++) {
+    for (u64 i = 0; i < NUM_ENTRIES; i++) {
         if (i % 100000 == 0) printf("Added (%zu/%zu) key-value pairs\n", i, NUM_ENTRIES);
         char key[64] = {};
         char val[64] = {};
         int  key_len = snprintf(key, sizeof(key), "Hello%zu", i);
         int  val_len = snprintf(val, sizeof(val), "World%zu", i);
-        if (!kevue_client_set(kc, resp, key, (uint16_t)key_len, val, (uint16_t)val_len)) {
+        if (!kevue_client_set(kc, resp, key, (u16)key_len, val, (u16)val_len)) {
             printf("%s\n", kevue_error_code_to_string[resp->err_code]);
             break;
         }
     }
     kevue_buffer_destroy(resp->val);
-    conf.ma->free(resp, conf.ma->ctx);
+    ma->free(resp, ma->ctx);
     kevue_client_destroy(kc);
 }

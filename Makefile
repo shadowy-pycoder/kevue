@@ -24,6 +24,7 @@ USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
+TRACE ?= 0
 HISTORY_PATH ?= $(HOME)/.kevue_history
 SINGLE_THREADED_TCP_SERVER ?= 0
 SINGLE_THREADED_UNIX_SERVER ?= 0
@@ -36,17 +37,20 @@ RAYLIB_VERSION := 5.5.0
 RAYLIB_SONAME := 550
 
 ifeq ($(DEBUG),1)
-  CFLAGS += -ggdb -O0
+  CFLAGS += -g3 -O0
   CPPFLAGS += -DDEBUG -D__HASHMAP_DETERMINISTIC
   GUI_LDFLAGS += -Wl,-rpath,$(RAYLIB_PATH)/lib/
+  ifeq ($(TRACE),1)
+    CPPFLAGS += -DTRACE
+  endif
 else
   CFLAGS += -O3 -flto
   LDFLAGS += -flto
 endif
 
 ifeq ($(ASAN),1)
-  CFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
-  LDFLAGS += -fsanitize=address,undefined -fsanitize=bounds -fno-omit-frame-pointer
+  CFLAGS += -fsanitize=address,undefined,alignment -fsanitize=bounds -fno-omit-frame-pointer
+  LDFLAGS += -fsanitize=address,undefined,alignment -fsanitize=bounds -fno-omit-frame-pointer
   USE_TCMALLOC := 0
   USE_JEMALLOC := 0
 endif
@@ -153,7 +157,9 @@ $(BIN)/kevue-test-fill-server: | $(BIN)
 
 tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
-	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib $(TESTS)/test_request_deserialize.c -o $(BIN)/kevue-test-request-deserialize -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_string.c -o $(BIN)/kevue-test-string -DDEBUG
+	$(CC) -g3 -fsanitize=address,undefined,alignment -fsanitize=bounds -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_get_request.c -o $(BIN)/kevue-test-get-request -DDEBUG
 
 
 $(BIN)/kevue-bench-server: | $(BIN)

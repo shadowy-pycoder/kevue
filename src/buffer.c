@@ -17,24 +17,24 @@
  * @file buffer.c
  * @brief Bytes buffer implementation.
  */
-#include <stddef.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <allocator.h>
 #include <buffer.h>
+#include <common.h>
 
-Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
+Buffer *kevue_buffer_create(u64 capacity)
 {
-    if (capacity == 0 || ma == NULL) return NULL;
-    Buffer *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
+    if (capacity == 0) capacity = KEVUE_INIT_CAP;
+    KevueAllocator *ma = kevue_allocator();
+    Buffer         *buf = (Buffer *)ma->malloc(sizeof(Buffer), ma->ctx);
     if (buf == NULL) return NULL;
     memset(buf, 0, sizeof(Buffer));
-    buf->ma = ma;
-    buf->ptr = (uint8_t *)buf->ma->malloc(sizeof(*buf->ptr) * capacity, buf->ma->ctx);
+    buf->ptr = (u8 *)ma->malloc(sizeof(*buf->ptr) * capacity, ma->ctx);
     if (buf->ptr == NULL) {
-        buf->ma->free(buf, buf->ma->ctx);
+        ma->free(buf, ma->ctx);
         return NULL;
     }
     buf->capacity = capacity;
@@ -43,6 +43,7 @@ Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma)
 
 void kevue_buffer_reset(Buffer *buf)
 {
+    if (buf == NULL) return;
     buf->size = 0;
     buf->offset = 0;
 }
@@ -50,43 +51,123 @@ void kevue_buffer_reset(Buffer *buf)
 void kevue_buffer_destroy(Buffer *buf)
 {
     if (buf == NULL) return;
-    buf->ma->free(buf->ptr, buf->ma->ctx);
-    buf->ma->free(buf, buf->ma->ctx);
+    KevueAllocator *ma = kevue_allocator();
+    ma->free(buf->ptr, ma->ctx);
+    ma->free(buf, ma->ctx);
 }
 
-void kevue_buffer_grow(Buffer *buf, size_t n)
+void kevue_buffer_grow(Buffer *buf, u64 n)
 {
-    if (buf->capacity >= n) return;
-    buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, n * sizeof(*buf->ptr), buf->ma->ctx);
+    if (buf == NULL) return;
+    if (n == 0 || buf->capacity >= n) return;
+    KevueAllocator *ma = kevue_allocator();
+
+    u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, n * sizeof(*buf->ptr), ma->ctx);
+    if (new_ptr == NULL) return;
+    buf->ptr = new_ptr;
     buf->capacity = n;
 }
 
-size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n)
+u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n)
 {
-    size_t initial_capacity = buf->capacity;
+    if (buf == NULL || n == 0) return 0;
+    if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
+    u64 initial_capacity = buf->capacity;
     while (buf->capacity < buf->size + n) {
         buf->capacity *= 2;
     }
-    if (buf->capacity > initial_capacity) {
-        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+    if (buf->ptr == NULL || buf->capacity > initial_capacity) {
+        KevueAllocator *ma = kevue_allocator();
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     memcpy(buf->ptr + buf->size, data, n * sizeof(*buf->ptr));
     buf->size += n;
     return n;
 }
 
-size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n)
+u64 kevue_buffer_appendf(Buffer *buf, const char *fmt, ...)
 {
-    size_t initial_capacity = buf->capacity;
+    if (buf == NULL) return 0;
+    if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
+    u64     initial_capacity = buf->capacity;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (n <= 0) return 0;
+    u64 len = (u64)n;
+    while (buf->capacity < buf->size + len + 1) {
+        buf->capacity *= 2;
+    }
+    if (buf->ptr == NULL || buf->capacity > initial_capacity) {
+        KevueAllocator *ma = kevue_allocator();
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
+    }
+    va_start(ap, fmt);
+    n = vsnprintf((char *)buf->ptr + buf->size, (size_t)(len + 1), fmt, ap);
+    va_end(ap);
+    if (n < 0) {
+        return 0;
+    }
+    buf->size += len;
+    return len;
+}
+
+u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n)
+{
+    if (buf == NULL || n == 0) return 0;
+    if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
+    u64 initial_capacity = buf->capacity;
     while (buf->capacity < n) {
         buf->capacity *= 2;
     }
-    if (buf->capacity > initial_capacity) {
-        buf->ptr = (uint8_t *)buf->ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), buf->ma->ctx);
+    if (buf->ptr == NULL || buf->capacity > initial_capacity) {
+        KevueAllocator *ma = kevue_allocator();
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
     }
     memcpy(buf->ptr, data, n * sizeof(*buf->ptr));
     buf->size = n;
     return n;
+}
+
+u64 kevue_buffer_writef(Buffer *buf, const char *fmt, ...)
+{
+    if (buf == NULL) return 0;
+    if (buf->capacity == 0) buf->capacity = KEVUE_INIT_CAP;
+    u64     initial_capacity = buf->capacity;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (n <= 0) return 0;
+    u64 len = (u64)n;
+    while (buf->capacity < len + 1) {
+        buf->capacity *= 2;
+    }
+    if (buf->ptr == NULL || buf->capacity > initial_capacity) {
+        KevueAllocator *ma = kevue_allocator();
+
+        u8 *new_ptr = (u8 *)ma->realloc(buf->ptr, buf->capacity * sizeof(*buf->ptr), ma->ctx);
+        if (new_ptr == NULL) return 0;
+        buf->ptr = new_ptr;
+    }
+    va_start(ap, fmt);
+    n = vsnprintf((char *)buf->ptr, (size_t)(len + 1), fmt, ap);
+    va_end(ap);
+    if (n < 0) {
+        return 0;
+    }
+    buf->size = len;
+    return len;
 }
 
 int kevue_buffer_read_byte(Buffer *buf)
@@ -97,6 +178,7 @@ int kevue_buffer_read_byte(Buffer *buf)
 
 void kevue_buffer_read_advance(Buffer *buf)
 {
+    if (buf == NULL) return;
     buf->offset++;
 }
 
@@ -108,6 +190,7 @@ int kevue_buffer_peek_byte(Buffer *buf)
 
 void kevue_buffer_read_until(Buffer *buf, Buffer *out, char until)
 {
+    if (buf == NULL || out == NULL) return;
     char c;
     while ((c = (char)kevue_buffer_peek_byte(buf)) != EOF) {
         if (c == until) break;
@@ -118,6 +201,7 @@ void kevue_buffer_read_until(Buffer *buf, Buffer *out, char until)
 
 bool kevue_buffer_at_eof(Buffer *buf)
 {
+    if (buf == NULL) return true;
     return buf->offset >= buf->size;
 }
 
@@ -135,6 +219,7 @@ void kevue_buffer_move_unread_bytes(Buffer *buf)
 
 void kevue_buffer_print_hex(Buffer *buf)
 {
-    for (size_t i = 0; i < buf->size; i++) printf("%02x ", buf->ptr[i]);
+    if (buf == NULL) return;
+    for (u64 i = 0; i < buf->size; i++) printf("%02x ", buf->ptr[i]);
     printf("\n");
 }

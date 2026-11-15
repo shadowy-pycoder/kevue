@@ -24,6 +24,7 @@
 #include <common.h>
 
 static void *kevue_malloc(size_t size, void *ctx);
+static void *kevue_calloc(size_t n, size_t size, void *ctx);
 static void *kevue_realloc(void *ptr, size_t size, void *ctx);
 static void kevue_free(void *ptr, void *ctx);
 
@@ -31,6 +32,12 @@ static void *kevue_malloc(size_t size, void *ctx)
 {
     UNUSED(ctx);
     return malloc(size);
+}
+
+static void *kevue_calloc(size_t n, size_t size, void *ctx)
+{
+    UNUSED(ctx);
+    return calloc(n, size);
 }
 
 static void *kevue_realloc(void *ptr, size_t size, void *ctx)
@@ -45,4 +52,4 @@ static void kevue_free(void *ptr, void *ctx)
     free(ptr);
 }
 
-KevueAllocator kevue_default_allocator = { .malloc = kevue_malloc, .realloc = kevue_realloc, .free = kevue_free, .ctx = NULL };
+KevueAllocator kevue_default_allocator = { .malloc = kevue_malloc, .calloc = kevue_calloc, .realloc = kevue_realloc, .free = kevue_free, .ctx = NULL };

@@ -20,30 +20,28 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
-#include <allocator.h>
+#include <common.h>
+
+#define KEVUE_INIT_CAP 128
 
 typedef struct Buffer {
-    uint8_t        *ptr;
-    size_t          size;
-    size_t          offset;
-    size_t          capacity;
-    KevueAllocator *ma;
+    u8 *ptr;
+    u64 size;
+    u64 offset;
+    u64 capacity; // defaults to KEVUE_INIT_CAP
 } Buffer;
 
 /**
  * @brief Creates a new buffer with the specified initial capacity.
  *
- * Memory is allocated using the provided allocator.
+ * Memory is allocated using kevue allocator.
  *
  * @param capacity  Initial buffer capacity in bytes.
- * @param ma        Allocator to use for memory management.
  *
  * @return Pointer to a newly created buffer, or NULL on failure.
  */
-Buffer *kevue_buffer_create(size_t capacity, KevueAllocator *ma);
+Buffer *kevue_buffer_create(u64 capacity);
 
 /**
  * @brief Destroys a buffer and releases all associated resources.
@@ -62,9 +60,20 @@ void kevue_buffer_destroy(Buffer *buf);
  * @param n     Number of bytes to append.
  *
  * @return Number of bytes appended.
- * @pre Capacity must be greater than 0
  */
-size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
+u64 kevue_buffer_append(Buffer *buf, const void *data, u64 n);
+
+/**
+ * @brief Appends a printf-style formatted data to the end of the buffer.
+ *
+ * The buffer grows automatically if necessary.
+ *
+ * @param fmt  printf-style formatted data to append.
+ * @param ...  Arguments matching the format specifiers.
+ *
+ * @return Number of bytes appended.
+ */
+u64 kevue_buffer_appendf(Buffer *buf, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
 
 /**
  * @brief Writes data to the start of the buffer.
@@ -76,9 +85,19 @@ size_t kevue_buffer_append(Buffer *buf, const void *data, size_t n);
  * @param n     Number of bytes to write.
  *
  * @return Number of bytes written.
- * @pre Capacity must be greater than 0
  */
-size_t kevue_buffer_write(Buffer *buf, const void *data, size_t n);
+u64 kevue_buffer_write(Buffer *buf, const void *data, u64 n);
+
+/**
+ * @brief Writes a printf-style formatted data to the start of the buffer.
+ *
+ * @param buf   Target buffer.
+ * @param data  printf-style formatted data to write.
+ * @param ...  Arguments matching the format specifiers.
+ *
+ * @return Number of bytes written.
+ */
+u64 kevue_buffer_writef(Buffer *buf, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
 
 /**
  * @brief Reads a single byte from the buffer.
@@ -136,9 +155,8 @@ bool kevue_buffer_at_eof(Buffer *buf);
  *
  * @param buf  Buffer to grow.
  * @param n    Total number of bytes required.
- * @pre Capacity must be greater than 0
  */
-void kevue_buffer_grow(Buffer *buf, size_t n);
+void kevue_buffer_grow(Buffer *buf, u64 n);
 
 /**
  * @brief Resets the buffer to an empty state.

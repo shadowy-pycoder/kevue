@@ -24,10 +24,8 @@
 /**
  * Creates a new threaded hashmap instance.
  *
- * Memory is allocated using the provided allocator.
- *
- * @param ma  Allocator used for threaded hashmap memory.
+ * Memory is allocated using kevue allocator.
  *
  * @return Pointer to a newly created threaded hashmap, or NULL on failure.
  */
-HashMap *kevue_hm_threaded_create(KevueAllocator *ma);
+HashMap *kevue_hm_threaded_create(void);

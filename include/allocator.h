@@ -26,6 +26,7 @@
  */
 typedef struct KevueAllocator {
     void *(*malloc)(size_t, void *ctx);
+    void *(*calloc)(size_t, size_t, void *ctx);
     void *(*realloc)(void *, size_t, void *ctx);
     void (*free)(void *, void *ctx);
     void *ctx;

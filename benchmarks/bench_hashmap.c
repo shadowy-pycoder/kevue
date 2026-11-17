@@ -18,13 +18,15 @@
 #include "../src/common.c"
 #include "../src/threaded_hashmap.c"
 
-#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC)) > 1
 #error "You can define only one memory allocator at a time"
 #endif
 #if defined(USE_TCMALLOC)
 #include "../src/tcmalloc_allocator.c"
 #elif defined(USE_JEMALLOC)
 #include "../src/jemalloc_allocator.c"
+#elif defined(USE_MIMALLOC)
+#include "../src/mimalloc_allocator.c"
 #endif
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)

@@ -824,6 +824,9 @@ static void kevue__usage(FILE *stream)
 #if defined(USE_JEMALLOC)
     fprintf(stream, "USE_JEMALLOC\n");
 #endif
+#if defined(USE_MIMALLOC)
+    fprintf(stream, "USE_MIMALLOC\n");
+#endif
 }
 
 static void kevue__info(FILE *stream)

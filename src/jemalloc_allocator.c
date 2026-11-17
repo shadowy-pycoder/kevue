@@ -25,9 +25,10 @@ static void *kevue_realloc(void *ptr, size_t size, void *ctx);
 static void kevue_free(void *ptr, void *ctx);
 
 #ifdef USE_JEMALLOC
+#include <jemalloc/jemalloc.h>
+
 #include <allocator.h>
 #include <common.h>
-#include <jemalloc/jemalloc.h>
 
 static void *kevue_malloc(size_t size, void *ctx)
 {

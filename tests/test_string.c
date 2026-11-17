@@ -29,6 +29,8 @@ KevueAllocator *ma = &kevue_default_allocator;
 ma = &kevue_tcmalloc_allocator;
 #elif defined(USE_JEMALLOC)
 ma = &kevue_jemalloc_allocator;
+#elif defined(USE_MIMALLOC)
+ma = &kevue_mimalloc_allocator;
 #endif
 
 void test_string_create(void)

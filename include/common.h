@@ -25,13 +25,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(USE_TCMALLOC) && defined(USE_JEMALLOC)
+#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC)) > 1
 #error "You can define only one memory allocator at a time"
 #endif
 #if defined(USE_TCMALLOC)
 #include <tcmalloc_allocator.h>
 #elif defined(USE_JEMALLOC)
 #include <jemalloc_allocator.h>
+#elif defined(USE_MIMALLOC)
+#include <mimalloc_allocator.h>
 #endif
 
 #define KEVUE_HOST           "0.0.0.0"
@@ -156,15 +158,12 @@ static inline KevueAllocator *kevue_allocator(void)
     return &kevue_tcmalloc_allocator;
 #elif defined(USE_JEMALLOC)
     return &kevue_jemalloc_allocator;
+#elif defined(USE_MIMALLOC)
+    return &kevue_mimalloc_allocator;
 #else
     return &kevue_default_allocator;
 #endif
 }
-
-/**
- *  Convert string @p s to upper case and return it.
- */
-u8 *to_upper(u8 *s, u64 n);
 
 /**
  * Wrapper for @c inet_ntop with dispatching for IPv4 and IPv6 addresses.

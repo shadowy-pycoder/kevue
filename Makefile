@@ -22,6 +22,7 @@ GUI_LDFLAGS = -L$(RAYLIB_PATH)/lib/ -Wl,-Bdynamic
 GUI_LDLIBS  = -lraylib -lm
 USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
+USE_MIMALLOC ?= auto
 DEBUG ?= 1
 ASAN ?= 1
 TRACE ?= 0
@@ -53,13 +54,15 @@ ifeq ($(ASAN),1)
   LDFLAGS += -fsanitize=address,undefined,alignment -fsanitize=bounds -fno-omit-frame-pointer
   USE_TCMALLOC := 0
   USE_JEMALLOC := 0
+  USE_MIMALLOC := 0
 endif
 
 
 ifeq ($(USE_TCMALLOC),auto)
   ifeq ($(shell pkg-config --exists libtcmalloc && echo yes),yes)
-    USE_TCMALLOC := 1
-    USE_JEMALLOC := 0
+  USE_TCMALLOC := 1
+  USE_JEMALLOC := 0
+  USE_MIMALLOC := 0
   else
     USE_TCMALLOC := 0
   endif
@@ -85,6 +88,19 @@ endif
 ifeq ($(USE_JEMALLOC),1)
   CPPFLAGS  += -DUSE_JEMALLOC
   LDLIBS  += -ljemalloc
+endif
+
+ifeq ($(USE_MIMALLOC),auto)
+  ifeq ($(shell pkg-config --exists mimalloc && echo yes),yes)
+    USE_MIMALLOC := 1
+  else
+    USE_MIMALLOC := 0
+  endif
+endif
+
+ifeq ($(USE_MIMALLOC),1)
+  CPPFLAGS  += -DUSE_MIMALLOC
+  LDLIBS  += -lmimalloc
 endif
 
 ifneq ($(SINGLE_THREADED_UNIX_SERVER),0)

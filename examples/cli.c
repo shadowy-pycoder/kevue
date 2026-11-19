@@ -55,7 +55,7 @@ static void kevue__info(FILE *stream);
 static bool kevue__parse_chunk(Buffer *buf, Buffer *out);
 static void kevue__trim_left(Buffer *buf);
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf);
-static void kevue__client_parse_result_destroy(KevueClientParseResult *pr);
+static void kevue__client_parse_result_destroy(KevueAllocator *ma, KevueClientParseResult *pr);
 static void kevue__completion(const char *buf, linenoiseCompletions *lc);
 static char *kevue__hints(const char *buf, int *color, int *bold);
 
@@ -171,25 +171,25 @@ static char *kevue__hints(const char *buf, int *color, int *bold)
 static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
     // TODO: improve command dispatching
-    KevueAllocator         *ma = kevue_allocator();
+    KevueAllocator         *ma = buf->ma;
     KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
-    pr->key = kevue_buffer_create(BUF_SIZE);
+    pr->key = kevue_buffer_create(ma, BUF_SIZE);
     if (pr->key == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     kevue__trim_left(buf);
     if (kevue_buffer_at_eof(buf)) {
         fprintf(stdout, "(error): Wrong arguments\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     if (!kevue__parse_chunk(buf, pr->key)) {
         fprintf(stdout, "(error): Wrong arguments\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     switch ((u8)pr->key->size) {
@@ -202,7 +202,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             pr->cmd = DEL;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
         break;
@@ -213,7 +213,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             pr->cmd = KEYS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
         break;
@@ -224,7 +224,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             pr->cmd = ITEMS;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
         break;
@@ -233,25 +233,25 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
             pr->cmd = VALUES;
         } else {
             fprintf(stdout, "(error): Wrong command\n");
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
         break;
     default:
         fprintf(stdout, "(error): Wrong command\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     u64 offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf) && (pr->cmd != PING && pr->cmd != COUNT && pr->cmd != ITEMS && pr->cmd != KEYS && pr->cmd != VALUES)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     kevue_buffer_reset(pr->key);
@@ -259,61 +259,60 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
     offset = buf->offset;
     if (!kevue__parse_chunk(buf, pr->key)) {
         fprintf(stdout, "(error): Wrong arguments\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     // check for commands with 0 arguments
     if (buf->offset != offset && (pr->cmd == COUNT || pr->cmd == ITEMS || pr->cmd == KEYS || pr->cmd == VALUES)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     offset = buf->offset;
     kevue__trim_left(buf);
     if (buf->offset == offset && pr->cmd == SET) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     if (kevue_buffer_at_eof(buf)) {
         if (pr->cmd == SET) {
             fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
     } else {
         if (pr->cmd != SET) {
             fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-            kevue__client_parse_result_destroy(pr);
+            kevue__client_parse_result_destroy(ma, pr);
             return NULL;
         }
     }
-    pr->value = kevue_buffer_create(BUF_SIZE);
+    pr->value = kevue_buffer_create(ma, BUF_SIZE);
     if (pr->value == NULL) {
         fprintf(stdout, "(error): Out of memory\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     kevue_buffer_reset(pr->value);
     if (!kevue__parse_chunk(buf, pr->value)) {
         fprintf(stdout, "(error): Wrong arguments\n");
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     kevue__trim_left(buf);
     if (!kevue_buffer_at_eof(buf)) {
         fprintf(stdout, "(error): Wrong number of arguments for '%s' command\n", kevue_command_to_string[pr->cmd]);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         return NULL;
     }
     return pr;
 }
 
-static void kevue__client_parse_result_destroy(KevueClientParseResult *pr)
+static void kevue__client_parse_result_destroy(KevueAllocator *ma, KevueClientParseResult *pr)
 {
     kevue_buffer_destroy(pr->key);
     kevue_buffer_destroy(pr->value);
-    KevueAllocator *ma = kevue_allocator();
     ma->free(pr, ma->ctx);
 }
 
@@ -342,10 +341,10 @@ int main(int argc, char **argv)
     }
     conf.read_timeout = *(int *)read_timeout;
     conf.write_timeout = *(int *)write_timeout;
-    KevueClient *kc = kevue_client_create(&conf);
-    if (kc == NULL) exit(EXIT_FAILURE);
     KevueAllocator *ma = kevue_allocator();
-    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
+    KevueClient    *kc = kevue_client_create(ma, &conf);
+    if (kc == NULL) exit(EXIT_FAILURE);
+    KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
@@ -414,7 +413,7 @@ int main(int argc, char **argv)
         n = snprintf(prompt, PROMPT_LENGTH - 1, "%s:%s> ", conf.host, conf.port);
     }
     prompt[n] = '\0';
-    Buffer *cmdline = kevue_buffer_create(BUF_SIZE);
+    Buffer *cmdline = kevue_buffer_create(ma, BUF_SIZE);
     if (cmdline == NULL) {
         print_err(generate_timestamp(), "Creating buffer for command line failed");
         close(epfd);
@@ -652,7 +651,7 @@ int main(int argc, char **argv)
         }
         fflush(stdout);
         kevue_buffer_reset(cmdline);
-        kevue__client_parse_result_destroy(pr);
+        kevue__client_parse_result_destroy(ma, pr);
         linenoiseHistoryAdd(line); // Add to the history.
         linenoiseHistorySave(HISTORY_PATH); /* Save the history on disk. */
         free(line);

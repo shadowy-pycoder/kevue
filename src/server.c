@@ -90,15 +90,16 @@ typedef struct Socket           Socket;
 typedef struct KevueConnection  KevueConnection;
 
 struct KevueServer {
-    const u8  *host;
-    const u8  *port;
-    const u8  *unix_path;
-    int        tcp_workers;
-    int        unix_workers;
-    int       *fds;
-    pthread_t *threads;
-    int        efd;
-    HashMap   *hm;
+    const u8       *host;
+    const u8       *port;
+    const u8       *unix_path;
+    int             tcp_workers;
+    int             unix_workers;
+    int            *fds;
+    pthread_t      *threads;
+    int             efd;
+    HashMap        *hm;
+    KevueAllocator *ma;
 };
 
 struct Address {
@@ -123,9 +124,10 @@ struct KevueConnection {
 };
 
 typedef struct EpollServerArgs {
-    int     *ssock;
-    int     *esock;
-    HashMap *hm;
+    int            *ssock;
+    int            *esock;
+    HashMap        *hm;
+    KevueAllocator *ma;
 } EpollServerArgs;
 
 static int kevue__setnonblocking(int fd);
@@ -163,7 +165,7 @@ static void *kevue__handle_server_epoll(void *args)
     int              server_sock = *esargs->ssock;
     int              esock = *esargs->esock;
     HashMap         *hm = esargs->hm;
-    KevueAllocator  *ma = kevue_allocator();
+    KevueAllocator  *ma = esargs->ma;
     ma->free(esargs, ma->ctx);
     int epfd = epoll_create1(0);
     if (epfd < 0) {
@@ -618,11 +620,11 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, H
         }
         snprintf((char *)c->addr.addr_str, sizeof(c->addr.addr_str), "unix:%d", cred.pid);
     }
-    c->rbuf = kevue_buffer_create(BUF_SIZE);
+    c->rbuf = kevue_buffer_create(ma, BUF_SIZE);
     if (c->rbuf == NULL) return false;
-    c->wbuf = kevue_buffer_create(BUF_SIZE);
+    c->wbuf = kevue_buffer_create(ma, BUF_SIZE);
     if (c->wbuf == NULL) return false;
-    c->hmbuf = kevue_buffer_create(BUF_SIZE);
+    c->hmbuf = kevue_buffer_create(ma, BUF_SIZE);
     if (c->hmbuf == NULL) return false;
     c->hm = hm;
     c->handshake_done = false;
@@ -840,7 +842,7 @@ static void kevue__info(FILE *stream)
     fprintf(stream, "GitHub: https://github.com/shadowy-pycoder/kevue\n\n");
 }
 
-KevueServer *kevue_server_create(KevueServerConfig *conf)
+KevueServer *kevue_server_create(KevueAllocator *ma, KevueServerConfig *conf)
 {
     if (conf->host == NULL || conf->host[0] == '\0') conf->host = (u8 *)KEVUE_HOST;
     if (conf->port == NULL || conf->port[0] == '\0') conf->port = (u8 *)KEVUE_PORT;
@@ -861,8 +863,7 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
         return NULL;
     }
     close(server_sock);
-    KevueAllocator *ma = kevue_allocator();
-    KevueServer    *ks = (KevueServer *)ma->malloc(sizeof(*ks), ma->ctx);
+    KevueServer *ks = (KevueServer *)ma->malloc(sizeof(*ks), ma->ctx);
     if (ks == NULL) return NULL;
     memset(ks, 0, sizeof(*ks));
     ks->host = conf->host;
@@ -917,7 +918,7 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
             return NULL;
         }
     }
-    HashMap *hm = kevue_hm_threaded_create();
+    HashMap *hm = kevue_hm_threaded_create(ma);
     if (hm == NULL) {
         close(ks->efd);
         ma->free(ks->fds, ma->ctx);
@@ -943,17 +944,18 @@ KevueServer *kevue_server_create(KevueServerConfig *conf)
     sigaction(SIGTERM, &new_action, NULL);
     sigaction(SIGHUP, &new_action, NULL);
     signal(SIGPIPE, SIG_IGN);
+    ks->ma = ma;
     return ks;
 }
 
 void kevue_server_start(KevueServer *ks)
 {
-    KevueAllocator *ma = kevue_allocator();
     for (int i = 0; i < ks->tcp_workers + ks->unix_workers; i++) {
-        EpollServerArgs *esargs = (EpollServerArgs *)ma->malloc(sizeof(*esargs), ma->ctx);
+        EpollServerArgs *esargs = (EpollServerArgs *)ks->ma->malloc(sizeof(*esargs), ks->ma->ctx);
         esargs->ssock = &ks->fds[i];
         esargs->esock = &ks->efd;
         esargs->hm = ks->hm;
+        esargs->ma = ks->ma;
         pthread_create(&ks->threads[i], NULL, kevue__handle_server_epoll, esargs);
     }
     while (!shutting_down)
@@ -978,12 +980,11 @@ void kevue_server_start(KevueServer *ks)
 
 void kevue_server_destroy(KevueServer *ks)
 {
-    KevueAllocator *ma = kevue_allocator();
     close(ks->efd);
     ks->hm->ops->kevue_hm_destroy(ks->hm);
-    ma->free(ks->fds, ma->ctx);
-    ma->free(ks->threads, ma->ctx);
-    ma->free(ks, ma->ctx);
+    ks->ma->free(ks->fds, ks->ma->ctx);
+    ks->ma->free(ks->threads, ks->ma->ctx);
+    ks->ma->free(ks, ks->ma->ctx);
 }
 
 int main(int argc, char **argv)
@@ -1019,7 +1020,8 @@ int main(int argc, char **argv)
 #if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
     conf.workers = *(int *)workers;
 #endif
-    KevueServer *ks = kevue_server_create(&conf);
+    KevueAllocator *ma = kevue_allocator();
+    KevueServer    *ks = kevue_server_create(ma, &conf);
     if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);
     kevue_server_destroy(ks);

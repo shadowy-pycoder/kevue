@@ -42,7 +42,7 @@ static inline u64 splitmix64(u64 *state)
 
 int main(void)
 {
-    HashMap *hm = kevue_hm_threaded_create();
+    HashMap *hm = kevue_hm_threaded_create(kevue_allocator());
     printf("Inserting %zu items...\n", NUM_ENTRIES);
     u64  start = nsec_now();
     bool op_failed = false;
@@ -69,7 +69,7 @@ int main(void)
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     start = nsec_now();
-    Buffer *buf = kevue_buffer_create(BUF_SIZE);
+    Buffer *buf = kevue_buffer_create(kevue_allocator(), BUF_SIZE);
     rng = 1;
     for (u64 i = 0; i < NUM_ENTRIES; i++) {
         u64 key = splitmix64(&rng);

@@ -30,6 +30,8 @@ typedef struct Buffer {
     u64 size;
     u64 offset;
     u64 capacity; // defaults to KEVUE_INIT_CAP
+
+    KevueAllocator *ma;
 } Buffer;
 
 /**
@@ -37,11 +39,12 @@ typedef struct Buffer {
  *
  * Memory is allocated using kevue allocator.
  *
+ * @param ma        Allocator to use for memory management.
  * @param capacity  Initial buffer capacity in bytes.
  *
  * @return Pointer to a newly created buffer, or NULL on failure.
  */
-Buffer *kevue_buffer_create(u64 capacity);
+Buffer *kevue_buffer_create(KevueAllocator *ma, u64 capacity);
 
 /**
  * @brief Destroys a buffer and releases all associated resources.

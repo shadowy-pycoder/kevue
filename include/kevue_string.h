@@ -19,6 +19,7 @@
  */
 #pragma once
 
+#include "allocator.h"
 #include <stdbool.h>
 
 #include <buffer.h>
@@ -51,12 +52,13 @@ typedef struct StringViewList {
  *
  * Memory is allocated using kevue allocator.
  *
+ * @param ma  Allocator to use for memory management.
  * @param s   NUL-terminated source string.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_create(const char *s);
+String kevue_string_create(KevueAllocator *ma, const char *s);
 
 /**
  * @brief Creates a new string from a printf-style format.
@@ -66,12 +68,13 @@ String kevue_string_create(const char *s);
  * printf. The result must be destroyed with kevue_string_destroy using the
  * same allocator.
  *
+ * @param ma   Allocator to use for memory management.
  * @param fmt  printf-style format string.
  * @param ...  Arguments matching the format specifiers.
  *
  * @return Newly created formatted string, or an empty string on failure
  */
-String kevue_string_createf(const char *fmt, ...) KEVUE_PRINTF_FORMAT(1, 2);
+String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...) KEVUE_PRINTF_FORMAT(2, 3);
 
 /**
  * @brief Destroys a string and releases its memory.
@@ -80,9 +83,10 @@ String kevue_string_createf(const char *fmt, ...) KEVUE_PRINTF_FORMAT(1, 2);
  * been created with the same allocator. After the call the string is reset
  * and must not be used.
  *
+ * @param ma   Allocator to use for memory management.
  * @param str  Pointer to the string to destroy.
  */
-void kevue_string_destroy(String *str);
+void kevue_string_destroy(KevueAllocator *ma, String *str);
 
 /**
  * @brief Checks whether a given string is empty.
@@ -99,12 +103,13 @@ bool kevue_string_is_empty(String str);
  * Memory is allocated using kevue allocator. The view does not need
  * to be NUL-terminated, only its length is used.
  *
+ * @param ma   Allocator to use for memory management.
  * @param sv  Source string view.
  *
  * @return Newly created string owning a copy of the viewed data, or an empty
  *         string on failure.
  */
-String kevue_string_from_string_view(StringView sv);
+String kevue_string_from_string_view(KevueAllocator *ma, StringView sv);
 
 /**
  * @brief Creates a deep copy of a string.
@@ -112,11 +117,12 @@ String kevue_string_from_string_view(StringView sv);
  * Memory is allocated using kevue allocator. The copy is independent
  * of the original and must be destroyed separately.
  *
+ * @param ma   Allocator to use for memory management.
  * @param str  String to copy.
  *
  * @return Newly created copy of the string, or an empty string on failure.
  */
-String kevue_string_copy(String str);
+String kevue_string_copy(KevueAllocator *ma, String str);
 
 /**
  * @brief Creates a lower case copy of a string.
@@ -124,11 +130,12 @@ String kevue_string_copy(String str);
  * Only ASCII letters A-Z are converted, all other bytes are copied unchanged.
  * The original string is not modified. Memory is allocated using kevue allocator.
  *
+ * @param ma   Allocator to use for memory management.
  * @param str  Source string.
  *
  * @return Newly created lower case string, or an empty string on failure.
  */
-String kevue_string_to_lower(String str);
+String kevue_string_to_lower(KevueAllocator *ma, String str);
 
 /**
  * @brief Creates an upper case copy of a string.
@@ -136,11 +143,12 @@ String kevue_string_to_lower(String str);
  * Only ASCII letters a-z are converted, all other bytes are copied unchanged.
  * The original string is not modified. Memory is allocated using kevue allocator.
  *
+ * @param ma   Allocator to use for memory management.
  * @param str  Source string.
  *
  * @return Newly created upper case string, or an empty string on failure.
  */
-String kevue_string_to_upper(String str);
+String kevue_string_to_upper(KevueAllocator *ma, String str);
 
 /**
  * @brief Creates a title case copy of a string.
@@ -150,43 +158,47 @@ String kevue_string_to_upper(String str);
  * non-letters are copied unchanged. The original string is not modified.
  * Memory is allocated using kevue allocator.
  *
+ * @param ma   Allocator to use for memory management.
  * @param str  Source string.
  *
  * @return Newly created title case string, or an empty string on failure.
  */
-String kevue_string_to_title(String str);
+String kevue_string_to_title(KevueAllocator *ma, String str);
 
 /**
  * @brief Joins a dynamic array of strings into a new string.
  *
+ * @param ma    Allocator to use for memory management.
  * @param strs  Strings to join.
  * @param sep   Separator placed between elements.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_join(StringList strs, StringView sep);
+String kevue_string_join(KevueAllocator *ma, StringList strs, StringView sep);
 
 /**
  * @brief Joins a dynamic array of string views into a new string.
  *
+ * @param ma   Allocator to use for memory management.
  * @param svs  String views to join.
  * @param sep  Separator placed between elements.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_view_join(StringViewList svs, StringView sep);
+String kevue_string_view_join(KevueAllocator *ma, StringViewList svs, StringView sep);
 
 /**
  * @brief Creates a string from buffer.
  *
+ * @param ma   Allocator to use for memory management.
  * @param buf  Source buffer.
  *
  * @return Newly created string owning a copy of the data, or an empty
  *         string on failure.
  */
-String kevue_string_from_buffer(Buffer buf);
+String kevue_string_from_buffer(KevueAllocator *ma, Buffer buf);
 
 u64 kevue__cstring_len(const char *s);
 
@@ -194,9 +206,6 @@ static inline bool is_space(u8 c)
 {
     return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\v');
 }
-
-#define String(s)         kevue_string_create((s))
-#define Stringf(fmt, ...) kevue_string_createf((fmt), ##__VA_ARGS__)
 
 #define StringView(s) \
     (StringView) { .data = (s).data, .len = (s).len }
@@ -476,11 +485,12 @@ bool kevue_string_view_is_empty(StringView sv);
 /**
  * @brief Splits a string view into subviews separated by sep.
  *
+ * @param ma   Allocator to use for memory management.
  * @param sv   String view to split.
  * @param sep  Separator, may be empty.
  *
  * @return List of subviews, or an empty list on failure.
  */
-StringViewList kevue_string_view_split(StringView sv, StringView sep);
+StringViewList kevue_string_view_split(KevueAllocator *ma, StringView sv, StringView sep);
 
 // TODO: utf-8 support

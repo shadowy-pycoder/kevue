@@ -114,10 +114,9 @@ static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *h
     return &hm_internal->bucket_locks[bucket_idx & (HASHMAP_BUCKET_LOCK_COUNT - 1)];
 }
 
-HashMap *kevue_hm_threaded_create()
+HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
 {
-    KevueAllocator *ma = kevue_allocator();
-    HashMap        *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
+    HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
     if (hm == NULL) return NULL;
     hm->ops = &hm_ops;
     HashMapThreaded *hm_internal = (HashMapThreaded *)ma->malloc(sizeof(*hm_internal), ma->ctx);
@@ -138,7 +137,7 @@ HashMap *kevue_hm_threaded_create()
     hm_internal->initial_bucket_count = bucket_count;
     hm_internal->slots_taken = 0;
     for (u64 bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
-        kevue_dyna_init(&hm_internal->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
+        kevue_dyna_init(hm_internal->ma, &hm_internal->buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
     }
     for (u64 lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
         mutex_init(&hm_internal->bucket_locks[lock], NULL);
@@ -155,7 +154,7 @@ static void kevue__hm_threaded_destroy(HashMap *hm)
         if (hm_internal->buckets[bucket].len > 0) {
             kevue_dyna_foreach(&hm_internal->buckets[bucket], entry_ptr) hm_internal->ma->free(*entry_ptr, hm_internal->ma->ctx);
         }
-        kevue_dyna_deinit(&hm_internal->buckets[bucket]);
+        kevue_dyna_deinit(hm_internal->ma, &hm_internal->buckets[bucket]);
     }
     for (u64 lock = 0; lock < HASHMAP_BUCKET_LOCK_COUNT; lock++) {
         mutex_destroy(&hm_internal->bucket_locks[lock]);
@@ -193,10 +192,15 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, u64 key_len, co
             if (entry->hash == hash && entry->key_len == key_len && memcmp(entry->data, key, key_len) == 0) {
                 if (val_len > entry->val_len) {
                     ptrdiff_t eidx = entry_ptr - hm_internal->buckets[idx].ptr;
-                    hm_internal->buckets[idx].ptr[eidx] = hm_internal->ma->realloc(
+                    Entry    *new_ptr = (Entry *)hm_internal->ma->realloc(
                         hm_internal->buckets[idx].ptr[eidx],
                         sizeof(*entry) + key_len + val_len,
                         hm_internal->ma->ctx);
+                    if (new_ptr == NULL) {
+                        mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
+                        return false;
+                    }
+                    hm_internal->buckets[idx].ptr[eidx] = new_ptr;
                     entry = hm_internal->buckets[idx].ptr[eidx];
                 }
                 entry->val_len = val_len;
@@ -216,7 +220,7 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, u64 key_len, co
     entry->val_len = val_len;
     memcpy(entry->data, key, key_len);
     memcpy(entry->data + key_len, val, val_len);
-    kevue_dyna_append(&hm_internal->buckets[idx], entry);
+    kevue_dyna_append(hm_internal->ma, &hm_internal->buckets[idx], entry);
     mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
     mutex_lock(&hm_internal->resize_lock);
     hm_internal->slots_taken++;
@@ -395,7 +399,7 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, u64 new_size
         mutex_unlock(&hm_internal->bucket_locks[lock]);
     }
     for (u64 bucket = 0; bucket < new_size; bucket++) {
-        kevue_dyna_init(&new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
+        kevue_dyna_init(hm_internal->ma, &new_buckets[bucket], HASHMAP_BUCKET_ENTRY_INITIAL_COUNT);
     }
     for (u64 bucket = 0; bucket < hm_internal->bucket_count; bucket++) {
         if (hm_internal->buckets[bucket].len == 0) continue;
@@ -403,7 +407,7 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, u64 new_size
         {
             Entry *entry = *entry_ptr;
             u64    idx = entry->hash & (new_size - 1);
-            kevue_dyna_append(&new_buckets[idx], entry);
+            kevue_dyna_append(hm_internal->ma, &new_buckets[idx], entry);
         }
     }
     u64 old_size = hm_internal->bucket_count;
@@ -411,7 +415,7 @@ static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, u64 new_size
     Bucket *old_buckets = hm_internal->buckets;
     hm_internal->buckets = new_buckets;
     for (u64 bucket = 0; bucket < old_size; bucket++) {
-        kevue_dyna_deinit(&old_buckets[bucket]);
+        kevue_dyna_deinit(hm_internal->ma, &old_buckets[bucket]);
     }
     hm_internal->ma->free(old_buckets, hm_internal->ma->ctx);
 }

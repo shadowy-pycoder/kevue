@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-// clang -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_string.c -o ./bin/kevue-test-string -DDEBUG
+// clang -g3 -Iinclude -Ilib ./tests/test_string.c -o ./bin/kevue-test-string -DDEBUG
 #include <assert.h>
 
+#include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/kevue_string.c"
-#include "dyna.h"
-#include <allocator.h>
 #include <common.h>
+#include <dyna.h>
 #include <kevue_string.h>
 
 KevueAllocator *ma = &kevue_default_allocator;
@@ -36,9 +36,9 @@ ma = &kevue_mimalloc_allocator;
 void test_string_create(void)
 {
     char  *s = "Hello, World";
-    String str = kevue_string_create(s);
+    String str = kevue_string_create(ma, s);
     assert(str.len == strlen(s));
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
 }
@@ -46,31 +46,31 @@ void test_string_create(void)
 void test_string_create_macro(void)
 {
     char  *s = "Hello, World";
-    String str = String(s);
+    String str = kevue_string_create(ma, s);
     assert(str.len == strlen(s));
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
 }
 
 void test_string_createf(void)
 {
-    String      str = kevue_string_createf("Hello, World %d\n", 5);
+    String      str = kevue_string_createf(ma, "Hello, World %d\n", 5);
     const char *expected = "Hello, World 5\n";
     assert(str.len == strlen(expected));
     assert(memcmp(str.data, expected, str.len) == 0);
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
 }
 
 void test_string_createf_macro(void)
 {
-    String      str = Stringf("Hello, World %d\n", 5);
+    String      str = kevue_string_createf(ma, "Hello, World %d\n", 5);
     const char *expected = "Hello, World 5\n";
     assert(str.len == strlen(expected));
     assert(memcmp(str.data, expected, str.len) == 0);
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     assert(str.data == NULL && str.len == 0);
     printf("%s PASSED\n", __func__);
 }
@@ -78,24 +78,24 @@ void test_string_createf_macro(void)
 void test_string_from_string_view(void)
 {
     StringView sv = StringViewFromLiteral("Hello, World");
-    String     str = kevue_string_from_string_view(sv);
+    String     str = kevue_string_from_string_view(ma, sv);
     assert(str.len == sv.len);
     assert(str.data != sv.data);
     assert(memcmp(str.data, sv.data, str.len) == 0);
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     printf("%s PASSED\n", __func__);
 }
 
 void test_string_copy(void)
 {
     char  *s = "Hello, World";
-    String str1 = kevue_string_create(s);
-    String str2 = kevue_string_copy(str1);
+    String str1 = kevue_string_create(ma, s);
+    String str2 = kevue_string_copy(ma, str1);
     assert(str2.len == str1.len);
     assert(str2.data != str1.data);
     assert(memcmp(str2.data, str1.data, str2.len) == 0);
-    kevue_string_destroy(&str1);
-    kevue_string_destroy(&str2);
+    kevue_string_destroy(ma, &str1);
+    kevue_string_destroy(ma, &str2);
     printf("%s PASSED\n", __func__);
 }
 
@@ -103,7 +103,7 @@ void test_string_copy_empty(void)
 {
     char  *s = "Hello, World";
     String str1 = { 0 };
-    String str2 = kevue_string_copy(str1);
+    String str2 = kevue_string_copy(ma, str1);
     assert(kevue_string_is_empty(str1));
     assert(kevue_string_is_empty(str2));
     printf("%s PASSED\n", __func__);
@@ -211,9 +211,9 @@ void test_string_to_lower(void)
         "int main(void) { return 0; }",
     };
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i]);
-        String actual_str_lower = kevue_string_to_lower(actual_str);
-        String expected_str = kevue_string_create(expected[i]);
+        String actual_str = kevue_string_create(ma, actual[i]);
+        String actual_str_lower = kevue_string_to_lower(ma, actual_str);
+        String expected_str = kevue_string_create(ma, expected[i]);
         if (kevue_string_is_empty(expected_str)) {
             assert(kevue_string_is_empty(actual_str));
             assert(kevue_string_is_empty(actual_str_lower));
@@ -221,9 +221,9 @@ void test_string_to_lower(void)
             assert(expected_str.len == actual_str_lower.len);
             assert(expected_str.data != actual_str_lower.data);
             assert(memcmp(expected_str.data, actual_str_lower.data, expected_str.len) == 0);
-            kevue_string_destroy(&actual_str);
-            kevue_string_destroy(&actual_str_lower);
-            kevue_string_destroy(&expected_str);
+            kevue_string_destroy(ma, &actual_str);
+            kevue_string_destroy(ma, &actual_str_lower);
+            kevue_string_destroy(ma, &expected_str);
         }
     }
     printf("%s PASSED\n", __func__);
@@ -330,9 +330,9 @@ void test_string_to_upper(void)
         "INT MAIN(VOID) { RETURN 0; }",
     };
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i]);
-        String actual_str_upper = kevue_string_to_upper(actual_str);
-        String expected_str = kevue_string_create(expected[i]);
+        String actual_str = kevue_string_create(ma, actual[i]);
+        String actual_str_upper = kevue_string_to_upper(ma, actual_str);
+        String expected_str = kevue_string_create(ma, expected[i]);
         if (kevue_string_is_empty(expected_str)) {
             assert(kevue_string_is_empty(actual_str));
             assert(kevue_string_is_empty(actual_str_upper));
@@ -340,9 +340,9 @@ void test_string_to_upper(void)
             assert(expected_str.len == actual_str_upper.len);
             assert(expected_str.data != actual_str_upper.data);
             assert(memcmp(expected_str.data, actual_str_upper.data, expected_str.len) == 0);
-            kevue_string_destroy(&actual_str);
-            kevue_string_destroy(&actual_str_upper);
-            kevue_string_destroy(&expected_str);
+            kevue_string_destroy(ma, &actual_str);
+            kevue_string_destroy(ma, &actual_str_upper);
+            kevue_string_destroy(ma, &expected_str);
         }
     }
     printf("%s PASSED\n", __func__);
@@ -453,9 +453,9 @@ void test_string_to_title(void)
     };
 
     for (int i = 0; i < sizeof(actual) / sizeof(actual[0]); i++) {
-        String actual_str = kevue_string_create(actual[i]);
-        String actual_str_title = kevue_string_to_title(actual_str);
-        String expected_str = kevue_string_create(expected[i]);
+        String actual_str = kevue_string_create(ma, actual[i]);
+        String actual_str_title = kevue_string_to_title(ma, actual_str);
+        String expected_str = kevue_string_create(ma, expected[i]);
         if (kevue_string_is_empty(expected_str)) {
             assert(kevue_string_is_empty(actual_str));
             assert(kevue_string_is_empty(actual_str_title));
@@ -463,9 +463,9 @@ void test_string_to_title(void)
             assert(expected_str.len == actual_str_title.len);
             assert(expected_str.data != actual_str_title.data);
             assert(memcmp(expected_str.data, actual_str_title.data, expected_str.len) == 0);
-            kevue_string_destroy(&actual_str);
-            kevue_string_destroy(&actual_str_title);
-            kevue_string_destroy(&expected_str);
+            kevue_string_destroy(ma, &actual_str);
+            kevue_string_destroy(ma, &actual_str_title);
+            kevue_string_destroy(ma, &expected_str);
         }
     }
     printf("%s PASSED\n", __func__);
@@ -477,71 +477,71 @@ void test_string_join(void)
     String     empty = { 0 };
     StringView comma = StringViewFromLiteral(",");
     StringList strs = { 0 };
-    kevue_dyna_append(&strs, empty);
-    String str = kevue_string_join(strs, comma);
+    kevue_dyna_append(ma, &strs, empty);
+    String str = kevue_string_join(ma, strs, comma);
     assert(kevue_string_is_empty(str));
     kevue_dyna_remove(&strs, 0);
 
     // single element
-    String s1 = String("Hello");
-    kevue_dyna_append(&strs, s1);
-    str = kevue_string_join(strs, comma);
+    String s1 = kevue_string_create(ma, "Hello");
+    kevue_dyna_append(ma, &strs, s1);
+    str = kevue_string_join(ma, strs, comma);
     assert(memcmp(str.data, "Hello", str.len) == 0);
-    kevue_string_destroy(&str);
-    kevue_string_destroy(&s1);
+    kevue_string_destroy(ma, &str);
+    kevue_string_destroy(ma, &s1);
     for (i64 i = strs.len - 1; i >= 0; i--) {
         kevue_dyna_remove(&strs, i);
     }
 
     // concat empty elems
     String s2 = { 0 };
-    kevue_dyna_append(&strs, s2);
-    kevue_dyna_append(&strs, s2);
-    str = kevue_string_join(strs, comma);
+    kevue_dyna_append(ma, &strs, s2);
+    kevue_dyna_append(ma, &strs, s2);
+    str = kevue_string_join(ma, strs, comma);
     assert(memcmp(str.data, ",", str.len) == 0);
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     for (i64 i = strs.len - 1; i >= 0; i--) {
         kevue_dyna_remove(&strs, i);
     }
 
     // keep separator for empty parts
     String s3 = { 0 };
-    String s4 = String("Hello");
-    kevue_dyna_append(&strs, s3);
-    kevue_dyna_append(&strs, s4);
-    kevue_dyna_append(&strs, s3);
-    str = kevue_string_join(strs, comma);
+    String s4 = kevue_string_create(ma, "Hello");
+    kevue_dyna_append(ma, &strs, s3);
+    kevue_dyna_append(ma, &strs, s4);
+    kevue_dyna_append(ma, &strs, s3);
+    str = kevue_string_join(ma, strs, comma);
     assert(memcmp(str.data, ",Hello,", str.len) == 0);
-    kevue_string_destroy(&str);
-    kevue_string_destroy(&s4);
+    kevue_string_destroy(ma, &str);
+    kevue_string_destroy(ma, &s4);
     for (i64 i = strs.len - 1; i >= 0; i--) {
         kevue_dyna_remove(&strs, i);
     }
     // normal concat
-    String s5 = String("Hello");
-    String s6 = String("World");
-    kevue_dyna_append(&strs, s5);
-    kevue_dyna_append(&strs, s6);
-    str = kevue_string_join(strs, comma);
+    String s5 = kevue_string_create(ma, "Hello");
+    String s6 = kevue_string_create(ma, "World");
+    kevue_dyna_append(ma, &strs, s5);
+    kevue_dyna_append(ma, &strs, s6);
+    str = kevue_string_join(ma, strs, comma);
     assert(memcmp(str.data, "Hello,World", str.len) == 0);
-    kevue_string_destroy(&str);
-    kevue_string_destroy(&s5);
-    kevue_string_destroy(&s6);
+    kevue_string_destroy(ma, &str);
+    kevue_string_destroy(ma, &s5);
+    kevue_string_destroy(ma, &s6);
     for (i64 i = strs.len - 1; i >= 0; i--) {
         kevue_dyna_remove(&strs, i);
     }
-    kevue_dyna_deinit(&strs);
+    kevue_dyna_deinit(ma, &strs);
     printf("%s PASSED\n", __func__);
 }
 
 void test_string_view_from_string(void)
 {
     char      *s = "Hello, World";
-    String     str = kevue_string_create(s);
+    String     str = kevue_string_create(ma, s);
     StringView sv = kevue_string_view_from_string(str);
     assert(sv.len == str.len);
     assert(sv.data == str.data);
-    kevue_string_destroy(&str);
+    kevue_string_destroy(ma, &str);
     printf("%s PASSED\n", __func__);
 }
 
@@ -556,14 +556,13 @@ void test_string_view_from_cstring(void)
 
 void test_string_view_from_buffer(void)
 {
-    Buffer buf = { 0 };
-    kevue_buffer_appendf(&buf, "Hello, World %d times", 42);
-    StringView sv = kevue_string_view_from_buffer(buf);
-    assert(sv.len == buf.size);
-    assert(sv.data == buf.ptr);
-    assert(memcmp(sv.data, buf.ptr, sv.len) == 0);
-    KevueAllocator *ma = kevue_allocator();
-    ma->free(buf.ptr, ma->ctx);
+    Buffer *buf = kevue_buffer_create(ma, KEVUE_INIT_CAP);
+    kevue_buffer_appendf(buf, "Hello, World %d times", 42);
+    StringView sv = kevue_string_view_from_buffer(*buf);
+    assert(sv.len == buf->size);
+    assert(sv.data == buf->ptr);
+    assert(memcmp(sv.data, buf->ptr, sv.len) == 0);
+    kevue_buffer_destroy(buf);
     printf("%s PASSED\n", __func__);
 }
 
@@ -1772,7 +1771,7 @@ void test_string_view_split(void)
     for (int i = 0, j = 0; i + 1 < sizeof(input) / sizeof(input[0]); i += 2, j++) {
         StringView     sv1 = kevue_string_view_from_cstring(input[i]);
         StringView     sv2 = kevue_string_view_from_cstring(input[i + 1]);
-        StringViewList svs = kevue_string_view_split(sv1, sv2);
+        StringViewList svs = kevue_string_view_split(ma, sv1, sv2);
         assert(svs.len == expected_lens[j]);
         int k = 0;
         kevue_dyna_foreach(&svs, it)
@@ -1781,10 +1780,10 @@ void test_string_view_split(void)
             k++;
         }
         offset += expected_lens[j];
-        String str = kevue_string_view_join(svs, sv2);
+        String str = kevue_string_view_join(ma, svs, sv2);
         assert(kevue_string_view_compare(kevue_string_view_from_string(str), sv1));
-        kevue_string_destroy(&str);
-        kevue_dyna_deinit(&svs);
+        kevue_string_destroy(ma, &str);
+        kevue_dyna_deinit(ma, &svs);
     }
     printf("%s PASSED\n", __func__);
 }

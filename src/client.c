@@ -41,9 +41,10 @@ static bool kevue__handle_read(KevueClient *kc);
 static bool kevue__handle_write(KevueClient *kc);
 
 struct KevueClient {
-    int     fd;
-    Buffer *rbuf;
-    Buffer *wbuf;
+    int             fd;
+    Buffer         *rbuf;
+    Buffer         *wbuf;
+    KevueAllocator *ma;
 };
 
 static int kevue__create_client_sock(const u8 *host, const u8 *port, int read_timeout, int write_timeout)
@@ -368,7 +369,7 @@ bool kevue_client_values(KevueClient *kc, KevueResponse *resp)
     return kevue__make_request(kc, &req, resp);
 }
 
-KevueClient *kevue_client_create(KevueClientConfig *conf)
+KevueClient *kevue_client_create(KevueAllocator *ma, KevueClientConfig *conf)
 {
     if (conf->host == NULL || conf->host[0] == '\0') conf->host = (u8 *)KEVUE_HOST;
     if (conf->port == NULL || conf->port[0] == '\0') conf->port = (u8 *)KEVUE_PORT;
@@ -382,8 +383,7 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
         print_err(generate_timestamp(), "Server port is not valid number");
         return NULL;
     }
-    KevueAllocator *ma = kevue_allocator();
-    KevueClient    *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
+    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
     if (kc == NULL) return NULL;
     if (conf->unix_path != NULL && conf->unix_path[0] != '\0') {
         kc->fd = kevue__create_client_unix_sock(conf->unix_path, conf->read_timeout, conf->write_timeout);
@@ -398,16 +398,17 @@ KevueClient *kevue_client_create(KevueClientConfig *conf)
             return NULL;
         }
     }
-    kc->rbuf = kevue_buffer_create(BUF_SIZE);
+    kc->rbuf = kevue_buffer_create(ma, BUF_SIZE);
     if (kc->rbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
     }
-    kc->wbuf = kevue_buffer_create(BUF_SIZE);
+    kc->wbuf = kevue_buffer_create(ma, BUF_SIZE);
     if (kc->wbuf == NULL) {
         kevue_client_destroy(kc);
         return NULL;
     }
+    kc->ma = ma;
     return kc;
 }
 
@@ -417,6 +418,5 @@ void kevue_client_destroy(KevueClient *kc)
     close(kc->fd);
     kevue_buffer_destroy(kc->rbuf);
     kevue_buffer_destroy(kc->wbuf);
-    KevueAllocator *ma = kevue_allocator();
-    ma->free(kc, ma->ctx);
+    kc->ma->free(kc, kc->ma->ctx);
 }

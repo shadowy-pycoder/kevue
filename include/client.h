@@ -21,6 +21,7 @@
 
 #include <netinet/in.h>
 
+#include <allocator.h>
 #include <protocol.h>
 
 typedef struct KevueClient KevueClient;
@@ -38,11 +39,12 @@ typedef struct KevueClientConfig {
  *
  * Memory is allocated using kevue allocator.
  *
+ * @param ma    Allocator to use for memory management.
  * @param conf  Client config
  *
  * @return Pointer to a newly created client, or NULL on failure.
  */
-KevueClient *kevue_client_create(KevueClientConfig *conf);
+KevueClient *kevue_client_create(KevueAllocator *ma, KevueClientConfig *conf);
 
 /**
  * @brief Destroys a kevue client instance.

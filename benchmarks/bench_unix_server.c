@@ -45,13 +45,12 @@ int main(void)
 {
     KevueClientConfig conf = { 0 };
     conf.unix_path = (u8 *)KEVUE_UNIX_SOCK_PATH;
-    KevueClient *kc = kevue_client_create(&conf);
+    KevueClient *kc = kevue_client_create(kevue_allocator(), &conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueAllocator *ma = kevue_allocator();
-    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
+    KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(*resp), kc->ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -72,7 +71,7 @@ int main(void)
     u64 finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -95,7 +94,7 @@ int main(void)
     finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -107,7 +106,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_items(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -117,7 +116,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_keys(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -127,7 +126,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_values(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -137,7 +136,7 @@ int main(void)
     start = nsec_now();
     if (!kevue_client_count(kc, resp)) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -158,7 +157,7 @@ int main(void)
     finish = nsec_now();
     if (op_failed) {
         kevue_buffer_destroy(resp->val);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -167,7 +166,7 @@ int main(void)
     req_sec = NUM_ENTRIES / elapsed_sec;
     printf("Deleting %zu items takes: %.9fs (%.2f req/sec)\n", NUM_ENTRIES, elapsed_sec, req_sec);
     kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
+    kc->ma->free(resp, kc->ma->ctx);
     kevue_client_destroy(kc);
     return 0;
 }

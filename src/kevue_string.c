@@ -32,10 +32,9 @@
 
 #define MAX_U64 (u64)(-1)
 
-String kevue_string_create(const char *s)
+String kevue_string_create(KevueAllocator *ma, const char *s)
 {
-    KevueAllocator *ma = kevue_allocator();
-    String          str = { 0 };
+    String str = { 0 };
     str.len = kevue__cstring_len(s);
     if (str.len == 0) return (String) { 0 };
     str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
@@ -44,11 +43,10 @@ String kevue_string_create(const char *s)
     return str;
 }
 
-String kevue_string_createf(const char *fmt, ...)
+String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...)
 {
-    KevueAllocator *ma = kevue_allocator();
-    String          str = { 0 };
-    va_list         ap;
+    String  str = { 0 };
+    va_list ap;
     va_start(ap, fmt);
     int len = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
@@ -59,16 +57,15 @@ String kevue_string_createf(const char *fmt, ...)
     int n = vsnprintf((char *)str.data, (size_t)(len + 1), fmt, ap);
     va_end(ap);
     if (n < 0) {
-        kevue_string_destroy(&str);
+        kevue_string_destroy(ma, &str);
         return (String) { 0 };
     }
     str.len = (u64)len;
     return str;
 }
 
-void kevue_string_destroy(String *str)
+void kevue_string_destroy(KevueAllocator *ma, String *str)
 {
-    KevueAllocator *ma = kevue_allocator();
     ma->free(str->data, ma->ctx);
     str->data = NULL;
     str->len = 0;
@@ -79,9 +76,8 @@ bool kevue_string_is_empty(String str)
     return str.data == NULL || str.len == 0;
 }
 
-String kevue_string_from_string_view(StringView sv)
+String kevue_string_from_string_view(KevueAllocator *ma, StringView sv)
 {
-    KevueAllocator *ma = kevue_allocator();
     if (sv.len == 0) return (String) { 0 };
     String str = (String) { 0 };
     str.len = sv.len;
@@ -93,9 +89,8 @@ String kevue_string_from_string_view(StringView sv)
     return str;
 }
 
-String kevue_string_copy(String str)
+String kevue_string_copy(KevueAllocator *ma, String str)
 {
-    KevueAllocator *ma = kevue_allocator();
     if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = (String) { 0 };
     out.len = str.len;
@@ -107,10 +102,10 @@ String kevue_string_copy(String str)
     return out;
 }
 
-String kevue_string_to_lower(String str)
+String kevue_string_to_lower(KevueAllocator *ma, String str)
 {
     if (kevue_string_is_empty(str)) return (String) { 0 };
-    String out = kevue_string_copy(str);
+    String out = kevue_string_copy(ma, str);
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'A' && out.data[i] <= 'Z') {
             out.data[i] |= 1 << 5;
@@ -119,10 +114,10 @@ String kevue_string_to_lower(String str)
     return out;
 }
 
-String kevue_string_to_upper(String str)
+String kevue_string_to_upper(KevueAllocator *ma, String str)
 {
     if (kevue_string_is_empty(str)) return (String) { 0 };
-    String out = kevue_string_copy(str);
+    String out = kevue_string_copy(ma, str);
     for (u64 i = 0; i < out.len; i++) {
         if (out.data[i] >= 'a' && out.data[i] <= 'z') {
             out.data[i] &= ~(1 << 5);
@@ -131,10 +126,10 @@ String kevue_string_to_upper(String str)
     return out;
 }
 
-String kevue_string_to_title(String str)
+String kevue_string_to_title(KevueAllocator *ma, String str)
 {
     if (kevue_string_is_empty(str)) return (String) { 0 };
-    String out = kevue_string_copy(str);
+    String out = kevue_string_copy(ma, str);
     u8    *left = out.data;
     u8    *right = out.data + out.len;
     bool   title_applied = false;
@@ -157,9 +152,8 @@ String kevue_string_to_title(String str)
     return out;
 }
 
-String kevue_string_from_buffer(Buffer buf)
+String kevue_string_from_buffer(KevueAllocator *ma, Buffer buf)
 {
-    KevueAllocator *ma = kevue_allocator();
     if (buf.size == 0) return (String) { 0 };
     String str = (String) { 0 };
     str.len = buf.size;
@@ -174,13 +168,13 @@ String kevue_string_from_buffer(Buffer buf)
     return str;
 }
 
-String kevue_string_join(StringList strs, StringView sep)
+String kevue_string_join(KevueAllocator *ma, StringList strs, StringView sep)
 {
     if (strs.len == 0) {
         return (String) { 0 };
     }
     if (strs.len == 1) {
-        return kevue_string_copy(strs.ptr[0]);
+        return kevue_string_copy(ma, strs.ptr[0]);
     }
     u64 n = 0;
     if (sep.len > 0) {
@@ -197,27 +191,25 @@ String kevue_string_join(StringList strs, StringView sep)
         }
         n += strp->len;
     }
-    Buffer buf = { 0 };
-    kevue_buffer_grow(&buf, n);
-    kevue_buffer_append(&buf, (const void *)strs.ptr[0].data, strs.ptr[0].len);
+    Buffer *buf = kevue_buffer_create(ma, n);
+    kevue_buffer_append(buf, (const void *)strs.ptr[0].data, strs.ptr[0].len);
     kevue_dyna_foreach_from_offset(&strs, strp, 1)
     {
-        kevue_buffer_append(&buf, (const void *)sep.data, sep.len);
-        kevue_buffer_append(&buf, (const void *)strp->data, strp->len);
+        kevue_buffer_append(buf, (const void *)sep.data, sep.len);
+        kevue_buffer_append(buf, (const void *)strp->data, strp->len);
     }
-    String          str = kevue_string_from_buffer(buf);
-    KevueAllocator *ma = kevue_allocator();
-    ma->free(buf.ptr, ma->ctx);
+    String str = kevue_string_from_buffer(ma, *buf);
+    kevue_buffer_destroy(buf);
     return str;
 }
 
-String kevue_string_view_join(StringViewList svs, StringView sep)
+String kevue_string_view_join(KevueAllocator *ma, StringViewList svs, StringView sep)
 {
     if (svs.len == 0) {
         return (String) { 0 };
     }
     if (svs.len == 1) {
-        return kevue_string_from_string_view(svs.ptr[0]);
+        return kevue_string_from_string_view(ma, svs.ptr[0]);
     }
     u64 n = 0;
     if (sep.len > 0) {
@@ -234,17 +226,16 @@ String kevue_string_view_join(StringViewList svs, StringView sep)
         }
         n += svp->len;
     }
-    Buffer buf = { 0 };
-    kevue_buffer_grow(&buf, n);
-    kevue_buffer_append(&buf, (const void *)svs.ptr[0].data, svs.ptr[0].len);
+    Buffer *buf = kevue_buffer_create(ma, n);
+    kevue_buffer_grow(buf, n);
+    kevue_buffer_append(buf, (const void *)svs.ptr[0].data, svs.ptr[0].len);
     kevue_dyna_foreach_from_offset(&svs, svp, 1)
     {
-        kevue_buffer_append(&buf, (const void *)sep.data, sep.len);
-        kevue_buffer_append(&buf, (const void *)svp->data, svp->len);
+        kevue_buffer_append(buf, (const void *)sep.data, sep.len);
+        kevue_buffer_append(buf, (const void *)svp->data, svp->len);
     }
-    String          str = kevue_string_from_buffer(buf);
-    KevueAllocator *ma = kevue_allocator();
-    ma->free(buf.ptr, ma->ctx);
+    String str = kevue_string_from_buffer(ma, *buf);
+    kevue_buffer_destroy(buf);
     return str;
 }
 
@@ -452,33 +443,33 @@ bool kevue_string_view_is_empty(StringView sv)
     return sv.data == NULL || sv.len == 0;
 }
 
-StringViewList kevue_string_view_split(StringView sv, StringView sep)
+StringViewList kevue_string_view_split(KevueAllocator *ma, StringView sv, StringView sep)
 {
     StringViewList svs = { 0 };
     if (kevue_string_view_is_empty(sv) && kevue_string_view_is_empty(sep)) return svs;
     if (!(kevue_string_view_contains(sv, sep) || kevue_string_view_is_empty(sep))) {
-        kevue_dyna_grow(&svs, 1);
-        kevue_dyna_append(&svs, sv);
+        kevue_dyna_grow(ma, &svs, 1);
+        kevue_dyna_append(ma, &svs, sv);
         return svs;
     }
     if (kevue_string_view_is_empty(sep)) {
-        kevue_dyna_grow(&svs, sv.len);
+        kevue_dyna_grow(ma, &svs, sv.len);
         for (u64 i = 0; i < sv.len; i++) {
-            kevue_dyna_append(&svs, ((StringView) { .data = &sv.data[i], .len = 1 }));
+            kevue_dyna_append(ma, &svs, ((StringView) { .data = &sv.data[i], .len = 1 }));
         }
         return svs;
     }
     u64 n = (u64)kevue_string_view_count(sv, sep) + 1;
-    kevue_dyna_grow(&svs, n);
+    kevue_dyna_grow(ma, &svs, n);
     i64 next = -1;
     u64 prev = 0;
     while (true) {
         next = kevue_string_view_index_from_offset(sv, prev, sep);
         if (next == -1) {
-            kevue_dyna_append(&svs, ((StringView) { .data = sv.data + prev, .len = sv.len - prev }));
+            kevue_dyna_append(ma, &svs, ((StringView) { .data = sv.data + prev, .len = sv.len - prev }));
             break;
         }
-        kevue_dyna_append(&svs, ((StringView) { .data = sv.data + prev, .len = (u64)next - prev }));
+        kevue_dyna_append(ma, &svs, ((StringView) { .data = sv.data + prev, .len = (u64)next - prev }));
         prev = (u64)next + sep.len;
     }
     return svs;

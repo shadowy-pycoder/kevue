@@ -36,13 +36,12 @@
 int main(void)
 {
     KevueClientConfig conf = { 0 };
-    KevueClient      *kc = kevue_client_create(&conf);
+    KevueClient      *kc = kevue_client_create(kevue_allocator(), &conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueAllocator *ma = kevue_allocator();
-    KevueResponse  *resp = (KevueResponse *)ma->malloc(sizeof(KevueResponse), ma->ctx);
+    KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
-        ma->free(resp, ma->ctx);
+        kc->ma->free(resp, kc->ma->ctx);
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);
     }
@@ -58,6 +57,6 @@ int main(void)
         }
     }
     kevue_buffer_destroy(resp->val);
-    ma->free(resp, ma->ctx);
+    kc->ma->free(resp, kc->ma->ctx);
     kevue_client_destroy(kc);
 }

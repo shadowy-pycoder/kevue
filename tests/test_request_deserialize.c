@@ -52,7 +52,7 @@ u8 garbage[] = {
 int main()
 {
     KevueRequest req = { 0 };
-    Buffer      *buf = kevue_buffer_create(64);
+    Buffer      *buf = kevue_buffer_create(kevue_allocator(), 64);
     assert(buf != NULL);
     kevue_buffer_write(buf, data, sizeof(data));
     KevueErr err = kevue_request_deserialize(&req, buf);

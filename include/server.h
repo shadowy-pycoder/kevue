@@ -49,11 +49,12 @@ typedef struct KevueServerConfig {
  *
  * Initializes server state but does not start worker threads.
  *
+ * @param ma    Allocator to use for memory management.
  * @param conf  Server config
  *
  * @return Pointer to a newly created server, or NULL on failure.
  */
-KevueServer *kevue_server_create(KevueServerConfig *conf);
+KevueServer *kevue_server_create(KevueAllocator *ma, KevueServerConfig *conf);
 
 /**
  * @brief Starts the kevue server.

@@ -17,17 +17,7 @@
 #include "../src/buffer.c"
 #include "../src/common.c"
 #include "../src/threaded_hashmap.c"
-
-#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC)) > 1
-#error "You can define only one memory allocator at a time"
-#endif
-#if defined(USE_TCMALLOC)
-#include "../src/tcmalloc_allocator.c"
-#elif defined(USE_JEMALLOC)
-#include "../src/jemalloc_allocator.c"
-#elif defined(USE_MIMALLOC)
-#include "../src/mimalloc_allocator.c"
-#endif
+#include "bench_common.h"
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
@@ -42,7 +32,13 @@ static inline u64 splitmix64(u64 *state)
 
 int main(void)
 {
-    HashMap *hm = kevue_hm_threaded_create(kevue_allocator());
+#if defined(USE_ARENA)
+    KevueAllocator  arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    KevueAllocator *ma = &arena_ma;
+#else
+    KevueAllocator *ma = kevue_allocator();
+#endif
+    HashMap *hm = kevue_hm_threaded_create(ma);
     printf("Inserting %zu items...\n", NUM_ENTRIES);
     u64  start = nsec_now();
     bool op_failed = false;
@@ -69,7 +65,7 @@ int main(void)
     printf("Getting %zu items...\n", NUM_ENTRIES);
     op_failed = false;
     start = nsec_now();
-    Buffer *buf = kevue_buffer_create(kevue_allocator(), BUF_SIZE);
+    Buffer *buf = kevue_buffer_create(ma, BUF_SIZE);
     rng = 1;
     for (u64 i = 0; i < NUM_ENTRIES; i++) {
         u64 key = splitmix64(&rng);

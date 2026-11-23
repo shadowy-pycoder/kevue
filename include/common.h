@@ -21,11 +21,13 @@
 
 #include <allocator.h>
 #include <stdbool.h>
-#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC)) > 1
+#include <kevue_types.h>
+
+#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC) + defined(USE_ARENA)) > 1
 #error "You can define only one memory allocator at a time"
 #endif
 #if defined(USE_TCMALLOC)
@@ -34,6 +36,8 @@
 #include <jemalloc_allocator.h>
 #elif defined(USE_MIMALLOC)
 #include <mimalloc_allocator.h>
+#elif defined(USE_ARENA)
+#include <arena_allocator.h>
 #endif
 
 #define KEVUE_HOST           "0.0.0.0"
@@ -42,17 +46,6 @@
 #define BUF_SIZE             (32 * 1024)
 #define READ_TIMEOUT         10
 #define WRITE_TIMEOUT        10
-
-typedef int8_t   i8;
-typedef int16_t  i16;
-typedef int32_t  i32;
-typedef int64_t  i64;
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef float    f32;
-typedef double   f64;
 
 #if !defined(VERSION)
 #define VERSION "0.0.1"
@@ -152,6 +145,20 @@ typedef double   f64;
 #define KEVUE_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
 #endif
 
+#define align_up_pow2(x, a) ((x) + ((a) - ((x) & ((a) - 1)) & ((a) - 1)))
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define kevue_alignof(T) _Alignof(T)
+#else
+#define kevue_alignof(T) offsetof(struct {char _; T x; }, x)
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define kevue_expr_alignof(e) __alignof__(e)
+#else
+#define kevue_expr_alignof(e) _Alignof(max_align_t)
+#endif
+
 static inline KevueAllocator *kevue_allocator(void)
 {
 #if defined(USE_TCMALLOC)
@@ -160,6 +167,8 @@ static inline KevueAllocator *kevue_allocator(void)
     return &kevue_jemalloc_allocator;
 #elif defined(USE_MIMALLOC)
     return &kevue_mimalloc_allocator;
+#elif defined(USE_ARENA)
+    return NULL;
 #else
     return &kevue_default_allocator;
 #endif

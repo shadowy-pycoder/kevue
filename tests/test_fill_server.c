@@ -14,31 +14,27 @@
  * limitations under the License.
  */
 
-// clang -g3 -Iinclude -Ilib ./src/allocator.c ./tests/test_fill_server.c -o ./bin/kevue-test-fill-server -DDEBUG
+// clang -g3 -Iinclude -Ilib ./tests/test_fill_server.c -o ./bin/kevue-test-fill-server -DDEBUG
 #include "../src/buffer.c"
 #include "../src/client.c"
 #include "../src/common.c"
 #include "../src/protocol.c"
-
-#if (defined(USE_TCMALLOC) + defined(USE_JEMALLOC) + defined(USE_MIMALLOC)) > 1
-#error "You can define only one memory allocator at a time"
-#endif
-#if defined(USE_TCMALLOC)
-#include "../src/tcmalloc_allocator.c"
-#elif defined(USE_JEMALLOC)
-#include "../src/jemalloc_allocator.c"
-#elif defined(USE_MIMALLOC)
-#include "../src/mimalloc_allocator.c"
-#endif
+#include "tests_common.h"
 
 #define NUM_ENTRIES (1024 * 1024 * 10UL)
 
 int main(void)
 {
     KevueClientConfig conf = { 0 };
-    KevueClient      *kc = kevue_client_create(kevue_allocator(), &conf);
+#if defined(USE_ARENA)
+    KevueAllocator  arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    KevueAllocator *ma = &arena_ma;
+#else
+    KevueAllocator *ma = kevue_allocator();
+#endif
+    KevueClient *kc = kevue_client_create(ma, &conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kc->ma->ctx);
+    KevueResponse *resp = (KevueResponse *)kc->ma->malloc(sizeof(KevueResponse), kevue_alignof(KevueResponse), kc->ma->ctx);
     if (!kevue_client_hello(kc, resp)) {
         printf("%s\n", kevue_error_code_to_string[resp->err_code]);
         kc->ma->free(resp, kc->ma->ctx);

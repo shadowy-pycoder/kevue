@@ -18,6 +18,7 @@
  * @brief kevue client CLI example.
  */
 
+#include "protocol.h"
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -172,7 +173,7 @@ static KevueClientParseResult *kevue__parse_command_line(Buffer *buf)
 {
     // TODO: improve command dispatching
     KevueAllocator         *ma = buf->ma;
-    KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), ma->ctx);
+    KevueClientParseResult *pr = (KevueClientParseResult *)ma->malloc(sizeof(KevueClientParseResult), kevue_alignof(KevueClientParseResult), ma->ctx);
     if (pr == NULL) return NULL;
     memset(pr, 0, sizeof(*pr));
     pr->key = kevue_buffer_create(ma, BUF_SIZE);
@@ -341,10 +342,15 @@ int main(int argc, char **argv)
     }
     conf.read_timeout = *(int *)read_timeout;
     conf.write_timeout = *(int *)write_timeout;
+#if defined(USE_ARENA)
+    KevueAllocator  arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    KevueAllocator *ma = &arena_ma;
+#else
     KevueAllocator *ma = kevue_allocator();
-    KevueClient    *kc = kevue_client_create(ma, &conf);
+#endif
+    KevueClient *kc = kevue_client_create(ma, &conf);
     if (kc == NULL) exit(EXIT_FAILURE);
-    KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(*resp), ma->ctx);
+    KevueResponse *resp = (KevueResponse *)ma->malloc(sizeof(*resp), kevue_alignof(KevueResponse), ma->ctx);
     if (resp == NULL) {
         kevue_client_destroy(kc);
         exit(EXIT_FAILURE);

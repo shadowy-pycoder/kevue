@@ -23,6 +23,7 @@ GUI_LDLIBS  = -lraylib -lm
 USE_JEMALLOC ?= auto
 USE_TCMALLOC ?= auto
 USE_MIMALLOC ?= auto
+USE_ARENA ?= auto
 DEBUG ?= 1
 ASAN ?= 1
 TRACE ?= 0
@@ -55,14 +56,16 @@ ifeq ($(ASAN),1)
   USE_TCMALLOC := 0
   USE_JEMALLOC := 0
   USE_MIMALLOC := 0
+  USE_ARENA := 0
 endif
 
 
 ifeq ($(USE_TCMALLOC),auto)
   ifeq ($(shell pkg-config --exists libtcmalloc && echo yes),yes)
-  USE_TCMALLOC := 1
-  USE_JEMALLOC := 0
-  USE_MIMALLOC := 0
+    USE_TCMALLOC := 1
+    USE_JEMALLOC := 0
+    USE_MIMALLOC := 0
+    USE_ARENA := 0
   else
     USE_TCMALLOC := 0
   endif
@@ -101,6 +104,14 @@ endif
 ifeq ($(USE_MIMALLOC),1)
   CPPFLAGS  += -DUSE_MIMALLOC
   LDLIBS  += -lmimalloc
+endif
+
+ifeq ($(USE_ARENA),auto)
+    USE_ARENA := 1
+endif
+
+ifeq ($(USE_ARENA),1)
+  CPPFLAGS  += -DUSE_ARENA
 endif
 
 ifneq ($(SINGLE_THREADED_UNIX_SERVER),0)
@@ -169,7 +180,7 @@ release:
 	$(MAKE) DEBUG=0 ASAN=0 default examples
 
 $(BIN)/kevue-test-fill-server: | $(BIN)
-	$(CC) -g3 -Iinclude -Ilib ./src/allocator.c $(TESTS)/test_fill_server.c -o $(BIN)/kevue-test-fill-server -DDEBUG -lprofiler -DUSE_TCMALLOC -ltcmalloc
+	$(CC) -g3 -Iinclude -Ilib $(TESTS)/test_fill_server.c -o $(BIN)/kevue-test-fill-server -DDEBUG -lprofiler -DUSE_TCMALLOC -ltcmalloc
 
 tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 	$(CC) -g3 -fsanitize=thread,undefined -Iinclude -Ilib $(TESTS)/test_crash_threaded_hashmap.c -o $(BIN)/kevue-test-crash-threaded-hashmap -DDEBUG
@@ -179,21 +190,21 @@ tests: $(BIN)/kevue-test-fill-server  | $(BIN)
 
 
 $(BIN)/kevue-bench-server: | $(BIN)
-	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_server.c -o $(BIN)/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./benchmarks/bench_server.c -o $(BIN)/kevue-bench-server -DUSE_TCMALLOC -ltcmalloc
 
 .PHONY: bench-server
 bench-server: $(BIN)/kevue-bench-server  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-server
 
 $(BIN)/kevue-bench-unix-server: | $(BIN)
-	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_unix_server.c -o $(BIN)/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./benchmarks/bench_unix_server.c -o $(BIN)/kevue-bench-unix-server -DUSE_TCMALLOC -ltcmalloc
 
 .PHONY: bench-unix-server
 bench-unix-server: $(BIN)/kevue-bench-unix-server  | $(BIN)
 	./$(notdir $(BIN))/kevue-bench-unix-server
 
 $(BIN)/kevue-bench-hashmap: | $(BIN)
-	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./src/allocator.c ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__HASHMAP_SINGLE_THREADED
+	$(CC) -O3 -flto -march=native -Iinclude -Ilib ./benchmarks/bench_hashmap.c -o $(BIN)/kevue-bench-hashmap -DUSE_TCMALLOC -ltcmalloc -D__HASHMAP_SINGLE_THREADED
 
 .PHONY: bench-hashmap
 bench-hashmap: $(BIN)/kevue-bench-hashmap  | $(BIN)

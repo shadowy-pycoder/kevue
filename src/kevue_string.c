@@ -37,7 +37,7 @@ String kevue_string_create(KevueAllocator *ma, const char *s)
     String str = { 0 };
     str.len = kevue__cstring_len(s);
     if (str.len == 0) return (String) { 0 };
-    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, kevue_alignof(u8), ma->ctx);
     if (str.data == NULL) return (String) { 0 };
     memcpy(str.data, s, str.len);
     return str;
@@ -51,7 +51,7 @@ String kevue_string_createf(KevueAllocator *ma, const char *fmt, ...)
     int len = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
     if (len <= 0) return (String) { 0 };
-    str.data = (u8 *)ma->malloc(sizeof(*str.data) * (size_t)(len + 1), ma->ctx);
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * (size_t)(len + 1), kevue_alignof(u8), ma->ctx);
     if (str.data == NULL) return (String) { 0 };
     va_start(ap, fmt);
     int n = vsnprintf((char *)str.data, (size_t)(len + 1), fmt, ap);
@@ -81,7 +81,7 @@ String kevue_string_from_string_view(KevueAllocator *ma, StringView sv)
     if (sv.len == 0) return (String) { 0 };
     String str = (String) { 0 };
     str.len = sv.len;
-    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, kevue_alignof(u8), ma->ctx);
     if (str.data == NULL) {
         return (String) { 0 };
     }
@@ -94,7 +94,7 @@ String kevue_string_copy(KevueAllocator *ma, String str)
     if (kevue_string_is_empty(str)) return (String) { 0 };
     String out = (String) { 0 };
     out.len = str.len;
-    out.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
+    out.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, kevue_alignof(u8), ma->ctx);
     if (out.data == NULL) {
         return (String) { 0 };
     }
@@ -160,7 +160,7 @@ String kevue_string_from_buffer(KevueAllocator *ma, Buffer buf)
     if (str.len == 0) {
         return (String) { 0 };
     }
-    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, ma->ctx);
+    str.data = (u8 *)ma->malloc(sizeof(*str.data) * str.len, kevue_alignof(u8), ma->ctx);
     if (str.data == NULL) {
         return (String) { 0 };
     }

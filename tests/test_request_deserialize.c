@@ -19,10 +19,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/common.c"
 #include "../src/protocol.c"
+#include "tests_common.h"
 
 u8 data[] = {
     0x22, // magic byte
@@ -52,7 +52,13 @@ u8 garbage[] = {
 int main()
 {
     KevueRequest req = { 0 };
-    Buffer      *buf = kevue_buffer_create(kevue_allocator(), 64);
+#if defined(USE_ARENA)
+    KevueAllocator  arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    KevueAllocator *ma = &arena_ma;
+#else
+    KevueAllocator *ma = kevue_allocator();
+#endif
+    Buffer *buf = kevue_buffer_create(ma, 64);
     assert(buf != NULL);
     kevue_buffer_write(buf, data, sizeof(data));
     KevueErr err = kevue_request_deserialize(&req, buf);

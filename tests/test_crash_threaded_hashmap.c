@@ -24,7 +24,7 @@
 static void *get(void *m)
 {
 
-    Buffer *b = kevue_buffer_create(kevue_allocator(), 1);
+    Buffer *b = kevue_buffer_create(&kevue_default_allocator, 1);
     for (;;) {
         kevue_buffer_reset(b);
         kevue__hm_threaded_get(m, ".", 1, b);
@@ -33,7 +33,7 @@ static void *get(void *m)
 
 int main()
 {
-    HashMap *m = kevue_hm_threaded_create(kevue_allocator());
+    HashMap *m = kevue_hm_threaded_create(&kevue_default_allocator);
     pthread_create(&(pthread_t) {}, NULL, get, m);
     for (long long i = 0;;) {
         char key[32] = {};

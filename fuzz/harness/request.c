@@ -27,17 +27,15 @@ __AFL_FUZZ_INIT();
 
 #define CAPACITY 64
 
-static inline void buffer_init(Buffer *buf, int capacity)
+static inline void buffer_init(KevueAllocator *ma, Buffer *buf, int capacity)
 {
     memset(buf, 0, sizeof(*buf));
-    KevueAllocator *ma = kevue_allocator();
-    buf->ptr = ma->malloc(capacity, ma->ctx);
+    buf->ptr = ma->malloc(capacity, kevue_alignof(u8), ma->ctx);
     memset(buf->ptr, 0, capacity);
 }
 
-static inline void buffer_deinit(Buffer *buf)
+static inline void buffer_deinit(KevueAllocator *ma, Buffer *buf)
 {
-    KevueAllocator *ma = kevue_allocator();
     ma->free(buf->ptr, ma->ctx);
 }
 
@@ -46,21 +44,22 @@ int main(void)
 #ifdef __AFL_HAVE_MANUAL_CONTROL
     __AFL_INIT();
 #endif
-    unsigned char *fuzz_buf = __AFL_FUZZ_TESTCASE_BUF;
+    unsigned char  *fuzz_buf = __AFL_FUZZ_TESTCASE_BUF;
+    KevueAllocator *ma = &kevue_default_allocator;
 
     while (__AFL_LOOP(1000)) {
         size_t       len = __AFL_FUZZ_TESTCASE_LEN;
         Buffer       in_buf = { 0 };
         Buffer       out_buf = { 0 };
         KevueRequest req = { 0 };
-        buffer_init(&in_buf, len);
-        buffer_init(&out_buf, CAPACITY);
+        buffer_init(ma, &in_buf, len);
+        buffer_init(ma, &out_buf, CAPACITY);
         memcpy(in_buf.ptr, fuzz_buf, len);
         KevueErr err = kevue_request_deserialize(&req, &in_buf);
         (void)err;
         kevue_request_serialize(&req, &out_buf);
-        buffer_deinit(&in_buf);
-        buffer_deinit(&out_buf);
+        buffer_deinit(ma, &in_buf);
+        buffer_deinit(ma, &out_buf);
     }
     return 0;
 }

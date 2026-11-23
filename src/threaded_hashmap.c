@@ -116,10 +116,10 @@ static inline pthread_mutex_t *kevue__hm_threaded_bucket_lock(HashMapThreaded *h
 
 HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
 {
-    HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), ma->ctx);
+    HashMap *hm = (HashMap *)ma->malloc(sizeof(*hm), kevue_alignof(HashMap), ma->ctx);
     if (hm == NULL) return NULL;
     hm->ops = &hm_ops;
-    HashMapThreaded *hm_internal = (HashMapThreaded *)ma->malloc(sizeof(*hm_internal), ma->ctx);
+    HashMapThreaded *hm_internal = (HashMapThreaded *)ma->malloc(sizeof(*hm_internal), kevue_alignof(HashMapThreaded), ma->ctx);
     if (hm_internal == NULL) {
         ma->free(hm, ma->ctx);
         return NULL;
@@ -127,7 +127,7 @@ HashMap *kevue_hm_threaded_create(KevueAllocator *ma)
     memset(hm_internal, 0, sizeof(*hm_internal));
     hm_internal->ma = ma;
     u64 bucket_count = HASHMAP_BUCKET_INITIAL_COUNT;
-    hm_internal->buckets = hm_internal->ma->malloc(bucket_count * sizeof(Bucket), hm_internal->ma->ctx);
+    hm_internal->buckets = (Bucket *)hm_internal->ma->malloc(bucket_count * sizeof(Bucket), kevue_alignof(Bucket), hm_internal->ma->ctx);
     if (hm_internal->buckets == NULL) {
         hm_internal->ma->free(hm_internal, hm_internal->ma->ctx);
         return NULL;
@@ -195,6 +195,8 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, u64 key_len, co
                     Entry    *new_ptr = (Entry *)hm_internal->ma->realloc(
                         hm_internal->buckets[idx].ptr[eidx],
                         sizeof(*entry) + key_len + val_len,
+                        sizeof(*entry) + key_len + entry->val_len,
+                        kevue_alignof(Entry),
                         hm_internal->ma->ctx);
                     if (new_ptr == NULL) {
                         mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
@@ -210,7 +212,7 @@ static bool kevue__hm_threaded_put(HashMap *hm, const void *key, u64 key_len, co
             }
         }
     }
-    Entry *entry = hm_internal->ma->malloc(sizeof(*entry) + key_len + val_len, hm_internal->ma->ctx);
+    Entry *entry = hm_internal->ma->malloc(sizeof(*entry) + key_len + val_len, kevue_alignof(Entry), hm_internal->ma->ctx);
     if (entry == NULL) {
         mutex_unlock(kevue__hm_threaded_bucket_lock(hm_internal, idx));
         return false;
@@ -324,6 +326,7 @@ static bool kevue__hm_threaded_items(HashMap *hm, Buffer *buf)
             Entry *entry = *entry_ptr;
             u64    key_len = (u64)entry->key_len;
             u64    val_len = (u64)entry->val_len;
+            // TODO: check for return value from appends
             kevue_buffer_append(buf, &key_len, sizeof(key_len));
             kevue_buffer_append(buf, entry->data, key_len);
             kevue_buffer_append(buf, &val_len, sizeof(val_len));
@@ -389,7 +392,7 @@ static bool kevue__hm_threaded_values(HashMap *hm, Buffer *buf)
 static void kevue__hm_threaded_resize(HashMapThreaded *hm_internal, u64 new_size)
 {
     print_debug(generate_timestamp(), "HashMap %s %zu -> %zu", new_size > hm_internal->bucket_count ? "grows" : "shrinks", hm_internal->bucket_count, new_size);
-    Bucket *new_buckets = hm_internal->ma->malloc(new_size * sizeof(Bucket), hm_internal->ma->ctx);
+    Bucket *new_buckets = hm_internal->ma->malloc(new_size * sizeof(Bucket), kevue_alignof(Bucket), hm_internal->ma->ctx);
     if (new_buckets == NULL) {
         return;
     }

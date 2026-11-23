@@ -17,6 +17,7 @@
  * @file server.c
  * @brief kevue server implementation.
  */
+#include "arena_allocator.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -174,13 +175,13 @@ static void *kevue__handle_server_epoll(void *args)
         goto server_close;
     }
     struct epoll_event events[MAX_EVENTS] = { 0 };
-    KevueConnection   *sc = (KevueConnection *)ma->malloc(sizeof(*sc), ma->ctx);
+    KevueConnection   *sc = (KevueConnection *)ma->malloc(sizeof(*sc), kevue_alignof(KevueConnection), ma->ctx);
     if (sc == NULL) {
         close(epfd);
         close(server_sock);
         goto server_close;
     }
-    sc->sock = (Socket *)ma->malloc(sizeof(Socket), ma->ctx);
+    sc->sock = (Socket *)ma->malloc(sizeof(Socket), kevue_alignof(Socket), ma->ctx);
     sc->sock->fd = server_sock;
     sc->sock->c = sc;
     sc->hm = hm;
@@ -192,7 +193,7 @@ static void *kevue__handle_server_epoll(void *args)
         ma->free(sc, ma->ctx);
         goto server_close;
     }
-    KevueConnection *ec = (KevueConnection *)ma->malloc(sizeof(*ec), ma->ctx);
+    KevueConnection *ec = (KevueConnection *)ma->malloc(sizeof(*ec), kevue_alignof(KevueConnection), ma->ctx);
     if (ec == NULL) {
         close(epfd);
         close(server_sock);
@@ -200,7 +201,7 @@ static void *kevue__handle_server_epoll(void *args)
         ma->free(sc, ma->ctx);
         goto server_close;
     }
-    ec->sock = (Socket *)ma->malloc(sizeof(*ec->sock), ma->ctx);
+    ec->sock = (Socket *)ma->malloc(sizeof(*ec->sock), kevue_alignof(Socket), ma->ctx);
     if (ec->sock == NULL) {
         close(epfd);
         close(server_sock);
@@ -311,7 +312,7 @@ static bool kevue__setup_connection(int epfd, int sock, SockAddr addr, HashMap *
             return false;
         }
     }
-    KevueConnection *c = (KevueConnection *)ma->malloc(sizeof(*c), ma->ctx);
+    KevueConnection *c = (KevueConnection *)ma->malloc(sizeof(*c), kevue_alignof(KevueConnection), ma->ctx);
     if (c == NULL) {
         print_err(generate_timestamp(), "[%d] Allocating memory for client failed", tid);
         close(sock);
@@ -589,7 +590,7 @@ static bool kevue__connection_new(KevueConnection *c, int sock, SockAddr addr, H
 {
     pid_t tid = gettid();
     memset(c, 0, sizeof(*c));
-    c->sock = (Socket *)ma->malloc(sizeof(Socket), ma->ctx);
+    c->sock = (Socket *)ma->malloc(sizeof(Socket), kevue_alignof(Socket), ma->ctx);
     if (c->sock == NULL) {
         print_err(generate_timestamp(), "[%d] Allocating memory for socket failed", tid);
         return false;
@@ -829,6 +830,9 @@ static void kevue__usage(FILE *stream)
 #if defined(USE_MIMALLOC)
     fprintf(stream, "USE_MIMALLOC\n");
 #endif
+#if defined(USE_ARENA)
+    fprintf(stream, "USE_ARENA\n");
+#endif
 }
 
 static void kevue__info(FILE *stream)
@@ -863,7 +867,7 @@ KevueServer *kevue_server_create(KevueAllocator *ma, KevueServerConfig *conf)
         return NULL;
     }
     close(server_sock);
-    KevueServer *ks = (KevueServer *)ma->malloc(sizeof(*ks), ma->ctx);
+    KevueServer *ks = (KevueServer *)ma->malloc(sizeof(*ks), kevue_alignof(KevueServer), ma->ctx);
     if (ks == NULL) return NULL;
     memset(ks, 0, sizeof(*ks));
     ks->host = conf->host;
@@ -885,13 +889,13 @@ KevueServer *kevue_server_create(KevueAllocator *ma, KevueServerConfig *conf)
     kevue__info(stdout);
     int server_workers = ks->tcp_workers + ks->unix_workers;
     // create unix server
-    ks->fds = (int *)ma->malloc(sizeof(*ks->fds) * (size_t)server_workers, ma->ctx);
+    ks->fds = (int *)ma->malloc(sizeof(*ks->fds) * (size_t)server_workers, kevue_alignof(int), ma->ctx);
     if (ks->fds == NULL) {
         close(ks->efd);
         ma->free(ks->fds, ma->ctx);
         ma->free(ks, ma->ctx);
     }
-    ks->threads = (pthread_t *)ma->malloc(sizeof(*ks->threads) * (size_t)server_workers, ma->ctx);
+    ks->threads = (pthread_t *)ma->malloc(sizeof(*ks->threads) * (size_t)server_workers, kevue_alignof(pthread_t), ma->ctx);
     if (ks->threads == NULL) {
         close(ks->efd);
         ma->free(ks->fds, ma->ctx);
@@ -951,7 +955,7 @@ KevueServer *kevue_server_create(KevueAllocator *ma, KevueServerConfig *conf)
 void kevue_server_start(KevueServer *ks)
 {
     for (int i = 0; i < ks->tcp_workers + ks->unix_workers; i++) {
-        EpollServerArgs *esargs = (EpollServerArgs *)ks->ma->malloc(sizeof(*esargs), ks->ma->ctx);
+        EpollServerArgs *esargs = (EpollServerArgs *)ks->ma->malloc(sizeof(*esargs), kevue_alignof(EpollServerArgs), ks->ma->ctx);
         esargs->ssock = &ks->fds[i];
         esargs->esock = &ks->efd;
         esargs->hm = ks->hm;
@@ -1020,8 +1024,13 @@ int main(int argc, char **argv)
 #if !defined(SINGLE_THREADED_TCP_SERVER) && !defined(SINGLE_THREADED_UNIX_SERVER)
     conf.workers = *(int *)workers;
 #endif
+#if defined(USE_ARENA)
+    KevueAllocator  arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    KevueAllocator *ma = &arena_ma;
+#else
     KevueAllocator *ma = kevue_allocator();
-    KevueServer    *ks = kevue_server_create(ma, &conf);
+#endif
+    KevueServer *ks = kevue_server_create(ma, &conf);
     if (ks == NULL) exit(EXIT_FAILURE);
     kevue_server_start(ks);
     kevue_server_destroy(ks);

@@ -277,11 +277,12 @@ Deleting 10485760 items takes: 1.143722737s (9168096.13 op/sec 109 ns/op)
 - [x] Add installation script
 - [x] Add tests and benchmarks
 - [ ] Add arena memory allocator
-- [ ] Make it compilable with C++ compilers
+- [ ] Add `io_uring` backend for server
 - [ ] Load/save from persistent storage
 - [ ] Add more commands, `HSET`, `HGET` and the like
 - [ ] Add lock-free hashmap implementation (e.g. Hopscotch hashing)
 - [ ] Add GUI
+- [ ] Make it compilable with C++ compilers
 
 ## Contributing
 

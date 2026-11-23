@@ -32,14 +32,14 @@
 /**
  * @brief Initialize a dynamic array.
  */
-#define kevue_dyna_init(_ma, dyna, capacity)                                            \
-    do {                                                                                \
-        if ((dyna) != NULL) {                                                           \
-            memset((dyna), 0, sizeof(*(dyna)));                                         \
-            (dyna)->ptr = (_ma)->malloc((capacity) * sizeof(*(dyna)->ptr), (_ma)->ctx); \
-            assert((dyna)->ptr != NULL);                                                \
-            (dyna)->cap = (capacity);                                                   \
-        }                                                                               \
+#define kevue_dyna_init(_ma, dyna, capacity)                                                                              \
+    do {                                                                                                                  \
+        if ((dyna) != NULL) {                                                                                             \
+            memset((dyna), 0, sizeof(*(dyna)));                                                                           \
+            (dyna)->ptr = (_ma)->malloc((capacity) * sizeof(*(dyna)->ptr), kevue_expr_alignof(*(dyna)->ptr), (_ma)->ctx); \
+            assert((dyna)->ptr != NULL);                                                                                  \
+            (dyna)->cap = (capacity);                                                                                     \
+        }                                                                                                                 \
     } while (0)
 
 /**
@@ -62,18 +62,19 @@
  *
  * Credits to https://github.com/tsoding/nob.h
  */
-#define kevue_dyna_append(_ma, dyna, item)                                                                 \
-    do {                                                                                                   \
-        if ((dyna) != NULL) {                                                                              \
-            if ((dyna)->cap == 0) (dyna)->cap = KEVUE_INIT_CAP;                                            \
-            u64 initial_cap = (dyna)->cap;                                                                 \
-            while ((dyna)->cap < (dyna)->len + 1) (dyna)->cap *= 2;                                        \
-            if ((dyna)->ptr == NULL || (dyna)->cap > initial_cap) {                                        \
-                (dyna)->ptr = (_ma)->realloc((dyna)->ptr, (dyna)->cap * sizeof(*(dyna)->ptr), (_ma)->ctx); \
-                assert((dyna)->ptr != NULL);                                                               \
-            }                                                                                              \
-            (dyna)->ptr[(dyna)->len++] = (item);                                                           \
-        }                                                                                                  \
+#define kevue_dyna_append(_ma, dyna, item)                                                             \
+    do {                                                                                               \
+        if ((dyna) != NULL) {                                                                          \
+            if ((dyna)->cap == 0) (dyna)->cap = KEVUE_INIT_CAP;                                        \
+            u64 initial_cap = (dyna)->cap;                                                             \
+            while ((dyna)->cap < (dyna)->len + 1) (dyna)->cap *= 2;                                    \
+            if ((dyna)->ptr == NULL || (dyna)->cap > initial_cap) {                                    \
+                (dyna)->ptr = (_ma)->realloc((dyna)->ptr, (dyna)->cap * sizeof(*(dyna)->ptr),          \
+                    initial_cap * sizeof(*(dyna)->ptr), kevue_expr_alignof(*(dyna)->ptr), (_ma)->ctx); \
+                assert((dyna)->ptr != NULL);                                                           \
+            }                                                                                          \
+            (dyna)->ptr[(dyna)->len++] = (item);                                                       \
+        }                                                                                              \
     } while (0)
 
 /**
@@ -117,13 +118,14 @@
  *
  * @pre Dynamic array must be initialized.
  */
-#define kevue_dyna_grow(_ma, dyna, n)                                                              \
-    do {                                                                                           \
-        if ((dyna) != NULL) {                                                                      \
-            if ((dyna)->ptr == NULL || (dyna)->cap < (n)) {                                        \
-                (dyna)->ptr = (_ma)->realloc((dyna)->ptr, (n) * sizeof(*(dyna)->ptr), (_ma)->ctx); \
-                assert((dyna)->ptr != NULL);                                                       \
-                (dyna)->cap = (n);                                                                 \
-            }                                                                                      \
-        }                                                                                          \
+#define kevue_dyna_grow(_ma, dyna, n)                                                                  \
+    do {                                                                                               \
+        if ((dyna) != NULL) {                                                                          \
+            if ((dyna)->ptr == NULL || (dyna)->cap < (n)) {                                            \
+                (dyna)->ptr = (_ma)->realloc((dyna)->ptr, (n) * sizeof(*(dyna)->ptr),                  \
+                    (dyna)->cap * sizeof(*(dyna)->ptr), kevue_expr_alignof(*(dyna)->ptr), (_ma)->ctx); \
+                assert((dyna)->ptr != NULL);                                                           \
+                (dyna)->cap = (n);                                                                     \
+            }                                                                                          \
+        }                                                                                              \
     } while (0)

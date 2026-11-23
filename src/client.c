@@ -383,7 +383,7 @@ KevueClient *kevue_client_create(KevueAllocator *ma, KevueClientConfig *conf)
         print_err(generate_timestamp(), "Server port is not valid number");
         return NULL;
     }
-    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(*kc), ma->ctx);
+    KevueClient *kc = (KevueClient *)ma->malloc(sizeof(*kc), kevue_alignof(KevueClient), ma->ctx);
     if (kc == NULL) return NULL;
     if (conf->unix_path != NULL && conf->unix_path[0] != '\0') {
         kc->fd = kevue__create_client_unix_sock(conf->unix_path, conf->read_timeout, conf->write_timeout);

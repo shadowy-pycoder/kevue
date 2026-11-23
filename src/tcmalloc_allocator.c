@@ -19,9 +19,10 @@
  */
 #include <stddef.h>
 
-static void *kevue_malloc(size_t size, void *ctx);
-static void *kevue_calloc(size_t n, size_t size, void *ctx);
-static void *kevue_realloc(void *ptr, size_t size, void *ctx);
+static void *kevue_malloc(size_t size, size_t align, void *ctx);
+static void *kevue_calloc(size_t n, size_t size, size_t align, void *ctx);
+static void *kevue_realloc(void *ptr, size_t size, size_t old_size, size_t align, void *ctx);
+static void *kevue_alloc_aligned(size_t size, size_t align, void *ctx);
 static void kevue_free(void *ptr, void *ctx);
 
 #ifdef USE_TCMALLOC
@@ -30,22 +31,32 @@ static void kevue_free(void *ptr, void *ctx);
 #include <allocator.h>
 #include <common.h>
 
-static void *kevue_malloc(size_t size, void *ctx)
+static void *kevue_malloc(size_t size, size_t align, void *ctx)
 {
+    UNUSED(align);
     UNUSED(ctx);
     return tc_malloc(size);
 }
 
-static void *kevue_calloc(size_t n, size_t size, void *ctx)
+static void *kevue_calloc(size_t n, size_t size, size_t align, void *ctx)
 {
+    UNUSED(align);
     UNUSED(ctx);
     return tc_calloc(n, size);
 }
 
-static void *kevue_realloc(void *ptr, size_t size, void *ctx)
+static void *kevue_realloc(void *ptr, size_t size, size_t old_size, size_t align, void *ctx)
 {
+    UNUSED(old_size);
+    UNUSED(align);
     UNUSED(ctx);
     return tc_realloc(ptr, size);
+}
+
+static void *kevue_alloc_aligned(size_t size, size_t align, void *ctx)
+{
+    UNUSED(ctx);
+    return tc_memalign(align, size);
 }
 
 static void kevue_free(void *ptr, void *ctx)
@@ -54,5 +65,12 @@ static void kevue_free(void *ptr, void *ctx)
     tc_free(ptr);
 }
 
-KevueAllocator kevue_tcmalloc_allocator = { .malloc = kevue_malloc, .calloc = kevue_calloc, .realloc = kevue_realloc, .free = kevue_free, .ctx = NULL };
+KevueAllocator kevue_tcmalloc_allocator = {
+    .malloc = kevue_malloc,
+    .calloc = kevue_calloc,
+    .realloc = kevue_realloc,
+    .alloc_aligned = kevue_alloc_aligned,
+    .free = kevue_free,
+    .ctx = NULL,
+};
 #endif

@@ -17,21 +17,13 @@
 // clang -g3 -Iinclude -Ilib ./tests/test_string.c -o ./bin/kevue-test-string -DDEBUG
 #include <assert.h>
 
-#include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/kevue_string.c"
-#include <common.h>
+#include "tests_common.h"
 #include <dyna.h>
 #include <kevue_string.h>
 
-KevueAllocator *ma = &kevue_default_allocator;
-#if defined(USE_TCMALLOC)
-ma = &kevue_tcmalloc_allocator;
-#elif defined(USE_JEMALLOC)
-ma = &kevue_jemalloc_allocator;
-#elif defined(USE_MIMALLOC)
-ma = &kevue_mimalloc_allocator;
-#endif
+KevueAllocator *ma;
 
 void test_string_create(void)
 {
@@ -1821,6 +1813,12 @@ void run_tests()
 
 int main()
 {
+#if defined(USE_ARENA)
+    KevueAllocator arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    ma = &arena_ma;
+#else
+    ma = kevue_allocator();
+#endif
     run_tests();
     return 0;
 }

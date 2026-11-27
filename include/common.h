@@ -120,6 +120,12 @@
 
 #define print_info(ts, fmt, ...) fprintf(stdout, "[%s] INFO: " fmt "\n", ts, ##__VA_ARGS__)
 
+#ifdef TRACE
+#define print_expr_val(fmt, expr) fprintf(stdout, #expr " = " fmt "\n", (expr))
+#else
+#define print_expr_val(ts, fmt, ...) ((void)0)
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define max(a, b) ({        \
     __typeof__(a) _a = (a); \

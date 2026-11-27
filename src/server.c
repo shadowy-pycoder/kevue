@@ -17,7 +17,6 @@
  * @file server.c
  * @brief kevue server implementation.
  */
-#include "arena_allocator.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>

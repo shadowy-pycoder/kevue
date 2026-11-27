@@ -59,5 +59,9 @@ void *kevue_arena_push_aligned(Arena *arena, u64 size, u64 align, bool non_zero)
 void kevue_arena_pop(Arena *arena, u64 size);
 void kevue_arena_pop_to(Arena *arena, u64 pos);
 void kevue_arena_clear(Arena *arena);
+void kevue_arena_shrink(Arena *arena);
+Arena *kevue_arena_clone(Arena *src);
+bool kevue_arena_copy(Arena *dst, Arena *src);
 KevueAllocator kevue_allocator_from_arena(Arena *arena);
 KevueAllocator kevue_allocator_from_arena_sizes(u64 reserve_size, u64 commit_size);
+KevueAllocator kevue_allocator_from_arena_ctx(void *ctx);

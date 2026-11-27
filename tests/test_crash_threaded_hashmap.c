@@ -16,15 +16,17 @@
 
 // Authored by https://www.reddit.com/user/skeeto/
 // clang -g3 -fsanitize=thread,undefined -Iinclude -Ilib ./tests/test_crash_threaded_hashmap.c -o ./bin/kevue-test-crash-threaded-hashmap -DDEBUG
-#include "../src/allocator.c"
 #include "../src/buffer.c"
 #include "../src/common.c"
 #include "../src/threaded_hashmap.c"
+#include "tests_common.h"
+
+KevueAllocator *ma;
 
 static void *get(void *m)
 {
 
-    Buffer *b = kevue_buffer_create(&kevue_default_allocator, 1);
+    Buffer *b = kevue_buffer_create(ma, 1);
     for (;;) {
         kevue_buffer_reset(b);
         kevue__hm_threaded_get(m, ".", 1, b);
@@ -33,7 +35,13 @@ static void *get(void *m)
 
 int main()
 {
-    HashMap *m = kevue_hm_threaded_create(&kevue_default_allocator);
+#if defined(USE_ARENA)
+    KevueAllocator arena_ma = kevue_allocator_from_arena_sizes(KEVUE_ARENA_RESERVE_SIZE_DEFAULT, KEVUE_ARENA_COMMIT_SIZE_DEFAULT);
+    ma = &arena_ma;
+#else
+    ma = kevue_allocator();
+#endif
+    HashMap *m = kevue_hm_threaded_create(ma);
     pthread_create(&(pthread_t) {}, NULL, get, m);
     for (long long i = 0;;) {
         char key[32] = {};

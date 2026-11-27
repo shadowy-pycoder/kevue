@@ -9,3 +9,4 @@ fuzz/build/
 *.heap
 .kevue_history
 heaptrack*
+perf*

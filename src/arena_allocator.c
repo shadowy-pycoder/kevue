@@ -42,7 +42,7 @@ static void kevue_free(void *ptr, void *ctx);
 
 struct Arena {
     u64 res_size;
-    u64 cmt_chunk;
+    u64 cmt_chunk_size;
 
     u64 pos;
     u64 cmt_pos;
@@ -91,7 +91,7 @@ Arena *kevue_arena_create(u64 reserve_size, u64 commit_size)
     }
 
     arena->res_size = reserve_size;
-    arena->cmt_chunk = commit_size;
+    arena->cmt_chunk_size = commit_size;
     arena->pos = KEVUE_ARENA_HEADER_SIZE;
     arena->cmt_pos = commit_size;
     return arena;
@@ -109,6 +109,7 @@ void *kevue_arena_push(Arena *arena, u64 size, bool non_zero)
 
 void *kevue_arena_push_aligned(Arena *arena, u64 size, u64 align, bool non_zero)
 {
+    if (arena == NULL) return NULL;
     // move pos so new item is aligned accordingly
     u64 prev_pos = align_up_pow2(arena->pos, align);
     u64 next_pos = prev_pos + size;
@@ -124,8 +125,8 @@ void *kevue_arena_push_aligned(Arena *arena, u64 size, u64 align, bool non_zero)
     if (arena->cmt_pos < next_pos) {
         // align commit position up to page chunk boundary
         u64 new_cmt_pos = next_pos;
-        u64 new_cmt_pos_aligned = new_cmt_pos + arena->cmt_chunk - 1;
-        new_cmt_pos_aligned -= new_cmt_pos_aligned % arena->cmt_chunk;
+        u64 new_cmt_pos_aligned = new_cmt_pos + arena->cmt_chunk_size - 1;
+        new_cmt_pos_aligned -= new_cmt_pos_aligned % arena->cmt_chunk_size;
         u64 new_cmt_pos_clamped = min(new_cmt_pos_aligned, arena->res_size);
         u8 *new_ptr = (u8 *)arena + arena->cmt_pos;
         u64 cmt_size = new_cmt_pos_clamped - arena->cmt_pos;
@@ -162,6 +163,59 @@ void kevue_arena_clear(Arena *arena)
     kevue_arena_pop_to(arena, KEVUE_ARENA_HEADER_SIZE);
 }
 
+Arena *kevue_arena_clone(Arena *src)
+{
+    if (src == NULL) return NULL;
+    Arena *dst = kevue_arena_create(src->res_size, src->cmt_chunk_size);
+    if (dst == NULL) return NULL;
+    u64 hdr = KEVUE_ARENA_HEADER_SIZE;
+    if (src->pos == hdr) {
+        return dst;
+    }
+    if (!kevue_arena_push_aligned(dst, src->pos - hdr, kevue_alignof(u8), false)) {
+        kevue_arena_destroy(dst);
+        return NULL;
+    }
+    memcpy((u8 *)dst + hdr, (u8 *)src + hdr, src->pos - hdr);
+    return dst;
+}
+
+bool kevue_arena_copy(Arena *dst, Arena *src)
+{
+    if (src == NULL || dst == NULL) return false;
+    u64 hdr = KEVUE_ARENA_HEADER_SIZE;
+    if (src->pos == hdr) {
+        return false;
+    }
+    u64 dst_cmt_pos = dst->cmt_pos;
+    u64 dst_pos = dst->cmt_pos;
+    kevue_arena_clear(dst);
+    if (!kevue_arena_push_aligned(dst, src->pos - hdr, kevue_alignof(u8), false)) {
+        dst->cmt_pos = dst_cmt_pos;
+        dst->pos = dst_pos;
+        return false;
+    }
+    memcpy((u8 *)dst + hdr, (u8 *)src + hdr, src->pos - hdr);
+    return true;
+}
+
+void kevue_arena_shrink(Arena *arena)
+{
+    if (arena == NULL) return;
+    if (arena->pos < KEVUE_ARENA_HEADER_SIZE) return;
+    u64 new_cmt_pos = arena->pos;
+    u64 new_cmt_pos_aligned = new_cmt_pos + arena->cmt_chunk_size - 1;
+    new_cmt_pos_aligned -= new_cmt_pos_aligned % arena->cmt_chunk_size;
+    u64 new_cmt_pos_clamped = min(new_cmt_pos_aligned, arena->res_size);
+    if (new_cmt_pos_clamped >= arena->cmt_pos) return;
+    u64 cmt_size = arena->cmt_pos - new_cmt_pos_clamped;
+    u8 *new_ptr = (u8 *)arena + new_cmt_pos_clamped;
+    if (!memory_decommit(new_ptr, cmt_size)) {
+        return;
+    }
+    arena->cmt_pos = new_cmt_pos_clamped;
+}
+
 static void *kevue_malloc(size_t size, size_t align, void *ctx)
 {
     if (ctx == NULL) return NULL;
@@ -180,8 +234,12 @@ static void *kevue_realloc(void *ptr, size_t size, size_t old_size, size_t align
     if (ptr == NULL && size > 0) return kevue_arena_push_aligned((Arena *)ctx, size, align, true);
     if (ptr == NULL || size == 0 || old_size == 0) return NULL;
     if (size <= old_size) return ptr;
-    u8 *new_ptr;
-    new_ptr = kevue_arena_push_aligned((Arena *)ctx, size, align, true);
+    Arena *arena = ctx;
+    if ((u8 *)ptr + old_size == (u8 *)arena + arena->pos) {
+        if (kevue_arena_push_aligned(arena, size - old_size, kevue_alignof(u8), true)) return ptr;
+        return NULL;
+    }
+    u8 *new_ptr = kevue_arena_push_aligned(arena, size, align, true);
     if (new_ptr != NULL) {
         memcpy(new_ptr, ptr, old_size);
     }
@@ -222,4 +280,10 @@ KevueAllocator kevue_allocator_from_arena_sizes(u64 reserve_size, u64 commit_siz
         .free = kevue_free,
         .ctx = kevue_arena_create(reserve_size, commit_size)
     };
+}
+
+KevueAllocator kevue_allocator_from_arena_ctx(void *ctx)
+{
+    Arena *arena = (Arena *)ctx;
+    return kevue_allocator_from_arena_sizes(arena->res_size, arena->cmt_chunk_size);
 }

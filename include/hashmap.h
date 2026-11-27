@@ -19,9 +19,9 @@
  */
 #pragma once
 
-#include "allocator.h"
 #include <stdbool.h>
 
+#include <allocator.h>
 #include <buffer.h>
 
 /**

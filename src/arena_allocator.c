@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <threads.h>
 #include <unistd.h>
 
 #include <arena_allocator.h>
@@ -214,6 +215,58 @@ void kevue_arena_shrink(Arena *arena)
         return;
     }
     arena->cmt_pos = new_cmt_pos_clamped;
+}
+
+TempArena kevue_arena_temp_begin(Arena *arena)
+{
+    return (TempArena) { .arena = arena, .pos = arena->pos };
+}
+
+void kevue_arena_temp_end(TempArena temp)
+{
+    kevue_arena_pop_to(temp.arena, temp.pos);
+}
+
+static thread_local Arena *_kevue_scratch_arenas[2] = { NULL, NULL };
+
+TempArena kevue_arena_scratch_get(Arena **conflicts, u32 conflicts_count)
+{
+    if (_kevue_scratch_arenas[0] == NULL) {
+        for (i32 i = 0; i < (i32)ARRAY_LEN(_kevue_scratch_arenas); i++) {
+            Arena *arena = kevue_arena_create(
+                KEVUE_ARENA_SCRATCH_RESERVE_SIZE_DEFAULT,
+                KEVUE_ARENA_SCRATCH_COMMIT_SIZE_DEFAULT);
+            if (arena == NULL) return (TempArena) { 0 };
+            _kevue_scratch_arenas[i] = arena;
+        }
+    }
+    i32 scratch_index = -1;
+
+    for (i32 i = 0; i < (i32)ARRAY_LEN(_kevue_scratch_arenas); i++) {
+        bool conflict_found = false;
+
+        for (u32 j = 0; j < conflicts_count; j++) {
+            if (_kevue_scratch_arenas[i] == conflicts[j]) {
+                conflict_found = true;
+                break;
+            }
+        }
+
+        if (!conflict_found) {
+            scratch_index = i;
+            break;
+        }
+    }
+
+    if (scratch_index == -1) {
+        return (TempArena) { 0 };
+    }
+    return kevue_arena_temp_begin(_kevue_scratch_arenas[scratch_index]);
+}
+
+void kevue_arena_scratch_release(TempArena scratch)
+{
+    kevue_arena_temp_end(scratch);
 }
 
 static void *kevue_malloc(size_t size, size_t align, void *ctx)

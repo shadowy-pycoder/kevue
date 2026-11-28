@@ -36,10 +36,12 @@
 #ifndef KEVUE_ARENA_COMMIT_SIZE_DEFAULT
 #define KEVUE_ARENA_COMMIT_SIZE_DEFAULT MiB(32)
 #endif
-
-#define KiB(n) ((u64)(n) << 10)
-#define MiB(n) ((u64)(n) << 20)
-#define GiB(n) ((u64)(n) << 30)
+#ifndef KEVUE_ARENA_SCRATCH_RESERVE_SIZE_DEFAULT
+#define KEVUE_ARENA_SCRATCH_RESERVE_SIZE_DEFAULT MiB(64)
+#endif
+#ifndef KEVUE_ARENA_SCRATCH_COMMIT_SIZE_DEFAULT
+#define KEVUE_ARENA_SCRATCH_COMMIT_SIZE_DEFAULT MiB(1)
+#endif
 
 #define kevue_arena_push_struct(arena, T)              (T *)kevue_arena_push((arena), sizeof(T), false)
 #define kevue_arena_push_struct_nz(arena, T)           (T *)kevue_arena_push((arena), sizeof(T), true)
@@ -50,7 +52,12 @@
 #define kevue_arena_push_array_aligned(arena, T, n)    (T *)kevue_arena_push_aligned((arena), sizeof(T) * (n), kevue_alignof(T), false)
 #define kevue_arena_push_array_aligned_nz(arena, T, n) (T *)kevue_arena_push_aligned((arena), sizeof(T) * (n), kevue_alignof(T), true)
 
-typedef struct Arena Arena;
+typedef struct Arena     Arena;
+typedef struct TempArena TempArena;
+struct TempArena {
+    Arena *arena;
+    u64    pos;
+};
 
 Arena *kevue_arena_create(u64 reserve_size, u64 commit_size);
 void kevue_arena_destroy(Arena *arena);
@@ -65,3 +72,7 @@ bool kevue_arena_copy(Arena *dst, Arena *src);
 KevueAllocator kevue_allocator_from_arena(Arena *arena);
 KevueAllocator kevue_allocator_from_arena_sizes(u64 reserve_size, u64 commit_size);
 KevueAllocator kevue_allocator_from_arena_ctx(void *ctx);
+TempArena kevue_arena_temp_begin(Arena *arena);
+void kevue_arena_temp_end(TempArena temp);
+TempArena kevue_arena_scratch_get(Arena **conflicts, u32 num_conflicts);
+void kevue_arena_scratch_release(TempArena scratch);

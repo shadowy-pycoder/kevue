@@ -108,6 +108,8 @@
 
 #define UNUSED(v) ((void)v)
 
+#define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
+
 #define print_err(ts, fmt, ...) \
     fprintf(stderr, "[%s] ERROR: %s: " fmt "\n", ts, __func__, ##__VA_ARGS__)
 
